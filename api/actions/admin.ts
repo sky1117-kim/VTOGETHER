@@ -1,0 +1,141 @@
+'use server'
+
+import { createAdminClient } from '@/lib/supabase/admin'
+import { revalidatePath } from 'next/cache'
+
+const SITE_CONTENT_KEYS = ['hero_season_badge', 'hero_title', 'hero_subtitle'] as const
+export type SiteContentKey = (typeof SITE_CONTENT_KEYS)[number]
+
+export type UserRow = {
+  user_id: string
+  email: string
+  name: string | null
+  dept_name: string | null
+  current_points: number
+  total_donated_amount: number
+  level: string
+}
+
+export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; error: string | null }> {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('users')
+      .select('user_id, email, name, dept_name, current_points, total_donated_amount, level')
+      .order('created_at', { ascending: false })
+    if (error) return { data: null, error: error.message }
+    return { data: data as UserRow[], error: null }
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : 'Failed to fetch users' }
+  }
+}
+
+export async function grantPoints(
+  userId: string,
+  amount: number
+): Promise<{ success: boolean; error: string | null }> {
+  if (amount <= 0 || !Number.isInteger(amount)) {
+    return { success: false, error: '1 이상의 정수만 입력해주세요.' }
+  }
+  try {
+    const supabase = createAdminClient()
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('current_points')
+      .eq('user_id', userId)
+      .single()
+    if (fetchError || !user) {
+      return { success: false, error: '사용자를 찾을 수 없습니다.' }
+    }
+    const newPoints = user.current_points + amount
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ current_points: newPoints })
+      .eq('user_id', userId)
+    if (updateError) {
+      return { success: false, error: updateError.message }
+    }
+    revalidatePath('/admin')
+    revalidatePath('/')
+    revalidatePath('/donation')
+    revalidatePath('/my')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '포인트 지급 실패' }
+  }
+}
+
+export async function getSiteContentForAdmin(): Promise<Record<string, string>> {
+  const supabase = createAdminClient()
+  const { data } = await supabase.from('site_content').select('key, value')
+  const map: Record<string, string> = {}
+  for (const row of data ?? []) {
+    map[row.key] = row.value ?? ''
+  }
+  return map
+}
+
+export async function updateSiteContent(
+  key: SiteContentKey,
+  value: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = createAdminClient()
+    const { error } = await supabase
+      .from('site_content')
+      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '저장 실패' }
+  }
+}
+
+/** 기존 데이터 정리 후 테스트용 데이터로 채움 (포인트 지급·기부·랭킹 확인용) */
+export async function resetAndSeedTestData(): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = createAdminClient()
+
+    const { error: delTx } = await supabase.from('point_transactions').delete().gte('transaction_id', '')
+    const { error: delDon } = await supabase.from('donations').delete().gte('donation_id', '')
+    if (delTx || delDon) {
+      return { success: false, error: '데이터 삭제 실패. RLS 정책을 확인하세요.' }
+    }
+    await supabase.from('donation_targets').update({ current_amount: 0, status: 'ACTIVE' })
+    await supabase.from('users').update({ current_points: 0, total_donated_amount: 0 })
+
+    await supabase.from('site_content').upsert(
+      [
+        { key: 'hero_season_badge', value: '2026 Season 1' },
+        { key: 'hero_title', value: '나의 활동이\n세상의 기회가 되도록' },
+        { key: 'hero_subtitle', value: '획득한 V.Point로 기부하고\n나의 ESG Level을 올려보세요!' },
+      ],
+      { onConflict: 'key' }
+    )
+
+    const testUsers = [
+      { user_id: 'test-user-1', email: 'test1@vntg.co.kr', name: '테스트유저1', dept_name: 'DT팀', current_points: 10000, total_donated_amount: 52000 },
+      { user_id: 'test-user-2', email: 'test2@vntg.co.kr', name: '테스트유저2', dept_name: 'HR팀', current_points: 5000, total_donated_amount: 45000 },
+      { user_id: 'test-user-3', email: 'test3@vntg.co.kr', name: '테스트유저3', dept_name: '영업2팀', current_points: 3000, total_donated_amount: 38000 },
+      { user_id: 'test-user-4', email: 'test4@vntg.co.kr', name: '테스트유저4', dept_name: '기획팀', current_points: 0, total_donated_amount: 35000 },
+      { user_id: 'test-user-5', email: 'test5@vntg.co.kr', name: '테스트유저5', dept_name: 'DT팀', current_points: 0, total_donated_amount: 32000 },
+    ]
+    await supabase.from('users').upsert(testUsers, { onConflict: 'user_id' })
+
+    const { data: targets } = await supabase.from('donation_targets').select('target_id').limit(4)
+    if (targets?.length) {
+      await supabase.from('donation_targets').update({ current_amount: 1200000 }).eq('target_id', targets[0].target_id)
+      if (targets[1]) await supabase.from('donation_targets').update({ current_amount: 2400000 }).eq('target_id', targets[1].target_id)
+      if (targets[2]) await supabase.from('donation_targets').update({ current_amount: 500000 }).eq('target_id', targets[2].target_id)
+    }
+
+    revalidatePath('/')
+    revalidatePath('/admin')
+    revalidatePath('/donation')
+    revalidatePath('/my')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '초기화 실패' }
+  }
+}
