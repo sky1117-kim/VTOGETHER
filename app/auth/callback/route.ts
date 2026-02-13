@@ -15,13 +15,13 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
-    // @vntg.co.kr 도메인 검증
-    if (data.user?.email && !data.user.email.endsWith('@vntg.co.kr')) {
+    // @vntgcorp.com 도메인 검증
+    if (data.user?.email && !data.user.email.endsWith('@vntgcorp.com')) {
       await supabase.auth.signOut()
       return NextResponse.redirect('/login?error=invalid_domain')
     }
 
-    // 최초 로그인 시 Users 테이블에 자동 생성
+    // 로그인 시마다 Google에서 이메일·이름 자동 동기화 후 users 테이블에 반영
     if (data.user) {
       const { error: upsertError } = await supabase
         .from('users')
