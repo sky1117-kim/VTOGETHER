@@ -51,6 +51,14 @@ export async function Header() {
                 </span>
               </div>
             </div>
+            {user?.is_admin && (
+              <Link
+                href="/admin"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-green-700 transition hover:bg-green-50"
+              >
+                관리자
+              </Link>
+            )}
             {user ? (
               <form action={signOut}>
                 <button

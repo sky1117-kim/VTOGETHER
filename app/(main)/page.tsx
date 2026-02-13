@@ -8,8 +8,12 @@ import { CampaignsSection } from '@/components/main/CampaignsSection'
 import { SalaryDonationSection } from '@/components/main/SalaryDonationSection'
 import { HonorsSection } from '@/components/main/HonorsSection'
 
-export default async function HomePage() {
+type PageProps = { searchParams: Promise<{ admin?: string }> }
+
+export default async function HomePage({ searchParams }: PageProps) {
   const user = await getCurrentUser()
+  const params = await searchParams
+  const showAdminDenied = params?.admin === 'denied'
 
   let stats = { totalTarget: 40000000, totalCurrent: 0, completedCount: 0, progress: 0 }
   let targets: Awaited<ReturnType<typeof getDonationTargets>> = []
@@ -41,6 +45,11 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-12 pt-2 sm:px-6 lg:px-8">
+      {showAdminDenied && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          관리자 페이지는 관리자 계정으로만 접근할 수 있습니다. 관리자 권한이 필요하면 기존 관리자에게 문의하세요.
+        </div>
+      )}
       <div className="animate-fade-up">
         <DashboardSection
           displayName={displayName}

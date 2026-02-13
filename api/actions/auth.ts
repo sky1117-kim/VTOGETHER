@@ -38,6 +38,7 @@ export async function getCurrentUser() {
         current_points: guestData.current_points,
         total_donated_amount: guestData.total_donated_amount,
         level: guestData.level,
+        is_admin: !!guestData.is_admin,
       }
     }
   }
@@ -56,8 +57,14 @@ export async function getCurrentUser() {
   if (error || !userData) {
     return {
       id: user.id,
-      email: user.email,
+      user_id: user.id,
+      email: user.email ?? null,
       name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+      dept_name: null,
+      current_points: 0,
+      total_donated_amount: 0,
+      level: 'ECO_KEEPER',
+      is_admin: false,
     }
   }
 
@@ -70,5 +77,6 @@ export async function getCurrentUser() {
     current_points: userData.current_points,
     total_donated_amount: userData.total_donated_amount,
     level: userData.level,
+    is_admin: !!userData.is_admin,
   }
 }
