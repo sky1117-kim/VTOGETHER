@@ -146,9 +146,9 @@ export interface Database {
           created_at?: string
         }
       }
-      campaigns: {
+      events: {
         Row: {
-          campaign_id: string
+          event_id: string
           title: string
           description: string | null
           category: 'V_TOGETHER' | 'CULTURE'
@@ -163,7 +163,7 @@ export interface Database {
           updated_at: string
         }
         Insert: {
-          campaign_id?: string
+          event_id?: string
           title: string
           description?: string | null
           category: 'V_TOGETHER' | 'CULTURE'
@@ -191,10 +191,10 @@ export interface Database {
           updated_at?: string
         }
       }
-      campaign_rounds: {
+      event_rounds: {
         Row: {
           round_id: string
-          campaign_id: string
+          event_id: string
           round_number: number
           start_date: string
           end_date: string
@@ -203,7 +203,7 @@ export interface Database {
         }
         Insert: {
           round_id?: string
-          campaign_id: string
+          event_id: string
           round_number: number
           start_date: string
           end_date: string
@@ -211,17 +211,17 @@ export interface Database {
           created_at?: string
         }
         Update: {
-          campaign_id?: string
+          event_id?: string
           round_number?: number
           start_date?: string
           end_date?: string
           reward_amount?: number | null
         }
       }
-      campaign_verification_methods: {
+      event_verification_methods: {
         Row: {
           method_id: string
-          campaign_id: string
+          event_id: string
           method_type: 'PHOTO' | 'TEXT' | 'VALUE' | 'PEER_SELECT'
           is_required: boolean
           label: string | null
@@ -230,7 +230,7 @@ export interface Database {
         }
         Insert: {
           method_id?: string
-          campaign_id: string
+          event_id: string
           method_type: 'PHOTO' | 'TEXT' | 'VALUE' | 'PEER_SELECT'
           is_required?: boolean
           label?: string | null
@@ -238,17 +238,17 @@ export interface Database {
           created_at?: string
         }
         Update: {
-          campaign_id?: string
+          event_id?: string
           method_type?: 'PHOTO' | 'TEXT' | 'VALUE' | 'PEER_SELECT'
           is_required?: boolean
           label?: string | null
           placeholder?: string | null
         }
       }
-      campaign_submissions: {
+      event_submissions: {
         Row: {
           submission_id: string
-          campaign_id: string
+          event_id: string
           round_id: string | null
           user_id: string
           status: 'PENDING' | 'APPROVED' | 'REJECTED'
@@ -265,7 +265,7 @@ export interface Database {
         }
         Insert: {
           submission_id?: string
-          campaign_id: string
+          event_id: string
           round_id?: string | null
           user_id: string
           status?: 'PENDING' | 'APPROVED' | 'REJECTED'
@@ -281,7 +281,7 @@ export interface Database {
           updated_at?: string
         }
         Update: {
-          campaign_id?: string
+          event_id?: string
           round_id?: string | null
           user_id?: string
           status?: 'PENDING' | 'APPROVED' | 'REJECTED'

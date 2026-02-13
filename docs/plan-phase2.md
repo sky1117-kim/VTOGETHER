@@ -151,7 +151,7 @@ CREATE TABLE campaign_submissions (
 
 ## 5. 개발 순서
 
-1. **DB 마이그레이션** (006-create-campaigns-tables.sql)
+1. **DB 마이그레이션** (006-create-events-tables.sql)
 2. **타입 정의** (types/database.ts 업데이트)
 3. **관리자 챌린지 등록 페이지** (CMS)
 4. **사용자 챌린지 목록/상세 페이지**

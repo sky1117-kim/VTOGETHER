@@ -14,6 +14,14 @@
 - **donation_target_name**: 기부 건일 때 기부처명 전용 컬럼 (기부처 열만 따로 필터/정렬하기 쉽게).
 - `user_id`, `amount`, `related_id` 등 기존 컬럼은 그대로 두고, 위 세 컬럼은 "보기 편의용"으로만 사용합니다.
 
+## Phase 2: 이벤트 & 챌린지
+
+- **관리자 권한**: `users.is_admin = true` 인 사용자만 `/admin` 접근 및 이벤트 등록·인증 심사 가능.
+- **최초 관리자 설정**: 한 명은 Supabase Table Editor에서 `users` 테이블 → 해당 행의 `is_admin`을 **true**로 수동 설정. 그 다음 로그인하여 `/admin` → **관리자 계정 설정** 섹션에서 다른 사용자에게도 관리자 체크를 줄 수 있음 (웹에서 설정).
+- **이벤트 테이블 등록 순서**: 반드시 `006-1-add-admin-column.sql` 실행 후 `006-create-events-tables.sql` 실행.
+- **이미 campaigns로 만든 DB인 경우**: `010-rename-campaigns-to-events.sql` 실행 후 events로 사용.
+- **이벤트 참여**: 상시 이벤트는 사용자당 1회만, 기간제는 구간(round)당 1회만 참여 가능 (DB Unique Index).
+
 ## 테스트용 포인트 부여 (내 계정에 P 넣기)
 
 - **관리자 페이지** `/admin` 접속 후 **「포인트 지급 (기부 테스트용)」** 섹션으로 이동합니다.
