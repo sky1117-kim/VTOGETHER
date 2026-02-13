@@ -12,6 +12,10 @@
 
 실행 후 Table Editor에서 해당 테이블을 열어 컬럼/데이터가 바뀌었는지 확인하면 됩니다.
 
+**Phase 2 (이벤트 & 챌린지) 적용 시:**  
+반드시 **`006-1-add-admin-column.sql`** 을 먼저 실행한 뒤 **`006-create-campaigns-tables.sql`** 을 실행하세요.  
+`users.is_admin` 컬럼이 없으면 campaigns 테이블 RLS 정책에서 오류가 납니다.
+
 ## My Status 진행률이 안 뜨거나 에러가 날 때
 
 - **원인:** DB의 `users.level` 값이 `ECO_KEEPER`, `GREEN_MASTER`, `EARTH_HERO` 셋이 아니거나, 메인 문구(site_content)가 비어 있으면 카드/진행률이 깨질 수 있습니다.

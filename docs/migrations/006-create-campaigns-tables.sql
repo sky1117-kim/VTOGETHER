@@ -1,5 +1,8 @@
 -- Phase 2: 챌린지 & 보상 시스템 테이블 생성
 -- Supabase SQL Editor에서 실행하세요.
+--
+-- ⚠️ 실행 순서: 반드시 006-1-add-admin-column.sql 을 먼저 실행한 뒤 이 파일을 실행하세요.
+-- (users.is_admin 컬럼이 없으면 RLS 정책에서 오류가 납니다.)
 
 -- Campaigns 테이블 (챌린지/이벤트)
 CREATE TABLE IF NOT EXISTS campaigns (
