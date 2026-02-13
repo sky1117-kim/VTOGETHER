@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS point_transactions (
   related_id UUID, -- 관련 ID (donation_id, campaign_id 등)
   related_type TEXT, -- DONATION, CAMPAIGN 등
   description TEXT,
+  user_email TEXT, -- 기록 시점 사용자 이메일 (Supabase/엑셀 추출 시 보기 쉽게)
+  user_name TEXT, -- 기록 시점 사용자 이름
+  donation_target_name TEXT, -- 기부 시 기부처명 (type=DONATED일 때)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -117,6 +120,11 @@ CREATE POLICY "Users can update own data"
   ON users FOR UPDATE
   USING (auth.uid()::text = user_id);
 
+-- 최초 로그인 시 콜백에서 본인 user_id로 한 건 INSERT 허용
+CREATE POLICY "Users can insert own row"
+  ON users FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
+
 CREATE POLICY "Public can view user rankings"
   ON users FOR SELECT
   USING (true);
@@ -142,6 +150,10 @@ CREATE POLICY "Users can create own donations"
 CREATE POLICY "Users can view own transactions"
   ON point_transactions FOR SELECT
   USING (auth.uid()::text = user_id);
+-- 기부/사용 시 본인 거래 내역 INSERT 허용
+CREATE POLICY "Users can insert own transactions"
+  ON point_transactions FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id);
 
 -- site_content: 메인 화면 문구 (관리자 편집)
 CREATE TABLE IF NOT EXISTS site_content (
