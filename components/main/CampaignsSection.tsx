@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 
 type Tab = 'ALL' | 'V.Together' | 'Culture'
 
@@ -31,12 +31,30 @@ const campaigns = [
   },
 ]
 
+const FADE_DURATION_MS = 220
+
 export function CampaignsSection() {
   const [filter, setFilter] = useState<Tab>('ALL')
+  const [displayFilter, setDisplayFilter] = useState<Tab>('ALL')
+  const [isFadingOut, setIsFadingOut] = useState(false)
+  const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleFilterChange = useCallback((tab: Tab) => {
+    if (tab === filter) return
+    if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current)
+    setFilter(tab)
+    setIsFadingOut(true)
+    fadeTimeoutRef.current = setTimeout(() => {
+      setDisplayFilter(tab)
+      setIsFadingOut(false)
+      fadeTimeoutRef.current = null
+    }, FADE_DURATION_MS)
+  }, [filter])
+
   const filtered =
-    filter === 'ALL'
+    displayFilter === 'ALL'
       ? campaigns
-      : campaigns.filter((c) => c.category === filter)
+      : campaigns.filter((c) => c.category === displayFilter)
 
   return (
     <section id="campaigns" className="mb-16">
@@ -44,7 +62,7 @@ export function CampaignsSection() {
         <div>
           <h2 className="section-title flex items-center gap-3 text-gray-900">
             <span className="h-8 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
-            챌린지 & 보상
+            이벤트 & 챌린지
           </h2>
           <p className="mt-1 text-gray-500">참여하고 포인트를 획득하세요.</p>
         </div>
@@ -52,7 +70,7 @@ export function CampaignsSection() {
           {(['ALL', 'V.Together', 'Culture'] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setFilter(tab)}
+              onClick={() => handleFilterChange(tab)}
               className={`rounded-lg px-5 py-2.5 text-sm font-bold transition-all duration-200 ${
                 filter === tab
                   ? 'bg-white text-green-700 shadow-soft'
@@ -64,7 +82,10 @@ export function CampaignsSection() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div
+        className="grid grid-cols-1 gap-6 md:grid-cols-3 transition-opacity duration-[220ms] ease-out"
+        style={{ opacity: isFadingOut ? 0 : 1 }}
+      >
         {filtered.map((c) => (
           <div
             key={c.id}

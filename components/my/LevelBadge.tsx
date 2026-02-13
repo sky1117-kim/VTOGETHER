@@ -10,7 +10,7 @@ interface LevelBadgeProps {
 
 const levelConfig: Record<
   Level,
-  { label: string; emoji: string; color: string; bgColor: string }
+  { label: string; emoji: string; color: string; bgColor: string; extraClass?: string }
 > = {
   ECO_KEEPER: {
     label: 'Eco Keeper',
@@ -20,13 +20,14 @@ const levelConfig: Record<
   },
   GREEN_MASTER: {
     label: 'Green Master',
-    emoji: '🌿',
-    color: 'text-green-600',
-    bgColor: 'bg-green-100',
+    emoji: '🌳',
+    color: 'text-white',
+    bgColor: 'bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600',
+    extraClass: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]',
   },
   EARTH_HERO: {
     label: 'Earth Hero',
-    emoji: '🌳',
+    emoji: '🌍',
     color: 'text-purple-600',
     bgColor: 'bg-purple-100',
   },
@@ -43,10 +44,19 @@ export function LevelBadge({ level, size = 'md', totalDonated }: LevelBadgeProps
   return (
     <LevelRoadmapModal level={level} totalDonated={totalDonated}>
       <button
-        className={`inline-flex items-center gap-2 rounded-full font-medium transition-colors hover:opacity-80 ${config.bgColor} ${config.color} ${sizeClasses[size]}`}
+        className={`relative inline-flex overflow-hidden items-center gap-2 rounded-full font-medium transition-colors hover:opacity-90 ${config.bgColor} ${config.color} ${sizeClasses[size]} ${config.extraClass ?? ''}`}
       >
-        <span>{config.emoji}</span>
-        <span>{config.label}</span>
+        {level === 'GREEN_MASTER' && (
+          <span
+            className="pointer-events-none absolute inset-0 opacity-30"
+            aria-hidden
+            style={{
+              background: 'linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.6) 50%, transparent 70%)',
+            }}
+          />
+        )}
+        <span className="relative">{config.emoji}</span>
+        <span className="relative">{config.label}</span>
       </button>
     </LevelRoadmapModal>
   )

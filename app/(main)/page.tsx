@@ -47,6 +47,8 @@ export default async function HomePage() {
           currentPoints={currentPoints}
           totalDonated={totalDonated}
           level={level}
+          email={user?.email}
+          deptName={user?.dept_name}
           heroSeasonBadge={siteContent.hero_season_badge}
           heroTitle={siteContent.hero_title}
           heroSubtitle={siteContent.hero_subtitle}

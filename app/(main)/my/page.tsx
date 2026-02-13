@@ -28,15 +28,27 @@ export default async function MyPage() {
 
       <div className="space-y-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
               <h2 className="text-xl font-bold text-gray-900">
                 {user ? user.name || user.email : '게스트'}
               </h2>
-              {user?.dept_name && (
-                <p className="mt-1 text-sm text-gray-500">
-                  {user.dept_name}
-                </p>
+              {/* 계정 정보: 로그인 시 Google에서 불러온 이메일, 관리자 입력 부서 */}
+              {user && (
+                <dl className="mt-3 space-y-1 text-sm">
+                  {user.email && (
+                    <div>
+                      <dt className="inline font-medium text-gray-500">이메일 </dt>
+                      <dd className="inline text-gray-800">{user.email}</dd>
+                    </div>
+                  )}
+                  {user.dept_name && (
+                    <div>
+                      <dt className="inline font-medium text-gray-500">부서 </dt>
+                      <dd className="inline text-gray-800">{user.dept_name}</dd>
+                    </div>
+                  )}
+                </dl>
               )}
             </div>
             <LevelBadge level={user?.level ?? 'ECO_KEEPER'} size="lg" />

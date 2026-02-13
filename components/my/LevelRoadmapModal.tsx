@@ -13,12 +13,13 @@ interface LevelRoadmapModalProps {
 }
 
 const levelThresholds: Record<Level, { min: number; max: number; next: number | null; label: string; icon: string }> = {
-  ECO_KEEPER: { min: 0, max: 30000, next: 30001, label: 'Eco Keeper', icon: '🌱' },
-  GREEN_MASTER: { min: 30001, max: 80000, next: 80001, label: 'Green Master', icon: '🌿' },
-  EARTH_HERO: { min: 80001, max: Infinity, next: null, label: 'Earth Hero', icon: '🌳' },
+  ECO_KEEPER: { min: 10000, max: 50000, next: 50001, label: 'Eco Keeper', icon: '🌱' },   // 새싹
+  GREEN_MASTER: { min: 50001, max: 100000, next: 100001, label: 'Green Master', icon: '🌳' }, // 나무
+  EARTH_HERO: { min: 100001, max: Infinity, next: null, label: 'Earth Hero', icon: '🌍' },  // 지구
 }
 
-const levelOrder: Level[] = ['ECO_KEEPER', 'GREEN_MASTER', 'EARTH_HERO']
+// 제일 어려운 레벨부터 낮은 레벨까지 순서 (역순)
+const levelOrder: Level[] = ['EARTH_HERO', 'GREEN_MASTER', 'ECO_KEEPER']
 
 export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRoadmapModalProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -30,9 +31,9 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
 
   const current = levelThresholds[level]
   const nextLevel = level === 'ECO_KEEPER' ? 'GREEN_MASTER' : level === 'GREEN_MASTER' ? 'EARTH_HERO' : null
-  const prevMax = level === 'ECO_KEEPER' ? 0 : level === 'GREEN_MASTER' ? 30000 : 80000
-  const range = nextLevel ? (levelThresholds[nextLevel].min - prevMax) : 0
-  const progressInRange = nextLevel ? Math.min(Math.max((totalDonated - prevMax) / range, 0), 1) : 1
+  const prevMax = level === 'ECO_KEEPER' ? 10000 : level === 'GREEN_MASTER' ? 50001 : 100001
+  const range = nextLevel ? (levelThresholds[nextLevel].min - current.min) : 0
+  const progressInRange = nextLevel ? Math.min(Math.max((totalDonated - current.min) / range, 0), 1) : 1
   const progressPercent = Math.round(progressInRange * 100)
 
   const modalContent = isOpen ? (
@@ -44,9 +45,30 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
         className="my-auto w-full max-w-sm shrink-0 overflow-hidden rounded-[32px] bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 상단 그라데이션 */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-green-500 to-green-700 p-8 text-white">
-              <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]" />
+        {/* 상단: Green Master일 때 초록 그라데이션 + 정적 반짝임 */}
+            <div
+              className={`relative overflow-hidden p-8 text-white ${
+                level === 'GREEN_MASTER'
+                  ? 'bg-gradient-to-br from-emerald-500 via-green-600 to-teal-800'
+                  : level === 'EARTH_HERO'
+                    ? 'bg-gradient-to-br from-violet-600 to-purple-800'
+                    : 'bg-gradient-to-br from-green-500 to-green-700'
+              }`}
+            >
+              {/* 정적 반짝임 하이라이트 (Green Master 시 더 강조) */}
+              <div
+                className="absolute inset-0 opacity-20 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.5\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]"
+                aria-hidden
+              />
+              {level === 'GREEN_MASTER' && (
+                <div
+                  className="absolute inset-0 opacity-50"
+                  aria-hidden
+                  style={{
+                    background: 'linear-gradient(115deg, transparent 25%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.08) 55%, transparent 75%)',
+                  }}
+                />
+              )}
               <p className="relative z-10 mb-2 text-center text-sm font-bold text-green-100">
                 MY ESG LEVEL
               </p>
@@ -54,8 +76,8 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                 <span className="text-5xl">{current.icon}</span>
               </div>
               <h2 className="relative z-10 text-center text-2xl font-bold">{current.label}</h2>
-              <p className="relative z-10 text-center text-xs text-green-100">
-                누적 기부: <span className="font-bold text-white">{totalDonated.toLocaleString()}</span> P
+              <p className="relative z-10 text-center text-base font-bold text-green-100 sm:text-lg">
+                누적 기부: <span className="text-xl font-bold text-white sm:text-2xl">{totalDonated.toLocaleString()}</span> P
               </p>
             </div>
 
@@ -89,7 +111,10 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                 {levelOrder.map((key) => {
                   const t = levelThresholds[key]
                   const isCurrent = key === level
-                  const isPast = levelOrder.indexOf(level) > levelOrder.indexOf(key)
+                  // levelOrder는 높은 레벨부터 낮은 레벨 순서이므로, 현재 레벨보다 뒤(인덱스가 큰)에 있으면 이미 완료한 레벨
+                  const currentIndex = levelOrder.indexOf(level)
+                  const keyIndex = levelOrder.indexOf(key)
+                  const isPast = keyIndex > currentIndex
                   return (
                     <div
                       key={key}
@@ -97,19 +122,27 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                         isCurrent
                           ? 'border-2 border-green-200 bg-green-50'
                           : isPast
-                            ? 'bg-gray-50 opacity-75'
+                            ? 'border border-green-200/50 bg-green-50/50'
                             : 'bg-gray-50'
                       }`}
                     >
                       <div
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg ${
-                          isCurrent ? 'bg-green-100 text-green-600' : 'bg-white text-gray-400'
+                        className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg ${
+                          isCurrent
+                            ? 'bg-green-100 text-green-600'
+                            : isPast
+                              ? 'bg-green-100 text-green-600'
+                              : 'bg-white text-gray-400'
                         }`}
                       >
-                        {t.icon}
+                        {isPast ? '✓' : t.icon}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-gray-800">{t.label}</p>
+                        <p className={`text-sm font-bold ${
+                          isPast ? 'text-green-600/60' : 'text-gray-800'
+                        }`}>
+                          {t.label}
+                        </p>
                         <p className="text-xs text-gray-500">
                           {t.min.toLocaleString()} ~ {t.max === Infinity ? '∞' : t.max.toLocaleString()} P
                         </p>
@@ -117,6 +150,11 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                       {isCurrent && (
                         <span className="shrink-0 rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">
                           현재
+                        </span>
+                      )}
+                      {isPast && (
+                        <span className="shrink-0 rounded-full bg-green-500 px-2 py-0.5 text-xs font-bold text-white">
+                          완료
                         </span>
                       )}
                     </div>
