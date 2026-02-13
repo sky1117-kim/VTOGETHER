@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from 'react'
 
 type Tab = 'ALL' | 'V.Together' | 'Culture'
 
-const campaigns = [
+const events = [
   {
     id: 'c1',
     category: 'V.Together' as const,
@@ -53,11 +53,11 @@ export function CampaignsSection() {
 
   const filtered =
     displayFilter === 'ALL'
-      ? campaigns
-      : campaigns.filter((c) => c.category === displayFilter)
+      ? events
+      : events.filter((c) => c.category === displayFilter)
 
   return (
-    <section id="campaigns" className="mb-16">
+    <section id="events" className="mb-16">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="section-title flex items-center gap-3 text-gray-900">
