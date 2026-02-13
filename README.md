@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 주요 기능 / 페이지
+
+- **메인**: `/` — 대시보드, 기부, 이벤트 & 챌린지, 랭킹
+- **관리자**: `/admin` — 포인트 지급, 메인 문구 편집, 사용자 부서 편집
+- **이벤트 & 챌린지 관리 (Phase 2)**: `/admin/events` — 이벤트 목록, `/admin/events/new` — 새 이벤트 등록
+
 ## Getting Started
 
 First, run the development server:
