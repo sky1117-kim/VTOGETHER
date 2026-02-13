@@ -3,6 +3,7 @@ import { getUsersForAdmin, getSiteContentForAdmin } from '@/api/actions/admin'
 import { GrantPointsForm } from './components/GrantPointsForm'
 import { SiteContentForm } from './components/SiteContentForm'
 import { ResetTestDataButton } from './components/ResetTestDataButton'
+import { UserDeptEdit } from './components/UserDeptEdit'
 
 export default async function AdminPage() {
   const { data: users, error: usersError } = await getUsersForAdmin()
@@ -107,7 +108,9 @@ export default async function AdminPage() {
                       <span className="font-medium text-gray-900">{u.name || '—'}</span>
                       <span className="block text-xs text-gray-500">{u.email}</span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600">{u.dept_name || '—'}</td>
+                    <td className="px-6 py-4">
+                      <UserDeptEdit userId={u.user_id} initialDeptName={u.dept_name} />
+                    </td>
                     <td className="px-6 py-4 text-right font-bold text-gray-900">
                       {u.current_points.toLocaleString()} P
                     </td>

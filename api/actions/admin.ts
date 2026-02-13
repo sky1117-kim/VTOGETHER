@@ -65,6 +65,27 @@ export async function grantPoints(
   }
 }
 
+/** 사용자 부서 수정 (관리자) — Google 로그인은 부서 정보를 주지 않아 수동 입력용 */
+export async function updateUserDept(
+  userId: string,
+  deptName: string | null
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = createAdminClient()
+    const { error } = await supabase
+      .from('users')
+      .update({ dept_name: deptName?.trim() || null })
+      .eq('user_id', userId)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/admin')
+    revalidatePath('/')
+    revalidatePath('/my')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '부서 저장 실패' }
+  }
+}
+
 export async function getSiteContentForAdmin(): Promise<Record<string, string>> {
   const supabase = createAdminClient()
   const { data } = await supabase.from('site_content').select('key, value')
