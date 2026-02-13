@@ -1,5 +1,6 @@
 'use server'
 
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
@@ -14,6 +15,7 @@ export type UserRow = {
   current_points: number
   total_donated_amount: number
   level: string
+  is_admin: boolean
 }
 
 export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; error: string | null }> {
@@ -21,10 +23,27 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('users')
-      .select('user_id, email, name, dept_name, current_points, total_donated_amount, level')
+      .select('user_id, email, name, dept_name, current_points, total_donated_amount, level, is_admin')
       .order('created_at', { ascending: false })
-    if (error) return { data: null, error: error.message }
-    return { data: data as UserRow[], error: null }
+    if (error) {
+      // is_admin 컬럼이 없을 때(006-1 미실행) 컬럼 제외하고 다시 시도
+      if (error.message?.includes('is_admin') || error.message?.includes('column')) {
+        const { data: dataFallback, error: err2 } = await supabase
+          .from('users')
+          .select('user_id, email, name, dept_name, current_points, total_donated_amount, level')
+          .order('created_at', { ascending: false })
+        if (err2) return { data: null, error: err2.message }
+        return {
+          data: (dataFallback ?? []).map((r) => ({ ...r, is_admin: false })) as UserRow[],
+          error: null,
+        }
+      }
+      return { data: null, error: error.message }
+    }
+    return {
+      data: (data ?? []).map((r) => ({ ...r, is_admin: !!(r as { is_admin?: boolean }).is_admin })) as UserRow[],
+      error: null,
+    }
   } catch (e) {
     return { data: null, error: e instanceof Error ? e.message : 'Failed to fetch users' }
   }
@@ -62,6 +81,39 @@ export async function grantPoints(
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '포인트 지급 실패' }
+  }
+}
+
+/** 관리자 여부 설정 (관리자만 호출 가능) */
+export async function updateUserAdmin(
+  userId: string,
+  isAdmin: boolean
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabaseAuth = await createClient()
+    const { data: { user } } = await supabaseAuth.auth.getUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+
+    const supabase = createAdminClient()
+    const { data: me, error: meError } = await supabase
+      .from('users')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .single()
+    if (meError || !me?.is_admin) {
+      return { success: false, error: '관리자만 설정할 수 있습니다.' }
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ is_admin: isAdmin })
+      .eq('user_id', userId)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/admin')
+    revalidatePath('/')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '설정 저장 실패' }
   }
 }
 

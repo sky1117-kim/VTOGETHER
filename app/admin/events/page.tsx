@@ -1,0 +1,125 @@
+import Link from 'next/link'
+import { getEventsForAdmin } from '@/api/actions/admin/events'
+
+const CATEGORY_LABEL: Record<string, string> = {
+  V_TOGETHER: 'V.Together',
+  CULTURE: 'Culture',
+}
+const TYPE_LABEL: Record<string, string> = {
+  ALWAYS: '상시',
+  SEASONAL: '기간제',
+}
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: '진행 중',
+  PAUSED: '일시정지',
+  ENDED: '종료',
+}
+
+export default async function AdminEventsPage() {
+  const { data: events, error } = await getEventsForAdmin()
+  const list = events ?? []
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">이벤트 & 챌린지 관리</h2>
+          <p className="mt-1 text-gray-500">이벤트를 등록하고 관리합니다.</p>
+        </div>
+        <Link
+          href="/admin/events/new"
+          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700"
+        >
+          + 새 이벤트 등록
+        </Link>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {list.length === 0 && !error ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
+          <p className="text-gray-500">등록된 이벤트가 없습니다.</p>
+          <Link
+            href="/admin/events/new"
+            className="mt-4 inline-block text-sm font-semibold text-green-600 hover:text-green-700"
+          >
+            첫 이벤트 등록하기 →
+          </Link>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
+                  제목
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
+                  카테고리
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
+                  타입
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
+                  보상
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
+                  상태
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
+                  등록일
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {list.map((e) => (
+                <tr key={e.event_id} className="transition hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-gray-900">{e.title}</span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {CATEGORY_LABEL[e.category] ?? e.category}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {TYPE_LABEL[e.type] ?? e.type}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {e.reward_type === 'POINTS' && e.reward_amount != null
+                      ? `${e.reward_amount}P`
+                      : e.reward_type}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        e.status === 'ACTIVE'
+                          ? 'bg-green-100 text-green-700'
+                          : e.status === 'PAUSED'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {STATUS_LABEL[e.status] ?? e.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {new Date(e.created_at).toLocaleDateString('ko-KR')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="text-sm text-gray-500">
+        <Link href="/admin" className="font-medium text-green-600 hover:text-green-700">
+          ← 관리자 대시보드
+        </Link>
+      </p>
+    </div>
+  )
+}

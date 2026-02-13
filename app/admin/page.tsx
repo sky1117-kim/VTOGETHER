@@ -1,17 +1,31 @@
 import Link from 'next/link'
+import { getCurrentUser } from '@/api/actions/auth'
 import { getUsersForAdmin, getSiteContentForAdmin } from '@/api/actions/admin'
 import { GrantPointsForm } from './components/GrantPointsForm'
 import { SiteContentForm } from './components/SiteContentForm'
 import { ResetTestDataButton } from './components/ResetTestDataButton'
 import { UserDeptEdit } from './components/UserDeptEdit'
+import { AdminToggle } from './components/AdminToggle'
 
 export default async function AdminPage() {
+  const user = await getCurrentUser()
   const { data: users, error: usersError } = await getUsersForAdmin()
   const userList = users ?? []
   const siteContent = await getSiteContentForAdmin()
+  const currentUserId = user?.user_id ?? ''
 
   return (
     <div className="space-y-8">
+      {usersError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          사용자 목록 조회 실패: {usersError}
+          {usersError.includes('is_admin') && (
+            <span className="mt-2 block">
+              → Supabase에서 <code className="rounded bg-red-100 px-1">006-1-add-admin-column.sql</code> 실행 후 다시 시도하세요.
+            </span>
+          )}
+        </div>
+      )}
       <div>
         <h2 className="text-2xl font-bold text-gray-900">관리자 대시보드</h2>
         <p className="mt-1 text-gray-500">
@@ -19,6 +33,19 @@ export default async function AdminPage() {
         </p>
         <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           사용자 목록이 비어 있으면, 먼저 메인 화면에서 <strong>로그인</strong>을 한 번 진행해 주세요. (Google 로그인 시 자동 등록)
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-green-200 bg-green-50/50 p-4 shadow-sm">
+        <Link
+          href="/admin/events"
+          className="flex items-center justify-between font-semibold text-green-800 hover:text-green-900"
+        >
+          <span>이벤트 & 챌린지 관리</span>
+          <span className="text-green-600">→</span>
+        </Link>
+        <p className="mt-1 text-sm text-green-700">
+          이벤트 등록, 인증 심사는 여기서 진행하세요.
         </p>
       </div>
 
@@ -79,15 +106,17 @@ export default async function AdminPage() {
         <GrantPointsForm users={userList} />
       </div>
 
-      {/* 사용자 목록 */}
+      {/* 관리자 계정 설정 */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-          <h3 className="text-lg font-bold text-gray-900">사용자 목록</h3>
-          <p className="text-sm text-gray-500">Google 로그인 시 자동 등록됩니다.</p>
+          <h3 className="text-lg font-bold text-gray-900">관리자 계정 설정</h3>
+          <p className="text-sm text-gray-500">
+            아래 사용자 목록에서 관리자 체크를 켜면 해당 사용자가 /admin 접근 및 이벤트 관리가 가능합니다. 최초 1명은 Supabase Table Editor에서 users.is_admin = true 로 설정한 뒤, 여기서 다른 관리자를 추가하세요.
+          </p>
         </div>
         {userList.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            등록된 사용자가 없습니다. 메인에서 로그인하면 여기에서 포인트를 지급할 수 있습니다.
+            등록된 사용자가 없습니다. 메인에서 로그인하면 여기에서 관리자를 지정할 수 있습니다.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -96,6 +125,7 @@ export default async function AdminPage() {
                 <tr>
                   <th className="px-6 py-3 font-medium">이름 / 이메일</th>
                   <th className="px-6 py-3 font-medium">부서</th>
+                  <th className="px-6 py-3 font-medium">관리자</th>
                   <th className="px-6 py-3 font-medium text-right">보유 P</th>
                   <th className="px-6 py-3 font-medium text-right">누적 기부</th>
                   <th className="px-6 py-3 font-medium">등급</th>
@@ -110,6 +140,13 @@ export default async function AdminPage() {
                     </td>
                     <td className="px-6 py-4">
                       <UserDeptEdit userId={u.user_id} initialDeptName={u.dept_name} />
+                    </td>
+                    <td className="px-6 py-4">
+                      <AdminToggle
+                        userId={u.user_id}
+                        initial={!!u.is_admin}
+                        isSelf={u.user_id === currentUserId}
+                      />
                     </td>
                     <td className="px-6 py-4 text-right font-bold text-gray-900">
                       {u.current_points.toLocaleString()} P

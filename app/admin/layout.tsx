@@ -1,10 +1,20 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { getCurrentUser } from '@/api/actions/auth'
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const user = await getCurrentUser()
+  if (!user) {
+    redirect('/login')
+  }
+  if (!user.is_admin) {
+    redirect('/?admin=denied')
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="border-b border-gray-200 bg-white shadow-sm">
@@ -21,6 +31,13 @@ export default function AdminLayout({
             <h1 className="text-xl font-bold text-gray-900">
               V.Together 관리자
             </h1>
+            <span className="text-gray-300">|</span>
+            <Link
+              href="/admin/events"
+              className="text-sm font-medium text-gray-600 transition hover:text-gray-900"
+            >
+              이벤트
+            </Link>
           </div>
         </div>
       </header>
