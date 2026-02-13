@@ -18,6 +18,7 @@ export interface Database {
           current_points: number
           total_donated_amount: number
           level: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
+          is_admin: boolean
           created_at: string
           updated_at: string
         }
@@ -29,6 +30,7 @@ export interface Database {
           current_points?: number
           total_donated_amount?: number
           level?: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -40,6 +42,7 @@ export interface Database {
           current_points?: number
           total_donated_amount?: number
           level?: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -111,6 +114,9 @@ export interface Database {
           related_id: string | null
           related_type: string | null
           description: string | null
+          user_email: string | null
+          user_name: string | null
+          donation_target_name: string | null
           created_at: string
         }
         Insert: {
@@ -121,6 +127,9 @@ export interface Database {
           related_id?: string | null
           related_type?: string | null
           description?: string | null
+          user_email?: string | null
+          user_name?: string | null
+          donation_target_name?: string | null
           created_at?: string
         }
         Update: {
@@ -131,7 +140,160 @@ export interface Database {
           related_id?: string | null
           related_type?: string | null
           description?: string | null
+          user_email?: string | null
+          user_name?: string | null
+          donation_target_name?: string | null
           created_at?: string
+        }
+      }
+      campaigns: {
+        Row: {
+          campaign_id: string
+          title: string
+          description: string | null
+          category: 'V_TOGETHER' | 'CULTURE'
+          type: 'ALWAYS' | 'SEASONAL'
+          reward_policy: 'SENDER_ONLY' | 'BOTH'
+          reward_type: 'POINTS' | 'COUPON' | 'CHOICE'
+          reward_amount: number | null
+          image_url: string | null
+          status: 'ACTIVE' | 'PAUSED' | 'ENDED'
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string
+          title: string
+          description?: string | null
+          category: 'V_TOGETHER' | 'CULTURE'
+          type: 'ALWAYS' | 'SEASONAL'
+          reward_policy: 'SENDER_ONLY' | 'BOTH'
+          reward_type: 'POINTS' | 'COUPON' | 'CHOICE'
+          reward_amount?: number | null
+          image_url?: string | null
+          status?: 'ACTIVE' | 'PAUSED' | 'ENDED'
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          title?: string
+          description?: string | null
+          category?: 'V_TOGETHER' | 'CULTURE'
+          type?: 'ALWAYS' | 'SEASONAL'
+          reward_policy?: 'SENDER_ONLY' | 'BOTH'
+          reward_type?: 'POINTS' | 'COUPON' | 'CHOICE'
+          reward_amount?: number | null
+          image_url?: string | null
+          status?: 'ACTIVE' | 'PAUSED' | 'ENDED'
+          created_by?: string | null
+          updated_at?: string
+        }
+      }
+      campaign_rounds: {
+        Row: {
+          round_id: string
+          campaign_id: string
+          round_number: number
+          start_date: string
+          end_date: string
+          reward_amount: number | null
+          created_at: string
+        }
+        Insert: {
+          round_id?: string
+          campaign_id: string
+          round_number: number
+          start_date: string
+          end_date: string
+          reward_amount?: number | null
+          created_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          round_number?: number
+          start_date?: string
+          end_date?: string
+          reward_amount?: number | null
+        }
+      }
+      campaign_verification_methods: {
+        Row: {
+          method_id: string
+          campaign_id: string
+          method_type: 'PHOTO' | 'TEXT' | 'VALUE' | 'PEER_SELECT'
+          is_required: boolean
+          label: string | null
+          placeholder: string | null
+          created_at: string
+        }
+        Insert: {
+          method_id?: string
+          campaign_id: string
+          method_type: 'PHOTO' | 'TEXT' | 'VALUE' | 'PEER_SELECT'
+          is_required?: boolean
+          label?: string | null
+          placeholder?: string | null
+          created_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          method_type?: 'PHOTO' | 'TEXT' | 'VALUE' | 'PEER_SELECT'
+          is_required?: boolean
+          label?: string | null
+          placeholder?: string | null
+        }
+      }
+      campaign_submissions: {
+        Row: {
+          submission_id: string
+          campaign_id: string
+          round_id: string | null
+          user_id: string
+          status: 'PENDING' | 'APPROVED' | 'REJECTED'
+          verification_data: Json | null
+          peer_user_id: string | null
+          reward_received: boolean
+          reward_type: string | null
+          reward_amount: number | null
+          rejection_reason: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          submission_id?: string
+          campaign_id: string
+          round_id?: string | null
+          user_id: string
+          status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+          verification_data?: Json | null
+          peer_user_id?: string | null
+          reward_received?: boolean
+          reward_type?: string | null
+          reward_amount?: number | null
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          round_id?: string | null
+          user_id?: string
+          status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+          verification_data?: Json | null
+          peer_user_id?: string | null
+          reward_received?: boolean
+          reward_type?: string | null
+          reward_amount?: number | null
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          updated_at?: string
         }
       }
     }
