@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { donatePoints } from '@/api/actions/donation'
 import { useRouter } from 'next/navigation'
+import { DonationSuccessModal } from './DonationSuccessModal'
 
 const DONATION_STEP = 1000
 
@@ -34,6 +35,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
   const [amount, setAmount] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successPayload, setSuccessPayload] = useState<{ targetName: string; amount: number } | null>(null)
   const openTimeRef = useRef<number>(0)
   const router = useRouter()
 
@@ -66,6 +68,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
       } else {
         setIsOpen(false)
         setAmount(0)
+        setSuccessPayload({ targetName: target.name, amount })
         router.refresh()
       }
     } catch (err) {
@@ -98,11 +101,23 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
     if (!disabled) setIsOpen(true)
   }
 
+  const handleCloseSuccess = () => {
+    setSuccessPayload(null)
+  }
+
   return (
     <>
       <div onClick={handleOpen} onMouseDown={(e) => e.stopPropagation()} role="button" tabIndex={0} aria-haspopup="dialog">
         {children}
       </div>
+
+      {successPayload && (
+        <DonationSuccessModal
+          targetName={successPayload.targetName}
+          amount={successPayload.amount}
+          onClose={handleCloseSuccess}
+        />
+      )}
 
       {typeof document !== 'undefined' &&
         isOpen &&

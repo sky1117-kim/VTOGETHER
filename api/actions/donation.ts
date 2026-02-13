@@ -31,10 +31,10 @@ export async function donatePoints(targetId: string, amount: number) {
     client = supabase
   }
 
-  // 사용자 정보 조회
+  // 사용자 정보 조회 (포인트 + 추출용 이메일/이름)
   const { data: userData, error: userError } = await client
     .from('users')
-    .select('current_points, total_donated_amount')
+    .select('current_points, total_donated_amount, email, name')
     .eq('user_id', effectiveUserId)
     .single()
 
@@ -100,7 +100,7 @@ export async function donatePoints(targetId: string, amount: number) {
       return { error: '기부 내역 기록 실패' }
     }
 
-    // 3. 포인트 거래 내역 기록 (차감)
+    // 3. 포인트 거래 내역 기록 (차감) — 추출 시 보기 쉽게 이메일·이름·기부처명도 함께 저장
     const { error: transactionError } = await client
       .from('point_transactions')
       .insert({
@@ -110,6 +110,9 @@ export async function donatePoints(targetId: string, amount: number) {
         related_id: donation.donation_id,
         related_type: 'DONATION',
         description: `${target.name}에 ${amount.toLocaleString()}P 기부`,
+        user_email: userData.email ?? null,
+        user_name: userData.name ?? null,
+        donation_target_name: target.name,
       })
 
     if (transactionError) {
