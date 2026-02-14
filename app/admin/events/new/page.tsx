@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getCurrentUser } from '@/api/actions/auth'
+import { getEventsForAdmin } from '@/api/actions/admin/events'
 import { redirect } from 'next/navigation'
 import { CreateEventForm } from './CreateEventForm'
 
@@ -8,6 +9,8 @@ export default async function AdminEventsNewPage() {
   if (!user?.user_id) {
     redirect('/login')
   }
+  const { data: events } = await getEventsForAdmin()
+  const eventList = events ?? []
 
   return (
     <div className="space-y-6">
@@ -23,7 +26,7 @@ export default async function AdminEventsNewPage() {
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <CreateEventForm createdBy={user.user_id} />
+        <CreateEventForm createdBy={user.user_id} existingEvents={eventList} />
       </div>
     </div>
   )

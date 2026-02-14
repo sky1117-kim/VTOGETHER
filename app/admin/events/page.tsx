@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getEventsForAdmin } from '@/api/actions/admin/events'
+import { EventRowActions } from './EventRowActions'
 
 const CATEGORY_LABEL: Record<string, string> = {
   V_TOGETHER: 'V.Together',
@@ -73,13 +74,21 @@ export default async function AdminEventsPage() {
                 <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
                   등록일
                 </th>
+                <th className="pl-2 pr-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600 whitespace-nowrap">
+                  동작
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {list.map((e) => (
                 <tr key={e.event_id} className="transition hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <span className="font-medium text-gray-900">{e.title}</span>
+                    <Link
+                      href={`/admin/events/${e.event_id}`}
+                      className="font-medium text-gray-900 underline-offset-2 hover:underline"
+                    >
+                      {e.title}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {CATEGORY_LABEL[e.category] ?? e.category}
@@ -88,9 +97,11 @@ export default async function AdminEventsPage() {
                     {TYPE_LABEL[e.type] ?? e.type}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
-                    {e.reward_type === 'POINTS' && e.reward_amount != null
-                      ? `${e.reward_amount}P`
-                      : e.reward_type}
+                    {e.reward_type == null
+                      ? '복수 보상'
+                      : e.reward_type === 'POINTS' && e.reward_amount != null
+                        ? `${e.reward_amount}P`
+                        : e.reward_type}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -105,8 +116,11 @@ export default async function AdminEventsPage() {
                       {STATUS_LABEL[e.status] ?? e.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
+                  <td className="px-4 pr-2 py-3 text-sm text-gray-500">
                     {new Date(e.created_at).toLocaleDateString('ko-KR')}
+                  </td>
+                  <td className="pl-2 pr-4 py-3 align-middle">
+                    <EventRowActions eventId={e.event_id} eventTitle={e.title} />
                   </td>
                 </tr>
               ))}

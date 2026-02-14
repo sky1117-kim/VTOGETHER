@@ -3,76 +3,228 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createEvent } from '@/api/actions/admin/events'
-import type { VerificationMethodInput } from '@/api/actions/admin/events'
+import { createEvent, createRoundsForMonth, getEventForCopy } from '@/api/actions/admin/events'
+import type { VerificationMethodInput, EventRewardInput, EventRow } from '@/api/actions/admin/events'
+import {
+  EVENT_CATEGORIES,
+  EVENT_TYPES,
+  FREQUENCY_LIMITS,
+  REWARD_POLICIES,
+  REWARD_KINDS,
+  VERIFICATION_METHOD_TYPES,
+} from '@/constants/events'
+import { RichTextEditor } from '@/components/ui/RichTextEditor'
 
-const METHOD_TYPES: { value: VerificationMethodInput['method_type']; label: string }[] = [
-  { value: 'PHOTO', label: '사진 업로드' },
-  { value: 'TEXT', label: '텍스트 입력' },
-  { value: 'VALUE', label: '숫자 입력' },
-  { value: 'PEER_SELECT', label: '동료 선택 (칭찬 챌린지)' },
-]
+const inputClass =
+  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500'
+const inputNumberClass =
+  'mt-1 w-32 rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500'
+const labelClass = 'block text-sm font-bold text-gray-700'
+
+type VerificationMethodType = VerificationMethodInput['method_type']
+
+/** 인증 항목 1개 (타입 + 직원 안내문 + 단답/장문) */
+interface VerificationItem {
+  id: string
+  method_type: VerificationMethodType
+  instruction: string
+  input_style: 'SHORT' | 'LONG'
+}
+
+function buildPayload(
+  state: {
+    title: string
+    shortDescription: string
+    description: string
+    category: 'V_TOGETHER' | 'CULTURE'
+    type: 'ALWAYS' | 'SEASONAL'
+    frequencyLimit: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
+    rewardPolicy: 'SENDER_ONLY' | 'BOTH'
+    selectedRewards: { kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+    verificationItems: VerificationItem[]
+  },
+  createdBy: string
+) {
+  const rewards: EventRewardInput[] = state.selectedRewards.map((r) => ({
+    reward_kind: r.kind,
+    amount: r.kind === 'GOODS' ? null : Math.max(0, parseInt(r.amount, 10) || 0),
+  }))
+  const verification_methods: VerificationMethodInput[] = state.verificationItems.map((item) => ({
+    method_type: item.method_type,
+    is_required: true,
+    instruction: item.instruction.trim() || null,
+    input_style: item.method_type === 'PHOTO' ? null : item.input_style,
+  }))
+  return {
+    title: state.title.trim(),
+    short_description: state.shortDescription.trim() || null,
+    description: state.description.trim() || null,
+    category: state.category,
+    type: state.type,
+    reward_policy: state.rewardPolicy,
+    rewards,
+    status: 'ACTIVE' as const,
+    frequency_limit: state.type === 'ALWAYS' ? state.frequencyLimit : null,
+    verification_methods,
+  }
+}
+
+function validateForm(state: {
+  title: string
+  selectedRewards: { kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+  verificationItems: VerificationItem[]
+}): string | null {
+  if (!state.title.trim()) return '제목을 입력하세요.'
+  if (state.selectedRewards.length === 0) return '보상을 1개 이상 선택하세요.'
+  for (const r of state.selectedRewards) {
+    if (r.kind !== 'GOODS' && (!r.amount.trim() || parseInt(r.amount, 10) < 0))
+      return 'V.Point·커피쿠폰은 금액(수량)을 입력하세요.'
+  }
+  if (state.verificationItems.length === 0) return '인증 방식을 1개 이상 추가하세요.'
+  return null
+}
 
 interface CreateEventFormProps {
   createdBy: string
+  /** 기존 이벤트에서 복사할 때 선택할 목록 */
+  existingEvents?: EventRow[]
 }
 
-export function CreateEventForm({ createdBy }: CreateEventFormProps) {
+export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventFormProps) {
   const router = useRouter()
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [pending, setPending] = useState(false)
+  const [copyEventId, setCopyEventId] = useState('')
+  const [copyLoading, setCopyLoading] = useState(false)
+
   const [title, setTitle] = useState('')
+  const [shortDescription, setShortDescription] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<'V_TOGETHER' | 'CULTURE'>('V_TOGETHER')
   const [type, setType] = useState<'ALWAYS' | 'SEASONAL'>('ALWAYS')
+  const [frequencyLimit, setFrequencyLimit] = useState<'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'>('ONCE')
   const [rewardPolicy, setRewardPolicy] = useState<'SENDER_ONLY' | 'BOTH'>('SENDER_ONLY')
-  const [rewardType, setRewardType] = useState<'POINTS' | 'COUPON' | 'CHOICE'>('POINTS')
-  const [rewardAmount, setRewardAmount] = useState('100')
-  const [selectedMethods, setSelectedMethods] = useState<VerificationMethodInput[]>([])
+  const [selectedRewards, setSelectedRewards] = useState<
+    { kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+  >([])
+  const [verificationItems, setVerificationItems] = useState<VerificationItem[]>([])
+  const now = new Date()
+  const [roundYear, setRoundYear] = useState(now.getFullYear())
+  const [roundMonth, setRoundMonth] = useState(now.getMonth() + 1)
 
-  const toggleMethod = (methodType: VerificationMethodInput['method_type']) => {
-    setSelectedMethods((prev) => {
-      const exists = prev.find((m) => m.method_type === methodType)
-      if (exists) return prev.filter((m) => m.method_type !== methodType)
-      return [...prev, { method_type: methodType, is_required: true }]
+  const toggleReward = (kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON') => {
+    setSelectedRewards((prev) => {
+      const exists = prev.some((r) => r.kind === kind)
+      if (exists) return prev.filter((r) => r.kind !== kind)
+      const needsAmount = REWARD_KINDS.find((k) => k.value === kind)?.needsAmount ?? false
+      return [...prev, { kind, amount: needsAmount ? '100' : '' }]
     })
+  }
+
+  const setRewardAmount = (kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON', value: string) => {
+    setSelectedRewards((prev) =>
+      prev.map((r) => (r.kind === kind ? { ...r, amount: value } : r))
+    )
+  }
+
+  const addVerificationItem = (method_type: VerificationMethodType) => {
+    const defaultStyle: 'SHORT' | 'LONG' = method_type === 'VALUE' ? 'SHORT' : 'LONG'
+    setVerificationItems((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), method_type, instruction: '', input_style: defaultStyle },
+    ])
+  }
+
+  const removeVerificationItem = (id: string) => {
+    setVerificationItems((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const setVerificationInstruction = (id: string, instruction: string) => {
+    setVerificationItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, instruction } : item))
+    )
+  }
+  const setVerificationInputStyle = (id: string, input_style: 'SHORT' | 'LONG') => {
+    setVerificationItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, input_style } : item))
+    )
+  }
+
+  /** 기존 이벤트를 선택해 폼에 불러오기 (수정 후 새로 등록) */
+  async function handleCopyFromExisting() {
+    if (!copyEventId) return
+    setMessage(null)
+    setCopyLoading(true)
+    try {
+      const { data, error } = await getEventForCopy(copyEventId)
+      if (error || !data) {
+        setMessage({ type: 'error', text: error ?? '불러오기 실패' })
+        return
+      }
+      const { event: ev, rewards: revs, verification_methods: vms } = data
+      setTitle(ev.title.trim() ? `${ev.title} (복사)` : '')
+      setShortDescription(ev.short_description ?? '')
+      setDescription(ev.description ?? '')
+      setCategory(ev.category)
+      setType(ev.type)
+      setFrequencyLimit(ev.frequency_limit ?? 'ONCE')
+      setRewardPolicy(ev.reward_policy)
+      setSelectedRewards(
+        revs.map((r) => ({
+          kind: r.reward_kind,
+          amount: r.amount != null ? String(r.amount) : '',
+        }))
+      )
+      setVerificationItems(
+        vms.map((m) => ({
+          id: crypto.randomUUID(),
+          method_type: m.method_type,
+          instruction: m.instruction ?? '',
+          input_style: m.input_style ?? (m.method_type === 'VALUE' ? 'SHORT' : 'LONG'),
+        }))
+      )
+      setMessage({ type: 'ok', text: '기존 이벤트 내용을 불러왔습니다. 필요하면 수정 후 등록하세요.' })
+    } finally {
+      setCopyLoading(false)
+    }
+  }
+
+  const state = {
+    title,
+    shortDescription,
+    description,
+    category,
+    type,
+    frequencyLimit,
+    rewardPolicy,
+    selectedRewards,
+    verificationItems,
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setMessage(null)
-    if (!title.trim()) {
-      setMessage({ type: 'error', text: '제목을 입력하세요.' })
+    const error = validateForm(state)
+    if (error) {
+      setMessage({ type: 'error', text: error })
       return
     }
-    if (selectedMethods.length === 0) {
-      setMessage({ type: 'error', text: '인증 방식을 1개 이상 선택하세요.' })
-      return
-    }
-    const amount =
-      rewardType === 'POINTS' && rewardAmount.trim()
-        ? Math.max(0, parseInt(rewardAmount, 10) || 0)
-        : null
     setPending(true)
-    const result = await createEvent(
-      {
-        title: title.trim(),
-        description: description.trim() || null,
-        category,
-        type,
-        reward_policy: rewardPolicy,
-        reward_type: rewardType,
-        reward_amount: amount,
-        status: 'ACTIVE',
-        verification_methods: selectedMethods,
-      },
-      createdBy
-    )
-    setPending(false)
+    const result = await createEvent(buildPayload(state, createdBy), createdBy)
     if (result.error) {
+      setPending(false)
       setMessage({ type: 'error', text: result.error })
       return
     }
+    if (type === 'SEASONAL' && result.eventId) {
+      const roundResult = await createRoundsForMonth(result.eventId, roundYear, roundMonth)
+      if (roundResult.error) {
+        setMessage({ type: 'error', text: `이벤트는 등록됐으나 구간 생성 실패: ${roundResult.error}` })
+        setPending(false)
+        return
+      }
+    }
+    setPending(false)
     setMessage({ type: 'ok', text: '이벤트가 등록되었습니다.' })
     router.push('/admin/events')
     router.refresh()
@@ -82,7 +234,7 @@ export function CreateEventForm({ createdBy }: CreateEventFormProps) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {message && (
         <div
-          className={`rounded-xl px-4 py-3 text-sm ${
+          className={`rounded-lg px-4 py-2.5 text-sm ${
             message.type === 'ok' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'
           }`}
         >
@@ -90,111 +242,244 @@ export function CreateEventForm({ createdBy }: CreateEventFormProps) {
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-bold text-gray-700">제목 *</label>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          placeholder="예: 1월 걷기 챌린지"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-gray-700">설명</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          placeholder="이벤트 안내 문구"
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-sm font-bold text-gray-700">카테고리</label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as 'V_TOGETHER' | 'CULTURE')}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          >
-            <option value="V_TOGETHER">V.Together</option>
-            <option value="CULTURE">Culture</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-gray-700">타입</label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as 'ALWAYS' | 'SEASONAL')}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          >
-            <option value="ALWAYS">상시</option>
-            <option value="SEASONAL">기간제</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-sm font-bold text-gray-700">보상 정책</label>
-          <select
-            value={rewardPolicy}
-            onChange={(e) => setRewardPolicy(e.target.value as 'SENDER_ONLY' | 'BOTH')}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          >
-            <option value="SENDER_ONLY">참여자만 지급</option>
-            <option value="BOTH">참여자 + 수신자 지급 (칭찬 챌린지)</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-gray-700">보상 유형</label>
-          <select
-            value={rewardType}
-            onChange={(e) => setRewardType(e.target.value as 'POINTS' | 'COUPON' | 'CHOICE')}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          >
-            <option value="POINTS">포인트</option>
-            <option value="COUPON">쿠폰</option>
-            <option value="CHOICE">선택 (포인트/쿠폰)</option>
-          </select>
-        </div>
-      </div>
-
-      {rewardType === 'POINTS' && (
-        <div>
-          <label className="block text-sm font-bold text-gray-700">보상 포인트 (P)</label>
-          <input
-            type="number"
-            min={0}
-            value={rewardAmount}
-            onChange={(e) => setRewardAmount(e.target.value)}
-            className="mt-1 w-32 rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          />
-        </div>
+      {existingEvents.length > 0 && (
+        <section className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4">
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-gray-500">기존 이벤트에서 복사</h3>
+          <p className="mb-3 text-xs text-gray-500">선택한 이벤트의 제목·소개·보상·인증 방식을 불러와 수정 후 새로 등록할 수 있습니다.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={copyEventId}
+              onChange={(e) => setCopyEventId(e.target.value)}
+              className="min-w-[200px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <option value="">이벤트 선택</option>
+              {existingEvents.map((e) => (
+                <option key={e.event_id} value={e.event_id}>
+                  {e.title}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleCopyFromExisting}
+              disabled={!copyEventId || copyLoading}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+            >
+              {copyLoading ? '불러오는 중…' : '불러오기'}
+            </button>
+          </div>
+        </section>
       )}
 
-      <div>
-        <label className="block text-sm font-bold text-gray-700">인증 방식 * (1개 이상 선택)</label>
-        <div className="mt-2 flex flex-wrap gap-4">
-          {METHOD_TYPES.map(({ value, label }) => (
-            <label key={value} className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={selectedMethods.some((m) => m.method_type === value)}
-                onChange={() => toggleMethod(value)}
-                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-              />
-              <span className="text-sm font-medium text-gray-700">{label}</span>
-            </label>
+      {/* 기본 정보 + 이벤트 설정: 한 카드에 2열 */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-500">기본 정보 · 이벤트 설정</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className={labelClass}>제목 *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={inputClass}
+              placeholder="예: 1월 걷기 챌린지"
+              required
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>간단 문구 (카드·목록에 표시)</label>
+            <input
+              type="text"
+              value={shortDescription}
+              onChange={(e) => setShortDescription(e.target.value)}
+              className={inputClass}
+              placeholder="예: 걷기 챌린지로 포인트를 받아보세요"
+              maxLength={120}
+            />
+            <p className="mt-1 text-xs text-gray-500">한 줄 요약. 카드와 목록에만 보입니다. (최대 120자)</p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>전체 소개 (상세 보기)</label>
+            <p className="mt-0.5 mb-1 text-xs text-gray-500">
+              글자 선택 후 ⌘B(굵게)·⌘I(기울임) 또는 툴바 버튼 — 입력창에서 바로 반영됩니다
+            </p>
+            <RichTextEditor
+              value={description}
+              onChange={setDescription}
+              placeholder="이벤트 상세 안내 문구. 클릭 시 팝업에 포맷 적용되어 표시됩니다."
+              aria-label="전체 소개"
+            />
+            <p className="mt-1 text-xs text-gray-500">상세 보기 팝업에 표시되는 본문입니다.</p>
+          </div>
+          <div>
+            <label className={labelClass}>카테고리</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as 'V_TOGETHER' | 'CULTURE')}
+              className={inputClass}
+            >
+              {EVENT_CATEGORIES.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>타입</label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as 'ALWAYS' | 'SEASONAL')}
+              className={inputClass}
+            >
+              {EVENT_TYPES.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          {type === 'ALWAYS' && (
+            <div>
+              <label className={labelClass}>참여 빈도</label>
+              <select
+                value={frequencyLimit}
+                onChange={(e) => setFrequencyLimit(e.target.value as 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY')}
+                className={inputClass}
+              >
+                {FREQUENCY_LIMITS.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {type === 'SEASONAL' && (
+            <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
+              <span className="text-sm font-medium text-gray-600">구간 자동 생성</span>
+              <select
+                value={roundYear}
+                onChange={(e) => setRoundYear(Number(e.target.value))}
+                className="w-24 rounded-lg border border-gray-300 px-2 py-2 text-sm"
+              >
+                {[0, 1, 2, 3, 4].map((i) => {
+                  const y = now.getFullYear() + i
+                  return <option key={y} value={y}>{y}년</option>
+                })}
+              </select>
+              <select
+                value={roundMonth}
+                onChange={(e) => setRoundMonth(Number(e.target.value))}
+                className="w-20 rounded-lg border border-gray-300 px-2 py-2 text-sm"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>{m}월</option>
+                ))}
+              </select>
+              <span className="text-xs text-gray-500">→ 등록 시 3구간 생성</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 보상 */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-500">보상</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>보상 정책</label>
+            <select
+              value={rewardPolicy}
+              onChange={(e) => setRewardPolicy(e.target.value as 'SENDER_ONLY' | 'BOTH')}
+              className={inputClass}
+            >
+              {REWARD_POLICIES.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className={labelClass}>보상 유형 *</span>
+            <div className="mt-2 flex flex-wrap gap-3">
+              {REWARD_KINDS.map(({ value, label, needsAmount }) => (
+                <div key={value} className="flex items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedRewards.some((r) => r.kind === value)}
+                      onChange={() => toggleReward(value)}
+                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-700">{label}</span>
+                  </label>
+                  {needsAmount && selectedRewards.some((r) => r.kind === value) && (
+                    <input
+                      type="number"
+                      min={0}
+                      value={selectedRewards.find((r) => r.kind === value)?.amount ?? ''}
+                      onChange={(e) => setRewardAmount(value, e.target.value)}
+                      className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
+                      placeholder={value === 'V_POINT' ? 'P' : '매수'}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 인증 방식 */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-gray-500">인증 방식 *</h3>
+        <p className="mb-3 text-xs text-gray-500">항목 추가 후 직원에게 보여줄 안내 문구를 입력하세요.</p>
+        <div className="flex flex-wrap gap-2">
+          {VERIFICATION_METHOD_TYPES.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => addVerificationItem(value)}
+              className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            >
+              + {label}
+            </button>
           ))}
         </div>
-      </div>
+        {verificationItems.length > 0 && (
+          <ul className="mt-4 space-y-3">
+            {verificationItems.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+                <span className="w-24 shrink-0 text-sm font-medium text-gray-700">
+                  {VERIFICATION_METHOD_TYPES.find((m) => m.value === item.method_type)?.label ?? item.method_type}
+                </span>
+                {(item.method_type === 'TEXT' || item.method_type === 'VALUE') && (
+                  <select
+                    value={item.input_style}
+                    onChange={(e) => setVerificationInputStyle(item.id, e.target.value as 'SHORT' | 'LONG')}
+                    className="w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+                  >
+                    <option value="SHORT">단답</option>
+                    <option value="LONG">장문</option>
+                  </select>
+                )}
+                <div className="min-w-0 flex-1">
+                  <textarea
+                    value={item.instruction}
+                    onChange={(e) => setVerificationInstruction(item.id, e.target.value)}
+                    rows={2}
+                    className={inputClass}
+                    placeholder="직원 안내 문구"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeVerificationItem(item.id)}
+                  className="shrink-0 text-xs text-red-600 hover:underline"
+                >
+                  삭제
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-      <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-6">
+      <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-5">
         <button
           type="submit"
           disabled={pending}
