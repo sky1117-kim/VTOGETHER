@@ -7,6 +7,8 @@
   --shadow-soft: 0 2px 15px -3px rgb(0 0 0 / 0.04), 0 4px 20px -2px rgb(0 0 0 / 0.03);
   --shadow-soft-lg: 0 10px 40px -10px rgb(0 0 0 / 0.08), 0 8px 25px -5px rgb(0 0 0 / 0.04);
   --shadow-soft-xl: 0 20px 50px -12px rgb(0 0 0 / 0.12);
+  /* 모달: 잘 보이도록 강한 그림자 */
+  --shadow-modal: 0 25px 50px -12px rgb(0 0 0 / 0.25), 0 0 0 1px rgb(0 0 0 / 0.05);
 }
 
 @theme inline {
@@ -16,6 +18,7 @@
   --shadow-soft: var(--shadow-soft);
   --shadow-soft-lg: var(--shadow-soft-lg);
   --shadow-soft-xl: var(--shadow-soft-xl);
+  --shadow-modal: var(--shadow-modal);
 }
 
 body {
@@ -76,6 +79,7 @@ body {
 .shadow-soft { box-shadow: var(--shadow-soft); }
 .shadow-soft-lg { box-shadow: var(--shadow-soft-lg); }
 .shadow-soft-xl { box-shadow: var(--shadow-soft-xl); }
+.shadow-modal { box-shadow: var(--shadow-modal); }
 
 /* 등급 라벨: 두껍게 + 반짝이는 정적 그라데이션 */
 .level-label-hero {
@@ -224,4 +228,17 @@ body.modal-active {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* TipTap 리치 에디터 (관리자 상세 소개) */
+.ProseMirror {
+  min-height: 220px;
+  outline: none;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  float: left;
+  height: 0;
+  pointer-events: none;
 }

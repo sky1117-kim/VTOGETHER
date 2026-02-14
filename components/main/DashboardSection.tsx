@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { TrendingUp, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { LevelRoadmapModal } from '@/components/my/LevelRoadmapModal'
-
 type Level = 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
 
 const LEVEL_INFO: Record<Level, { label: string; icon: string; next: Level | null; nextMin: number }> = {
@@ -258,6 +257,7 @@ export function DashboardSection({
           </LevelRoadmapModal>
         </div>
       </div>
+
     </section>
   )
 }

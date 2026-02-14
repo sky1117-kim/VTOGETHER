@@ -2,6 +2,7 @@ import { getCurrentUser } from '@/api/actions/auth'
 import { getTotalDonationStats, getDonationTargets } from '@/api/queries/donation'
 import { getSiteContent } from '@/api/queries/siteContent'
 import { getPersonalRanking, getTeamRanking } from '@/api/queries/ranking'
+import { getEventsWithRoundsForPublic } from '@/api/queries/events'
 import { DashboardSection } from '@/components/main/DashboardSection'
 import { DonationSection } from '@/components/main/DonationSection'
 import { CampaignsSection } from '@/components/main/CampaignsSection'
@@ -20,20 +21,23 @@ export default async function HomePage({ searchParams }: PageProps) {
   let siteContent: Awaited<ReturnType<typeof getSiteContent>> = {}
   let personalRank: Awaited<ReturnType<typeof getPersonalRanking>> = []
   let teamRank: Awaited<ReturnType<typeof getTeamRanking>> = []
+  let events: Awaited<ReturnType<typeof getEventsWithRoundsForPublic>> = []
 
   try {
-    const [statsRes, targetsRes, contentRes, personalRes, teamRes] = await Promise.all([
+    const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes] = await Promise.all([
       getTotalDonationStats(),
       getDonationTargets(),
       getSiteContent(),
       getPersonalRanking(10),
       getTeamRanking(10),
+      getEventsWithRoundsForPublic(user?.id ?? null),
     ])
     stats = statsRes
     targets = targetsRes ?? []
     siteContent = contentRes
     personalRank = personalRes
     teamRank = teamRes
+    events = eventsRes ?? []
   } catch {
     // DB 미설정 시 기본값 유지
   }
@@ -72,7 +76,7 @@ export default async function HomePage({ searchParams }: PageProps) {
         />
       </div>
       <div className="animate-fade-up mt-8">
-        <CampaignsSection />
+        <CampaignsSection events={events} isLoggedIn={!!user} />
       </div>
       <div className="animate-fade-up mt-8">
         <SalaryDonationSection />
