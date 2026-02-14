@@ -81,10 +81,12 @@ ON event_submissions(event_id, user_id) WHERE round_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_event_submissions_unique_seasonal
 ON event_submissions(event_id, round_id, user_id) WHERE round_id IS NOT NULL;
 
--- updated_at 자동 업데이트 트리거
+-- updated_at 자동 업데이트 트리거 (이미 있으면 제거 후 생성)
+DROP TRIGGER IF EXISTS update_events_updated_at ON events;
 CREATE TRIGGER update_events_updated_at BEFORE UPDATE ON events
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_event_submissions_updated_at ON event_submissions;
 CREATE TRIGGER update_event_submissions_updated_at BEFORE UPDATE ON event_submissions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

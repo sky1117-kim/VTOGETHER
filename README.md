@@ -1,10 +1,24 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+---
+
+## ⚠️ **당신이 할 일** (필수)
+
+1. **Supabase SQL 실행**: `docs/migrations/` 안의 마이그레이션을 **순서대로** SQL Editor에서 실행 (006-1 → 006 → 011 등).
+2. **최초 관리자 지정**: Supabase Table Editor에서 `users` 테이블 → 한 명의 `is_admin`을 **true**로 설정.
+3. **.env**: `SUPABASE_SERVICE_ROLE_KEY` 등 필요한 키 설정.
+
+자세한 내용 → **`docs/당신이-할-일.md`**
+
+---
+
 ## 주요 기능 / 페이지
 
 - **메인**: `/` — 대시보드, 기부, 이벤트 & 챌린지, 랭킹
-- **관리자**: `/admin` — 포인트 지급, 메인 문구 편집, 사용자 부서 편집
-- **이벤트 & 챌린지 관리 (Phase 2)**: `/admin/events` — 이벤트 목록, `/admin/events/new` — 새 이벤트 등록
+- **관리자**: `/admin` — 대시보드, 포인트 지급, 메인 문구 편집, 사용자·관리자 설정
+- **이벤트 관리**: `/admin/events` — 목록, `/admin/events/new` — 등록 (보상: V.Point/굿즈/커피쿠폰 복수 선택, 인증: 사진·텍스트·숫자·동료선택+텍스트 + 직원 안내문)
+- **인증 심사**: `/admin/verifications` — 이벤트 참여 인증 승인/반려, 일괄 처리
+- **기부처 관리**: `/admin/donation-targets` — 목표 수정, 오프라인 성금 합산
 
 ## Getting Started
 

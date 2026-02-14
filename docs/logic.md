@@ -18,9 +18,25 @@
 
 - **관리자 권한**: `users.is_admin = true` 인 사용자만 `/admin` 접근 및 이벤트 등록·인증 심사 가능.
 - **최초 관리자 설정**: 한 명은 Supabase Table Editor에서 `users` 테이블 → 해당 행의 `is_admin`을 **true**로 수동 설정. 그 다음 로그인하여 `/admin` → **관리자 계정 설정** 섹션에서 다른 사용자에게도 관리자 체크를 줄 수 있음 (웹에서 설정).
+- **이벤트 구간(기간제)**: 참여 기간과 인증 마감이 다름. 1구간 1~10일(인증 15일), 2구간 11~20일(인증 25일), 3구간 21~말일(인증 익월 5일). 자세한 규칙·상태 판단은 `docs/plan-rounds-logic.md` 참고. `event_rounds.submission_deadline` 컬럼 사용 (마이그레이션 013). 해당 월 3구간 자동 생성은 `createRoundsForMonth(eventId, year, month)` 서버 액션 또는 `lib/rounds.ts`의 `getThreeRoundsForMonth(year, month)` 활용.
+- **기간별 기부 (관리자 대시보드)**: 오늘/이번 주/이번 달 기부 금액은 `donations` 테이블 기준으로 집계. **오늘** = 당일 00:00 UTC~, **이번 주** = 해당 주 월요일 00:00 UTC~, **이번 달** = 해당 월 1일 00:00 UTC~. `getDonationAmountsByPeriod()` (admin 전용).
+- **이벤트 문구 구분**: `events.short_description` = 카드·목록에만 보이는 한 줄 요약(최대 120자). `events.description` = 상세 보기 팝업에 표시되는 전체 소개. 마이그레이션 015.
 - **이벤트 테이블 등록 순서**: 반드시 `006-1-add-admin-column.sql` 실행 후 `006-create-events-tables.sql` 실행.
 - **이미 campaigns로 만든 DB인 경우**: `010-rename-campaigns-to-events.sql` 실행 후 events로 사용.
 - **이벤트 참여**: 상시 이벤트는 사용자당 1회만, 기간제는 구간(round)당 1회만 참여 가능 (DB Unique Index).
+- **이벤트 운영 방식 (타입별)**:
+  - **SEASONAL**: 구간별 기간·1회 참여. 상태는 LOCKED/OPEN/SUBMITTED/APPROVED/DONE/FAILED (자세한 조건은 `docs/plan-events-operations.md`).
+  - **ALWAYS**: 기간 없음, 참여 빈도만 제한. `events.frequency_limit`(ONCE/DAILY/WEEKLY/MONTHLY)으로 일/주/월 1회 등 제어. 최근 제출일은 `event_submissions`에서 조회.
+  - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 쌍방 포인트 지급 (인증 심사 센터에서 처리).
+- **이벤트 보상 (복수 선택)**:
+  - 보상 유형: **V.Point**, **굿즈**, **커피쿠폰**. 하나만 선택하거나 여러 개 선택 가능.
+  - `event_rewards` 테이블에 이벤트별로 저장. V.Point·커피쿠폰은 `amount` 필수, 굿즈는 금액 없음.
+  - 신규 이벤트는 `events.reward_type`/`reward_amount`는 NULL이고, 승인 시 `event_rewards`에서 V_POINT 합산 후 포인트 지급.
+- **인증 방식**:
+  - 사진 / 텍스트 / 숫자 / 동료 선택+텍스트. 항목을 여러 개 추가 가능 (예: 텍스트 2개, 사진+텍스트 등).
+  - `event_verification_methods.instruction`: 직원에게 보여줄 안내 문구 (예: "이런 이런 사진을 제출하세요", "이런 숫자를 기재하세요").
+  - `event_verification_methods.input_style`: 단답(SHORT)=한 줄 입력, 장문(LONG)=여러 줄 입력. 관리자 등록 시 텍스트/숫자 항목에 선택 가능 (마이그레이션 014).
+  - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
 
 ## 테스트용 포인트 부여 (내 계정에 P 넣기)
 
