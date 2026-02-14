@@ -151,6 +151,7 @@ export interface Database {
           event_id: string
           title: string
           description: string | null
+          short_description: string | null
           category: 'V_TOGETHER' | 'CULTURE'
           type: 'ALWAYS' | 'SEASONAL'
           reward_policy: 'SENDER_ONLY' | 'BOTH'
@@ -158,6 +159,7 @@ export interface Database {
           reward_amount: number | null
           image_url: string | null
           status: 'ACTIVE' | 'PAUSED' | 'ENDED'
+          frequency_limit: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | null
           created_by: string | null
           created_at: string
           updated_at: string
@@ -166,6 +168,7 @@ export interface Database {
           event_id?: string
           title: string
           description?: string | null
+          short_description?: string | null
           category: 'V_TOGETHER' | 'CULTURE'
           type: 'ALWAYS' | 'SEASONAL'
           reward_policy: 'SENDER_ONLY' | 'BOTH'
@@ -173,6 +176,7 @@ export interface Database {
           reward_amount?: number | null
           image_url?: string | null
           status?: 'ACTIVE' | 'PAUSED' | 'ENDED'
+          frequency_limit?: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | null
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -180,6 +184,7 @@ export interface Database {
         Update: {
           title?: string
           description?: string | null
+          short_description?: string | null
           category?: 'V_TOGETHER' | 'CULTURE'
           type?: 'ALWAYS' | 'SEASONAL'
           reward_policy?: 'SENDER_ONLY' | 'BOTH'
@@ -187,6 +192,7 @@ export interface Database {
           reward_amount?: number | null
           image_url?: string | null
           status?: 'ACTIVE' | 'PAUSED' | 'ENDED'
+          frequency_limit?: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | null
           created_by?: string | null
           updated_at?: string
         }
