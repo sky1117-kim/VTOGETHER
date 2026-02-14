@@ -1,15 +1,23 @@
 import { getCurrentUser } from '@/api/actions/auth'
-import { getUserDonations } from '@/api/queries/user'
+import { getUserEventSubmissions, getUserPointTransactions } from '@/api/queries/user'
 import { LevelBadge } from '@/components/my/LevelBadge'
+import { EventParticipationSection } from '@/components/my/EventParticipationSection'
 import { PointDisplay } from '@/components/my/PointDisplay'
+import { PointHistorySection } from '@/components/my/PointHistorySection'
 
 export default async function MyPage() {
   const user = await getCurrentUser()
 
-  let donations: Awaited<ReturnType<typeof getUserDonations>> = []
+  let transactions: Awaited<ReturnType<typeof getUserPointTransactions>> = []
+  let eventSubmissions: Awaited<ReturnType<typeof getUserEventSubmissions>> = []
   if (user) {
     try {
-      donations = (await getUserDonations(user.id, 10)) ?? []
+      transactions = (await getUserPointTransactions(user.id, 100)) ?? []
+    } catch {
+      // ignore
+    }
+    try {
+      eventSubmissions = (await getUserEventSubmissions(user.id, 30)) ?? []
     } catch {
       // ignore
     }
@@ -60,41 +68,8 @@ export default async function MyPage() {
           totalDonated={user?.total_donated_amount ?? 0}
         />
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-bold text-gray-900">
-            최근 기부 내역
-          </h2>
-          {donations && donations.length > 0 ? (
-            <div className="space-y-3">
-              {donations.map((donation: { donation_id: string; amount: number; created_at: string; donation_targets?: { name: string } | null }) => (
-                <div
-                  key={donation.donation_id}
-                  className="flex items-center justify-between rounded-xl border border-gray-100 p-4"
-                >
-                  <div>
-                    <p className="font-bold text-gray-800">
-                      {donation.donation_targets?.name || '알 수 없음'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(donation.created_at).toLocaleDateString('ko-KR', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  <p className="text-lg font-bold text-green-600">
-                    -{donation.amount.toLocaleString()} P
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-gray-500">
-              아직 기부 내역이 없습니다
-            </p>
-          )}
-        </div>
+        <EventParticipationSection submissions={eventSubmissions} />
+        <PointHistorySection transactions={transactions} />
       </div>
     </div>
   )

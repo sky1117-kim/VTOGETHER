@@ -38,7 +38,7 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
 
   const modalContent = isOpen ? (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-black/50 p-4"
       onClick={() => setIsOpen(false)}
     >
       <div
