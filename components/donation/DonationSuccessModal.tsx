@@ -52,7 +52,7 @@ export function DonationSuccessModal({
 
   const content = (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
       onMouseDown={(e) => e.stopPropagation()}
       role="dialog"
@@ -60,7 +60,7 @@ export function DonationSuccessModal({
       aria-labelledby="donation-success-title"
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-soft-xl"
+        className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 상단: 통통 튀는 하트 아이콘 (기부처 색상) */}

@@ -123,7 +123,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
         isOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
             onClick={handleBackdropClick}
             onMouseDown={(e) => e.stopPropagation()}
             role="dialog"
@@ -131,7 +131,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
             aria-labelledby="donation-modal-title"
           >
           <div
-            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-soft-xl"
+            className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-center justify-between">

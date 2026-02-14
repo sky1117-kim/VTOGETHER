@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { getTotalDonationStats } from '@/api/queries/donation'
 
 const SITE_CONTENT_KEYS = ['hero_season_badge', 'hero_title', 'hero_subtitle'] as const
 export type SiteContentKey = (typeof SITE_CONTENT_KEYS)[number]
@@ -135,6 +136,103 @@ export async function updateUserDept(
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '부서 저장 실패' }
+  }
+}
+
+/** 관리자 대시보드용 지표: 전사 기부 통계 + 진행 중 이벤트 수 + 승인 대기 건수 */
+export async function getAdminDashboardStats(): Promise<{
+  totalCurrent: number
+  totalTarget: number
+  progress: number
+  completedCount: number
+  activeEventsCount: number
+  pendingCount: number
+  error: string | null
+}> {
+  try {
+    const donation = await getTotalDonationStats()
+    let pendingCount = 0
+    let activeEventsCount = 0
+    try {
+      const supabase = createAdminClient()
+      const [pendingRes, eventsRes] = await Promise.all([
+        supabase.from('event_submissions').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
+        supabase.from('events').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
+      ])
+      if (!pendingRes.error) pendingCount = pendingRes.count ?? 0
+      if (!eventsRes.error) activeEventsCount = eventsRes.count ?? 0
+    } catch {
+      // 테이블이 없거나 RLS 등으로 실패 시 0으로 둠
+    }
+    return {
+      totalCurrent: donation.totalCurrent,
+      totalTarget: donation.totalTarget,
+      progress: donation.progress,
+      completedCount: donation.completedCount,
+      activeEventsCount,
+      pendingCount,
+      error: null,
+    }
+  } catch (e) {
+    return {
+      totalCurrent: 0,
+      totalTarget: 0,
+      progress: 0,
+      completedCount: 0,
+      activeEventsCount: 0,
+      pendingCount: 0,
+      error: e instanceof Error ? e.message : '지표 조회 실패',
+    }
+  }
+}
+
+/** 오늘 / 이번 주 / 이번 달 기부 금액 (관리자 대시보드 시각화용). UTC 기준. */
+export async function getDonationAmountsByPeriod(): Promise<{
+  today: number
+  thisWeek: number
+  thisMonth: number
+  error: string | null
+}> {
+  try {
+    const now = new Date()
+    const startMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const startWeek = new Date(now)
+    const dow = now.getUTCDay()
+    const toMonday = dow === 0 ? 6 : dow - 1
+    startWeek.setUTCDate(now.getUTCDate() - toMonday)
+    startWeek.setUTCHours(0, 0, 0, 0)
+    const startToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+
+    const supabase = createAdminClient()
+    const { data: rows, error } = await supabase
+      .from('donations')
+      .select('amount, created_at')
+      .gte('created_at', startMonth.toISOString())
+
+    if (error) return { today: 0, thisWeek: 0, thisMonth: 0, error: error.message }
+
+    const isoToday = startToday.toISOString()
+    const isoWeek = startWeek.toISOString()
+
+    let today = 0
+    let thisWeek = 0
+    let thisMonth = 0
+    for (const r of rows ?? []) {
+      const amt = Number((r as { amount: number }).amount) || 0
+      const at = (r as { created_at: string }).created_at
+      thisMonth += amt
+      if (at >= isoWeek) thisWeek += amt
+      if (at >= isoToday) today += amt
+    }
+
+    return { today, thisWeek, thisMonth, error: null }
+  } catch (e) {
+    return {
+      today: 0,
+      thisWeek: 0,
+      thisMonth: 0,
+      error: e instanceof Error ? e.message : '기간별 기부 조회 실패',
+    }
   }
 }
 
