@@ -33,6 +33,7 @@ interface EventInfoModalProps {
     category: string
     type: string
     rounds?: { round_number: number; status: string }[]
+    hasPendingReward?: boolean
   } | null
   isOpen: boolean
   onClose: () => void
@@ -122,6 +123,30 @@ export function EventInfoModal({
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {isLoggedIn && event && (
+          <div className="shrink-0 space-y-2 border-t border-gray-100 bg-white py-4">
+            {event.hasPendingReward && (
+              <button
+                type="button"
+                onClick={() => onVerify(event.event_id)}
+                className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600"
+              >
+                보상받기
+              </button>
+            )}
+            {((event.type === 'SEASONAL' && event.rounds?.some((r) => r.status === 'OPEN')) ||
+              (event.type === 'ALWAYS' && !event.hasPendingReward)) && (
+              <button
+                type="button"
+                onClick={() => onVerify(event.event_id)}
+                className="w-full rounded-xl bg-green-600 py-3 text-sm font-bold text-white transition hover:bg-green-700"
+              >
+                인증하기
+              </button>
+            )}
           </div>
         )}
         </div>

@@ -184,7 +184,7 @@ export function DashboardSection({
                   ? 'border-violet-200 bg-violet-50/80'
                   : level === 'GREEN_MASTER'
                     ? 'border-emerald-200 bg-emerald-50/80'
-                    : 'border-green-200 bg-green-50/80'
+                    : 'border-slate-200 bg-slate-50/80'
               }`}
             >
               <div className="mb-3 flex items-center gap-3">
@@ -218,14 +218,22 @@ export function DashboardSection({
                     <div className="flex items-center gap-1.5">
                       <TrendingUp className="size-3.5 text-gray-500" />
                       <span className="font-semibold text-gray-600">Next Tier</span>
-                      <span className="font-bold text-green-600">{nextProgress.nextLabel}</span>
+                      <span
+                        className={`font-bold ${level === 'ECO_KEEPER' ? 'text-slate-600' : 'text-green-600'}`}
+                      >
+                        {nextProgress.nextLabel}
+                      </span>
                     </div>
                     <span className="font-medium text-gray-500">{nextProgress.remaining.toLocaleString()}P 남음</span>
                   </div>
                   <div className="h-2.5 overflow-hidden rounded-full bg-gray-300">
                     {nextProgress.percent > 0 && (
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-green-500 to-teal-500 transition-all duration-500"
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          level === 'ECO_KEEPER'
+                            ? 'bg-gradient-to-r from-slate-500 to-indigo-500'
+                            : 'bg-gradient-to-r from-green-500 to-teal-500'
+                        }`}
                         style={{ width: `${nextProgress.percent}%` }}
                       />
                     )}

@@ -68,6 +68,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
     type: e.type as string,
     rounds_count: e.rounds_count ?? 0,
     rounds: e.rounds ?? [],
+    hasPendingReward: (e as { hasPendingReward?: boolean }).hasPendingReward ?? false,
   }))
 
   const filtered =
@@ -183,21 +184,41 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                   )}
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-gray-400">클릭 시 상세 보기</span>
+              {/* 카드 하단: 상세 보기 + 액션 버튼 — mt-auto로 카드마다 하단 정렬 통일 */}
+              <div className="mt-auto flex min-h-[2.5rem] items-center justify-between gap-3 pt-4">
+                <span className="shrink-0 text-xs text-gray-400">클릭 시 상세 보기</span>
                 {isLoggedIn ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setVerifyModalEventId(c.id)
-                    }}
-                    className="ml-auto rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-700"
-                  >
-                    인증하기
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {/* 보상받기: 승인된 제출이 있어 보상 수령 가능할 때 */}
+                    {c.hasPendingReward && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setVerifyModalEventId(c.id)
+                        }}
+                        className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600"
+                      >
+                        보상받기
+                      </button>
+                    )}
+                    {/* 인증하기: 기간제는 OPEN 구간 있을 때, 상시는 보상 대기 중이 아닐 때 (참여하기 없이 통일) */}
+                    {((c.type === 'SEASONAL' && c.rounds?.some((r) => r.status === 'OPEN')) ||
+                      (c.type === 'ALWAYS' && !c.hasPendingReward)) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setVerifyModalEventId(c.id)
+                        }}
+                        className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-700"
+                      >
+                        인증하기
+                      </button>
+                    )}
+                  </div>
                 ) : (
-                  <span className="ml-auto text-xs text-gray-400">로그인 후 인증 가능</span>
+                  <span className="shrink-0 text-xs text-gray-400">로그인 후 인증 가능</span>
                 )}
               </div>
             </div>
@@ -213,6 +234,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           category: infoModalEvent.category,
           type: infoModalEvent.type,
           rounds: infoModalEvent.rounds,
+          hasPendingReward: (infoModalEvent as { hasPendingReward?: boolean }).hasPendingReward,
         } : null}
         isOpen={!!infoModalEvent}
         onClose={() => setInfoModalEvent(null)}

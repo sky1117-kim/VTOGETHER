@@ -21,7 +21,7 @@ export function Navigation() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-green-100 text-green-700'
                   : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'

@@ -45,14 +45,14 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
         className="my-auto w-full max-w-sm shrink-0 overflow-hidden rounded-[32px] bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 상단: Green Master일 때 초록 그라데이션 + 정적 반짝임 */}
+        {/* 상단: 등급별 그라데이션 (Eco Keeper=회색/남색, Green Master=초록, Earth Hero=보라) */}
             <div
               className={`relative overflow-hidden p-8 text-white ${
                 level === 'GREEN_MASTER'
                   ? 'bg-gradient-to-br from-emerald-500 via-green-600 to-teal-800'
                   : level === 'EARTH_HERO'
                     ? 'bg-gradient-to-br from-violet-600 to-purple-800'
-                    : 'bg-gradient-to-br from-green-500 to-green-700'
+                    : 'bg-gradient-to-br from-slate-500 via-slate-600 to-indigo-700'
               }`}
             >
               {/* 정적 반짝임 하이라이트 (Green Master 시 더 강조) */}
@@ -69,14 +69,14 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                   }}
                 />
               )}
-              <p className="relative z-10 mb-2 text-center text-sm font-bold text-green-100">
+              <p className={`relative z-10 mb-2 text-center text-sm font-bold ${level === 'ECO_KEEPER' ? 'text-slate-200' : 'text-green-100'}`}>
                 MY ESG LEVEL
               </p>
               <div className="relative z-10 mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-full border-4 border-white/30 bg-white/20 backdrop-blur-sm">
                 <span className="text-5xl">{current.icon}</span>
               </div>
               <h2 className="relative z-10 text-center text-2xl font-bold">{current.label}</h2>
-              <p className="relative z-10 text-center text-base font-bold text-green-100 sm:text-lg">
+              <p className={`relative z-10 text-center text-base font-bold sm:text-lg ${level === 'ECO_KEEPER' ? 'text-slate-200' : 'text-green-100'}`}>
                 누적 기부: <span className="text-xl font-bold text-white sm:text-2xl">{totalDonated.toLocaleString()}</span> P
               </p>
             </div>
@@ -86,22 +86,24 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
               <div className="mb-4">
                 <div className="mb-2 flex justify-between text-xs font-bold text-gray-500">
                   <span>다음 레벨 진행도</span>
-                  <span className="text-green-600">{progressPercent}%</span>
+                  <span className={level === 'ECO_KEEPER' ? 'text-slate-600' : 'text-green-600'}>{progressPercent}%</span>
                 </div>
                 <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
                   <div
-                    className="level-progress-fill h-full rounded-full transition-all duration-700"
+                    className={`h-full rounded-full transition-all duration-700 ${level === 'ECO_KEEPER' ? 'level-progress-fill-eco' : 'level-progress-fill'}`}
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
                 <p className="mt-2 text-center text-sm font-medium text-gray-600">
                   {nextLevel ? (
                     <>
-                      <span className="font-bold text-green-600">{levelThresholds[nextLevel].label}</span>
+                      <span className={level === 'ECO_KEEPER' ? 'font-bold text-slate-600' : 'font-bold text-green-600'}>
+                        {levelThresholds[nextLevel].label}
+                      </span>
                       {' '}까지 {(levelThresholds[nextLevel].min - totalDonated).toLocaleString()}P 남음
                     </>
                   ) : (
-                    <span className="font-bold text-green-600">최고 레벨 달성!</span>
+                    <span className={level === 'ECO_KEEPER' ? 'font-bold text-slate-600' : 'font-bold text-green-600'}>최고 레벨 달성!</span>
                   )}
                 </p>
               </div>
@@ -120,9 +122,13 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                       key={key}
                       className={`flex items-center gap-3 rounded-xl p-3 ${
                         isCurrent
-                          ? 'border-2 border-green-200 bg-green-50'
+                          ? key === 'ECO_KEEPER'
+                            ? 'border-2 border-slate-200 bg-slate-50'
+                            : 'border-2 border-green-200 bg-green-50'
                           : isPast
-                            ? 'border border-green-200/50 bg-green-50/50'
+                            ? key === 'ECO_KEEPER'
+                              ? 'border border-slate-200/50 bg-slate-50/50'
+                              : 'border border-green-200/50 bg-green-50/50'
                             : 'bg-gray-50'
                       }`}
                     >

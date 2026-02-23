@@ -21,8 +21,9 @@ export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
         </h2>
         <div className="flex rounded-xl bg-white/60 p-1 shadow-soft backdrop-blur-sm">
           <button
+            type="button"
             onClick={() => setType('PERSONAL')}
-            className={`rounded-md px-4 py-1.5 text-xs font-bold transition ${
+            className={`min-h-[44px] min-w-[44px] rounded-md px-4 py-1.5 text-xs font-bold transition ${
               type === 'PERSONAL'
                 ? 'bg-white text-gray-800 shadow-sm'
                 : 'text-gray-500 hover:text-gray-800'
@@ -31,8 +32,9 @@ export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
             개인 랭킹
           </button>
           <button
+            type="button"
             onClick={() => setType('TEAM')}
-            className={`rounded-md px-4 py-1.5 text-xs font-bold transition ${
+            className={`min-h-[44px] min-w-[44px] rounded-md px-4 py-1.5 text-xs font-bold transition ${
               type === 'TEAM'
                 ? 'bg-white text-gray-800 shadow-sm'
                 : 'text-gray-500 hover:text-gray-800'
@@ -42,8 +44,8 @@ export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
           </button>
         </div>
       </div>
-      <div className="glass card-hover overflow-hidden rounded-2xl shadow-soft">
-        <table className="w-full border-collapse text-left">
+      <div className="glass card-hover overflow-hidden rounded-2xl shadow-soft overflow-x-auto">
+        <table className="w-full min-w-[320px] border-collapse text-left">
           <thead className="bg-gray-100/80 text-xs font-medium uppercase tracking-wider text-gray-500">
             <tr>
               <th className="w-16 px-6 py-4 text-center">순위</th>
@@ -67,7 +69,7 @@ export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
                   ? 'bg-green-100 text-green-700'
                   : item.level === 'Earth Hero'
                     ? 'bg-purple-100 text-purple-700'
-                    : 'bg-gray-100 text-gray-600'
+                    : 'bg-slate-100 text-slate-600'
               return (
                 <tr key={item.rank} className="transition-colors hover:bg-white/60">
                   <td className="px-6 py-4 text-center">

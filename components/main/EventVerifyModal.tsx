@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto } from '@/api/actions/events'
-import type { VerificationMethodRow, RoundForParticipation } from '@/api/queries/events'
+import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto, claimRewardChoice } from '@/api/actions/events'
+import type { VerificationMethodRow, RoundForParticipation, RewardOptionRow, PeerSelectionUserRow } from '@/api/queries/events'
 
 const METHOD_LABEL: Record<string, string> = {
   PHOTO: '사진',
@@ -21,6 +21,11 @@ const ROUND_STATUS_LABEL: Record<string, string> = {
   APPROVED: '보상 대기',
   DONE: '완료',
   FAILED: '마감',
+}
+const REWARD_KIND_LABEL: Record<string, string> = {
+  V_POINT: 'V.Point',
+  COFFEE_COUPON: '커피 쿠폰',
+  GOODS: '굿즈',
 }
 
 interface EventVerifyModalProps {
@@ -40,9 +45,18 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     event: { event_id: string; title: string; type: string }
     verificationMethods: VerificationMethodRow[]
     rounds: RoundForParticipation[]
+    rewardOptions: RewardOptionRow[]
+    pendingChoiceSubmission: { submission_id: string; round_number: number | null } | null
+    canParticipate?: { allowed: boolean; reason?: string; nextAvailableAt?: string }
+    peerSelectionUsers?: PeerSelectionUserRow[]
+    currentUserId?: string | null
   } | null>(null)
+  const [peerSearch, setPeerSearch] = useState('')
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
+  const [choicePending, setChoicePending] = useState(false)
+  /** 보상 선택 후 확인 대기 (이걸로 하시겠어요?) */
+  const [confirmingReward, setConfirmingReward] = useState<'V_POINT' | 'COFFEE_COUPON' | 'GOODS' | null>(null)
 
   useEffect(() => {
     if (!isOpen || !eventId) {
@@ -51,6 +65,8 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setSuccess(false)
       setFormData({})
       setSelectedRoundId(null)
+      setPeerSearch('')
+      setConfirmingReward(null)
       return
     }
     setLoading(true)
@@ -96,16 +112,22 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setError('구간을 선택하세요.')
       return
     }
-    // 필수 인증 항목(사진·텍스트 등) 모두 입력했는지 검사
     const verificationData: Record<string, unknown> = {}
     const missing: string[] = []
+    let peerUserId: string | null = null
     for (const m of data.verificationMethods) {
-      const value = formData[m.method_id]?.trim() ?? ''
-      if (!value) {
-        missing.push(METHOD_LABEL[m.method_type])
-        continue
+      if (m.method_type === 'PEER_SELECT') {
+        const text = formData[m.method_id]?.trim() ?? ''
+        const peer = formData[m.method_id + '_peer']?.trim() ?? ''
+        if (!peer) missing.push('동료 선택')
+        if (!text) missing.push('칭찬 메시지')
+        verificationData[m.method_id] = text
+        if (peer) peerUserId = peer
+      } else {
+        const value = formData[m.method_id]?.trim() ?? ''
+        if (!value) missing.push(METHOD_LABEL[m.method_type])
+        verificationData[m.method_id] = value
       }
-      verificationData[m.method_id] = value
     }
     if (missing.length > 0) {
       setError(`필수 항목을 모두 입력해주세요: ${missing.join(', ')}`)
@@ -113,7 +135,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     }
     setSubmitPending(true)
     setError(null)
-    const result = await submitEventSubmission(eventId, roundId, verificationData)
+    const result = await submitEventSubmission(eventId, roundId, verificationData, peerUserId ?? undefined)
     setSubmitPending(false)
     if (result.error) {
       setError(result.error)
@@ -124,7 +146,25 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     setTimeout(() => onClose(), 1500)
   }
 
+  const handleRewardChoice = async (rewardKind: 'V_POINT' | 'COFFEE_COUPON' | 'GOODS') => {
+    if (!data?.pendingChoiceSubmission) return
+    setChoicePending(true)
+    setError(null)
+    const result = await claimRewardChoice(data.pendingChoiceSubmission.submission_id, rewardKind)
+    setChoicePending(false)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    setSuccess(true)
+    onSuccess?.()
+    setTimeout(() => onClose(), 1500)
+  }
+
   if (!isOpen) return null
+
+  const showRewardChoice = data?.pendingChoiceSubmission && data.rewardOptions?.length > 0
+  const cannotParticipateAlways = data?.event.type === 'ALWAYS' && data.canParticipate && !data.canParticipate.allowed
 
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
@@ -154,7 +194,95 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
             제출되었습니다. 심사 후 보상이 지급됩니다.
           </div>
         )}
-        {!loading && data && !success && (
+        {!loading && data && !success && showRewardChoice && (
+          <div className="space-y-6">
+            {confirmingReward == null ? (
+              <>
+                <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
+                {data.pendingChoiceSubmission?.round_number != null && (
+                  <p className="text-sm text-gray-600">{data.pendingChoiceSubmission.round_number}구간 승인됨 · 받을 보상을 선택하세요.</p>
+                )}
+                {!data.pendingChoiceSubmission?.round_number && (
+                  <p className="text-sm text-gray-600">승인되었습니다. 받을 보상을 선택하세요.</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  {data.rewardOptions.map((opt) => (
+                    <button
+                      key={opt.reward_kind}
+                      type="button"
+                      disabled={choicePending}
+                      onClick={() => setConfirmingReward(opt.reward_kind)}
+                      className="rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-green-400 hover:bg-green-50 disabled:opacity-50"
+                    >
+                      {REWARD_KIND_LABEL[opt.reward_kind] ?? opt.reward_kind}
+                      {opt.reward_kind === 'V_POINT' && opt.amount != null && (
+                        <span className="ml-2 text-green-600"> {opt.amount} P</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div className="border-t border-gray-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                  >
+                    취소
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-semibold text-gray-800">이걸로 하시겠어요?</p>
+                <div className="rounded-xl border-2 border-green-200 bg-green-50/50 px-4 py-3">
+                  <p className="text-sm font-medium text-gray-800">
+                    {REWARD_KIND_LABEL[confirmingReward] ?? confirmingReward}
+                    {confirmingReward === 'V_POINT' && (() => {
+                      const opt = data.rewardOptions.find((o) => o.reward_kind === 'V_POINT')
+                      return opt?.amount != null ? ` ${opt.amount} P` : ''
+                    })()}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">선택 후에는 변경할 수 없습니다.</p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingReward(null)}
+                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                  >
+                    다시 선택
+                  </button>
+                  <button
+                    type="button"
+                    disabled={choicePending}
+                    onClick={() => confirmingReward && handleRewardChoice(confirmingReward)}
+                    className="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {choicePending ? '처리 중…' : '이걸로 받기'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {!loading && data && !success && !showRewardChoice && cannotParticipateAlways && (
+          <div className="space-y-4">
+            <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {data.canParticipate?.reason ?? '지금은 참여할 수 없습니다.'}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+            >
+                닫기
+            </button>
+          </div>
+        )}
+
+        {!loading && data && !success && !showRewardChoice && !cannotParticipateAlways && (
           <form onSubmit={handleSubmit} className="space-y-6">
             <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
 
@@ -251,6 +379,110 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                             }
                             className={inputClass}
                             placeholder={m.placeholder ?? '숫자 입력'}
+                          />
+                        </div>
+                      )
+                    }
+                    if (m.method_type === 'PEER_SELECT') {
+                      const users = data.peerSelectionUsers ?? []
+                      const currentUserId = data.currentUserId ?? ''
+                      const filtered = users.filter((u) => u.user_id !== currentUserId)
+                      // 타이핑하기 전에는 목록 비표시. 입력이 있을 때만 검색 결과를 스크롤 창으로 표시
+                      const hasSearch = peerSearch.trim().length > 0
+                      const list = hasSearch
+                        ? filtered.filter(
+                            (u) =>
+                              (u.name ?? '').toLowerCase().includes(peerSearch.toLowerCase()) ||
+                              (u.email ?? '').toLowerCase().includes(peerSearch.toLowerCase()) ||
+                              (u.dept_name ?? '').toLowerCase().includes(peerSearch.toLowerCase())
+                          )
+                        : []
+                      const peerLabel = (u: PeerSelectionUserRow) =>
+                        [u.name || '이름 없음', u.dept_name, u.email].filter(Boolean).join(' · ')
+                      const selectedPeerId = formData[m.method_id + '_peer'] ?? ''
+                      const selectedPeer = selectedPeerId
+                        ? filtered.find((u) => u.user_id === selectedPeerId)
+                        : null
+                      return (
+                        <div
+                          key={m.method_id}
+                          className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
+                        >
+                          <label className="mb-2 block text-sm font-bold text-gray-800">
+                            {METHOD_LABEL[m.method_type]}
+                            {m.instruction && (
+                              <span className="ml-1 font-normal text-gray-500">— {m.instruction}</span>
+                            )}
+                          </label>
+                          {selectedPeer ? (
+                            <div className="mb-3 flex items-center justify-between rounded-xl border border-green-200 bg-green-50/50 px-4 py-3">
+                              <span className="text-sm font-medium text-gray-800">
+                                선택됨: {peerLabel(selectedPeer)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData((prev) => ({ ...prev, [m.method_id + '_peer']: '' }))
+                                  setPeerSearch('')
+                                }}
+                                className="text-xs font-medium text-green-600 hover:underline"
+                              >
+                                변경
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <input
+                                type="text"
+                                value={peerSearch}
+                                onChange={(e) => setPeerSearch(e.target.value)}
+                                placeholder="이름·이메일·부서로 검색하면 동료 목록이 나옵니다"
+                                className={inputClass}
+                                autoComplete="off"
+                              />
+                              {!hasSearch ? (
+                                <p className="mt-2 text-xs text-gray-500">
+                                  검색어를 입력하면 동료 목록이 스크롤 창으로 나타납니다.
+                                </p>
+                              ) : (
+                                <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                                  {list.length === 0 ? (
+                                    <p className="px-4 py-3 text-sm text-amber-600">
+                                      검색 결과가 없습니다. 이름·이메일·부서를 입력해보세요.
+                                    </p>
+                                  ) : (
+                                    <ul className="py-1">
+                                      {list.map((u) => (
+                                        <li key={u.user_id}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setFormData((prev) => ({ ...prev, [m.method_id + '_peer']: u.user_id }))
+                                              setPeerSearch('')
+                                            }}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-800 hover:bg-green-50 hover:text-green-800"
+                                          >
+                                            {peerLabel(u)}
+                                          </button>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                          <label className="mt-4 mb-2 block text-sm font-bold text-gray-800">
+                            칭찬 메시지
+                          </label>
+                          <textarea
+                            value={formData[m.method_id] ?? ''}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, [m.method_id]: e.target.value }))
+                            }
+                            rows={3}
+                            className={inputClass}
+                            placeholder="칭찬 메시지를 입력하세요"
                           />
                         </div>
                       )
