@@ -5,6 +5,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getEventForParticipation } from '@/api/queries/events'
 
+const REWARD_KIND_LABEL: Record<string, string> = {
+  V_POINT: 'V.Point',
+  COFFEE_COUPON: '커피 쿠폰',
+  GOODS: '굿즈',
+}
+
 /** 인증 사진 업로드 → Storage에 저장 후 공개 URL 반환. bucket 'event-verification' 필요 */
 export async function uploadEventVerificationPhoto(
   formData: FormData
@@ -51,13 +57,24 @@ export async function getEventForParticipationAction(eventId: string) {
   return result
 }
 
+/** ALWAYS 이벤트: 제출 전 빈도 제한 검사 */
+async function checkAlwaysFrequency(eventId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
+  const { canParticipateNow } = await import('@/api/queries/event-status')
+  const result = await canParticipateNow(eventId, userId)
+  if (result.allowed) return { ok: true }
+  return { ok: false, error: result.reason ?? '참여할 수 없습니다.' }
+}
+
 /**
- * 로그인한 사용자가 이벤트 인증 제출 (메인 페이지 모달에서 호출)
+ * 로그인한 사용자가 이벤트 인증 제출 (메인 페이지 모달에서 호출).
+ * ALWAYS 이벤트는 빈도 제한(일/주/월 1회) 검사 후 제출.
+ * 칭찬 챌린지(PEER_SELECT)일 때 peerUserId로 선택한 동료 전달.
  */
 export async function submitEventSubmission(
   eventId: string,
   roundId: string | null,
-  verificationData: Record<string, unknown>
+  verificationData: Record<string, unknown>,
+  peerUserId?: string | null
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const supabase = await createClient()
@@ -77,16 +94,23 @@ export async function submitEventSubmission(
     if (event.type === 'SEASONAL' && !roundId) {
       return { success: false, error: '기간제 이벤트는 구간을 선택하세요.' }
     }
-    if (event.type === 'ALWAYS' && roundId) {
+    if (event.type === 'ALWAYS') {
       roundId = null
+      const freq = await checkAlwaysFrequency(eventId, userId)
+      if (!freq.ok) return { success: false, error: freq.error ?? undefined }
     }
 
     // 필수 인증 항목(사진·텍스트 등)이 모두 채워졌는지 서버에서 검증
     const { data: methods } = await supabase
       .from('event_verification_methods')
-      .select('method_id')
+      .select('method_id, method_type')
       .eq('event_id', eventId)
-    const requiredIds = (methods ?? []).map((r) => (r as { method_id: string }).method_id)
+    const methodList = methods ?? []
+    const hasPeerSelect = methodList.some((r) => (r as { method_type?: string }).method_type === 'PEER_SELECT')
+    if (hasPeerSelect && (!peerUserId || !String(peerUserId).trim())) {
+      return { success: false, error: '칭찬할 동료를 선택해주세요.' }
+    }
+    const requiredIds = methodList.map((r) => (r as { method_id: string }).method_id)
     for (const methodId of requiredIds) {
       const val = verificationData[methodId]
       if (val === undefined || val === null || String(val).trim() === '') {
@@ -100,6 +124,7 @@ export async function submitEventSubmission(
       user_id: userId,
       status: 'PENDING',
       verification_data: verificationData,
+      peer_user_id: peerUserId && peerUserId.trim() ? peerUserId.trim() : null,
     })
     if (insertErr) {
       if (insertErr.code === '23505') return { success: false, error: '이미 해당 구간에 제출했습니다.' }
@@ -110,5 +135,88 @@ export async function submitEventSubmission(
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '제출 중 오류가 발생했습니다.' }
+  }
+}
+
+type RewardKindChoice = 'V_POINT' | 'COFFEE_COUPON' | 'GOODS'
+
+/**
+ * 승인 후 보상 선택(CHOICE/복수 보상): 사용자가 보상 종류를 골라 포인트 지급 또는 쿠폰/굿즈 선택
+ */
+export async function claimRewardChoice(
+  submissionId: string,
+  rewardKind: RewardKindChoice
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.id) return { success: false, error: '로그인이 필요합니다.' }
+
+    const { data: sub, error: subErr } = await supabase
+      .from('event_submissions')
+      .select('submission_id, event_id, round_id, user_id, peer_user_id, status, reward_received')
+      .eq('submission_id', submissionId)
+      .single()
+
+    if (subErr || !sub) return { success: false, error: '제출 건을 찾을 수 없습니다.' }
+    if (sub.user_id !== user.id) return { success: false, error: '본인 제출만 선택할 수 있습니다.' }
+    if (sub.status !== 'APPROVED') return { success: false, error: '승인된 건만 보상을 선택할 수 있습니다.' }
+    if (sub.reward_received) return { success: false, error: '이미 보상을 선택했습니다.' }
+
+    const { data: rewards } = await supabase
+      .from('event_rewards')
+      .select('reward_kind, amount')
+      .eq('event_id', sub.event_id)
+    const option = (rewards ?? []).find((r) => r.reward_kind === rewardKind)
+    if (!option) return { success: false, error: `선택할 수 없는 보상입니다: ${REWARD_KIND_LABEL[rewardKind] ?? rewardKind}` }
+
+    const admin = createAdminClient()
+    const { data: event } = await admin.from('events').select('title, reward_policy').eq('event_id', sub.event_id).single()
+
+    let rewardAmount = 0
+    if (rewardKind === 'V_POINT' && option.amount != null) {
+      rewardAmount = Number(option.amount)
+      if (sub.round_id) {
+        const { data: round } = await admin.from('event_rounds').select('reward_amount').eq('round_id', sub.round_id).single()
+        if (round?.reward_amount != null) rewardAmount = round.reward_amount
+      }
+    }
+
+    if (rewardKind === 'V_POINT' && rewardAmount > 0) {
+      const userIdsToCredit = [sub.user_id]
+      if (event?.reward_policy === 'BOTH' && sub.peer_user_id) userIdsToCredit.push(sub.peer_user_id)
+      for (const uid of userIdsToCredit) {
+        const { data: u, error: uErr } = await admin.from('users').select('current_points, name, email').eq('user_id', uid).single()
+        if (uErr || !u) return { success: false, error: '사용자 조회 실패' }
+        const newPoints = (u.current_points ?? 0) + rewardAmount
+        await admin.from('users').update({ current_points: newPoints }).eq('user_id', uid)
+        await admin.from('point_transactions').insert({
+          user_id: uid,
+          type: 'EARNED',
+          amount: rewardAmount,
+          related_id: sub.submission_id,
+          related_type: 'EVENT',
+          description: `이벤트 보상: ${event?.title ?? ''}`,
+          user_email: u.email ?? null,
+          user_name: u.name ?? null,
+        })
+      }
+    }
+
+    const { error: updateErr } = await admin
+      .from('event_submissions')
+      .update({
+        reward_received: true,
+        reward_type: rewardKind,
+        reward_amount: rewardKind === 'V_POINT' ? rewardAmount : null,
+      })
+      .eq('submission_id', submissionId)
+
+    if (updateErr) return { success: false, error: updateErr.message }
+    revalidatePath('/')
+    revalidatePath('/my')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '보상 선택 처리에 실패했습니다.' }
   }
 }

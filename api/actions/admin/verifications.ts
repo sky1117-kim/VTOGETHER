@@ -143,29 +143,44 @@ export async function approveSubmission(submissionId: string): Promise<{
 
     if (eventError || !event) return { success: false, error: '이벤트 정보를 찾을 수 없습니다.' }
 
-    let rewardAmount = 0
-    let isPoints = false
+    const { data: eventRewards } = await supabase
+      .from('event_rewards')
+      .select('reward_kind, amount')
+      .eq('event_id', sub.event_id)
 
-    if (event.reward_type != null) {
-      rewardAmount = event.reward_amount ?? 0
+    const rewards = eventRewards ?? []
+    const isChoiceEvent = event.reward_type === 'CHOICE' || rewards.length > 1
+
+    // V.Point 금액 산정: 레거시(event.reward_type) 또는 event_rewards의 V_POINT 합계. 구간제면 해당 구간 reward_amount 우선.
+    let rewardAmount = 0
+    if (event.reward_type != null && event.reward_type !== 'CHOICE') {
+      rewardAmount = Number(event.reward_amount ?? 0)
       if (sub.round_id) {
         const { data: round } = await supabase
           .from('event_rounds')
           .select('reward_amount')
           .eq('round_id', sub.round_id)
           .single()
-        if (round?.reward_amount != null) rewardAmount = round.reward_amount
+        if (round?.reward_amount != null) rewardAmount = Number(round.reward_amount)
       }
-      isPoints = event.reward_type === 'POINTS' && rewardAmount > 0
-    } else {
-      const { data: rewards } = await supabase
-        .from('event_rewards')
-        .select('reward_kind, amount')
-        .eq('event_id', sub.event_id)
-      const pointRewards = (rewards ?? []).filter((r) => r.reward_kind === 'V_POINT' && r.amount != null)
-      rewardAmount = pointRewards.reduce((sum, r) => sum + (r.amount ?? 0), 0)
-      isPoints = rewardAmount > 0
     }
+    if (rewardAmount === 0) {
+      const pointRewards = rewards.filter((r) => r.reward_kind === 'V_POINT' && r.amount != null)
+      rewardAmount = pointRewards.reduce((sum, r) => sum + Number(r.amount ?? 0), 0)
+      if (sub.round_id && rewardAmount === 0) {
+        const { data: round } = await supabase
+          .from('event_rounds')
+          .select('reward_amount')
+          .eq('round_id', sub.round_id)
+          .single()
+        if (round?.reward_amount != null) rewardAmount = Number(round.reward_amount)
+      }
+    }
+
+    // V.Point가 있으면(1개든 복수 보상이든) 승인 시점에 참여자(및 BOTH 시 수신자)에게 즉시 지급
+    const isPoints = rewardAmount > 0
+    // 단일 비포인트 보상(쿠폰/굿즈 1종): 승인 시 바로 수령 처리하여 관리자 발송 대상에 올림
+    const singleNonPointReward = !isChoiceEvent && !isPoints && rewards.length === 1 ? rewards[0]!.reward_kind : null
 
     if (isPoints) {
       const userIdsToCredit = [sub.user_id]
@@ -202,13 +217,19 @@ export async function approveSubmission(submissionId: string): Promise<{
       }
     }
 
+    const finalRewardReceived = (isChoiceEvent && !isPoints) ? false : (isPoints || !!singleNonPointReward)
+    const finalRewardType = (isChoiceEvent && !isPoints)
+      ? null
+      : (isPoints ? 'POINTS' : (singleNonPointReward ?? event.reward_type ?? null))
+    const finalRewardAmount = (isChoiceEvent && !isPoints) ? null : (isPoints ? rewardAmount : null)
+
     const { error: updateSubErr } = await supabase
       .from('event_submissions')
       .update({
         status: 'APPROVED',
-        reward_received: isPoints,
-        reward_type: isPoints ? 'POINTS' : event.reward_type ?? null,
-        reward_amount: isPoints ? rewardAmount : null,
+        reward_received: finalRewardReceived,
+        reward_type: finalRewardType,
+        reward_amount: finalRewardAmount,
         reviewed_by: reviewerId,
         reviewed_at: new Date().toISOString(),
       })

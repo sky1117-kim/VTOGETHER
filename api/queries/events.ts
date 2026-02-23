@@ -50,6 +50,8 @@ export type RoundStatusLabel = {
 export type PublicEventWithRounds = PublicEventRow & {
   rounds_count: number
   rounds: RoundStatusLabel[]
+  /** 승인됐으나 보상 미수령(보상 선택 대기). 카드에서 "보상받기" 버튼 노출용 */
+  hasPendingReward?: boolean
 }
 
 export async function getEventsWithRoundsForPublic(
@@ -112,10 +114,34 @@ export async function getEventsWithRoundsForPublic(
     eventRoundsMap.set(eid, list)
   }
 
-  return base.map((e) => ({
-    ...e,
-    rounds: eventRoundsMap.get(e.event_id) ?? [],
-  }))
+  // ALWAYS 이벤트: 승인·보상 미수령 건 있는지 조회 (보상받기 버튼용)
+  let alwaysPendingRewardByEvent = new Map<string, boolean>()
+  if (userId) {
+    const alwaysEvents = base.filter((e) => e.type === 'ALWAYS')
+    if (alwaysEvents.length > 0) {
+      const { data: alwaysSubs } = await supabase
+        .from('event_submissions')
+        .select('event_id')
+        .eq('user_id', userId)
+        .eq('status', 'APPROVED')
+        .eq('reward_received', false)
+        .is('round_id', null)
+      for (const s of alwaysSubs ?? []) {
+        alwaysPendingRewardByEvent.set(s.event_id, true)
+      }
+    }
+  }
+
+  return base.map((e) => {
+    const rounds = eventRoundsMap.get(e.event_id) ?? []
+    const hasPendingRewardSeasonal = e.type === 'SEASONAL' && rounds.some((r) => r.status === 'APPROVED')
+    const hasPendingRewardAlways = e.type === 'ALWAYS' && alwaysPendingRewardByEvent.get(e.event_id)
+    return {
+      ...e,
+      rounds,
+      hasPendingReward: hasPendingRewardSeasonal || hasPendingRewardAlways || false,
+    }
+  })
 }
 
 /** 모달용: 이벤트 한 건 + 인증 방식 + 구간(기간제일 때). 로그인 사용자면 구간별 상태 포함 */
@@ -134,7 +160,27 @@ export type RoundForParticipation = {
   start_date: string
   end_date: string
   submission_deadline: string | null
-  status?: 'LOCKED' | 'OPEN' | 'SUBMITTED' | 'APPROVED' | 'DONE' | 'FAILED'
+  status?: 'LOCKED' | 'OPEN' | 'SUBMITTED' | 'APPROVED' | 'DONE' | 'FAILED' | 'REJECTED'
+}
+
+/** 보상 선택용 옵션 (CHOICE/복수 보상) */
+export type RewardOptionRow = {
+  reward_kind: 'V_POINT' | 'COFFEE_COUPON' | 'GOODS'
+  amount: number | null
+}
+
+/** 보상 선택 대기 제출 1건 (승인됐으나 아직 보상 미선택) */
+export type PendingChoiceSubmission = {
+  submission_id: string
+  round_number: number | null
+}
+
+/** 동료 선택(PEER_SELECT)용 플랫폼 가입자 한 명 */
+export type PeerSelectionUserRow = {
+  user_id: string
+  name: string | null
+  email: string | null
+  dept_name: string | null
 }
 
 export async function getEventForParticipation(
@@ -145,13 +191,20 @@ export async function getEventForParticipation(
     event: { event_id: string; title: string; type: string }
     verificationMethods: VerificationMethodRow[]
     rounds: RoundForParticipation[]
+    rewardOptions: RewardOptionRow[]
+    pendingChoiceSubmission: PendingChoiceSubmission | null
+    canParticipate?: { allowed: boolean; reason?: string; nextAvailableAt?: string }
+    /** PEER_SELECT 인증 방식이 있을 때만: 플랫폼 가입자 전체 목록 */
+    peerSelectionUsers?: PeerSelectionUserRow[]
+    /** 로그인 사용자 ID (동료 선택에서 본인 제외용) */
+    currentUserId?: string | null
   } | null
   error: string | null
 }> {
   const supabase = await createClient()
   const { data: event, error: eventErr } = await supabase
     .from('events')
-    .select('event_id, title, type')
+    .select('event_id, title, type, reward_type')
     .eq('event_id', eventId)
     .eq('status', 'ACTIVE')
     .single()
@@ -163,6 +216,58 @@ export async function getEventForParticipation(
     .eq('event_id', eventId)
     .order('method_id')
   const verificationMethods = (methods ?? []) as VerificationMethodRow[]
+
+  const hasPeerSelect = verificationMethods.some((m) => m.method_type === 'PEER_SELECT')
+  let peerSelectionUsers: PeerSelectionUserRow[] | undefined
+  if (hasPeerSelect) {
+    const { data: users } = await supabase
+      .from('users')
+      .select('user_id, name, email, dept_name')
+      .order('name', { ascending: true, nullsFirst: false })
+    peerSelectionUsers = (users ?? []).map((u) => ({
+      user_id: u.user_id,
+      name: u.name ?? null,
+      email: u.email ?? null,
+      dept_name: u.dept_name ?? null,
+    }))
+  }
+
+  const { data: eventRewards } = await supabase
+    .from('event_rewards')
+    .select('reward_kind, amount')
+    .eq('event_id', eventId)
+    .order('reward_kind')
+  const rewardOptions: RewardOptionRow[] = (eventRewards ?? []).map((r) => ({
+    reward_kind: r.reward_kind as RewardOptionRow['reward_kind'],
+    amount: r.amount != null ? Number(r.amount) : null,
+  }))
+  const needsRewardChoice = event.reward_type === 'CHOICE' || rewardOptions.length > 1
+
+  let pendingChoiceSubmission: PendingChoiceSubmission | null = null
+  if (userId && needsRewardChoice && rewardOptions.length > 0) {
+    const { data: pending } = await supabase
+      .from('event_submissions')
+      .select('submission_id, round_id')
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .eq('status', 'APPROVED')
+      .eq('reward_received', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (pending) {
+      let round_number: number | null = null
+      if (pending.round_id) {
+        const { data: round } = await supabase
+          .from('event_rounds')
+          .select('round_number')
+          .eq('round_id', pending.round_id)
+          .single()
+        round_number = round?.round_number ?? null
+      }
+      pendingChoiceSubmission = { submission_id: pending.submission_id, round_number }
+    }
+  }
 
   let rounds: RoundForParticipation[] = []
   if (event.type === 'SEASONAL') {
@@ -184,8 +289,23 @@ export async function getEventForParticipation(
     }
   }
 
+  let canParticipate: { allowed: boolean; reason?: string; nextAvailableAt?: string } | undefined
+  if (userId && event.type === 'ALWAYS') {
+    const { canParticipateNow } = await import('./event-status')
+    canParticipate = await canParticipateNow(eventId, userId)
+  }
+
   return {
-    data: { event: event as { event_id: string; title: string; type: string }, verificationMethods, rounds },
+    data: {
+      event: event as { event_id: string; title: string; type: string },
+      verificationMethods,
+      rounds,
+      rewardOptions,
+      pendingChoiceSubmission,
+      canParticipate,
+      peerSelectionUsers,
+      currentUserId: userId ?? null,
+    },
     error: null,
   }
 }
