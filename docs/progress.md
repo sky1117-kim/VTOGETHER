@@ -1,7 +1,7 @@
 # 개발 진행 현황 (Progress)
 
 작성일: 2026.02.13  
-참조: PRD.md, plan-admin.md, plan-phase2.md
+참조: PRD.md, plan-admin.md, plan-phase2.md, plan-phase3.md
 
 ---
 
@@ -22,8 +22,9 @@
 - [x] 사용자 챌린지 참여 모달·동적 폼 (인증하기, 구간별 상태)
 - [x] 칭찬 챌린지 쌍방 지급 (승인 시 참여자+수신자 포인트 지급)
 - [x] 반려 알림 (카드/상세에 "반려됨" 표시, 마이페이지 참여 내역에서 반려 사유)
-- [ ] (선택) 보상 선택 CHOICE: 승인 후 사용자가 포인트 vs 쿠폰 선택
-- [ ] (선택) ALWAYS 이벤트 빈도 제한(일/주/월 1회) 화면·로직 연동
+- [x] 보상 선택 CHOICE/복수 보상: 승인 후 사용자가 V.Point·커피 쿠폰·굿즈 중 선택 (2026.02.13)
+- [x] 관리자 쿠폰/굿즈 발송 대상 페이지 `/admin/reward-fulfillment` (2026.02.13)
+- [x] ALWAYS 이벤트 빈도 제한(일/주/월 1회): 제출 전 검사 + 모달 안내 (2026.02.13)
 
 ### 관리자 대시보드·심사·기부처 (plan-admin.md)
 - [x] 대시보드 지표 연동 (전사 기부금, 목표 달성률, 승인 대기 건수) (2026.02.13)
@@ -33,8 +34,19 @@
 
 ---
 
+## Phase 3: 고도화 & 안정화 (plan-phase3.md)
+
+- [x] V.Honors 메인만 TOP 10 (전체 보기·전용 페이지 제거) (2026.02.23)
+- [x] 모바일 UX: 랭킹 테이블 가로 스크롤, 터치 영역 44px 이상 (2026.02.23)
+- [x] **MAU 지표**: 관리자 대시보드 카드, `users.last_active_at` + 접속 시 갱신, 마이그레이션 016 (2026.02.23)
+- [ ] V.Honors Redis 캐싱 (선택, 인프라 도입 시)
+- [ ] Vertex AI 이미지 분류 (선택, 별도 설계 후)
+
+---
+
 ## 문서
 
 - [x] 관리자 페이지 설계서 `docs/plan-admin.md` (2026.02.13)
 - [x] 이벤트 운영 방식 설계서 `docs/plan-events-operations.md` (SEASONAL/ALWAYS/INTERACTIVE, 2026.02.13)
 - [x] ALWAYS 빈도 제한 마이그레이션 `docs/migrations/011-events-frequency-limit.sql` (2026.02.13)
+- [x] Phase 3 기술 설계서 `docs/plan-phase3.md` (2026.02.23)

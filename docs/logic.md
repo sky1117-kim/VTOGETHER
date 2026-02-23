@@ -24,19 +24,42 @@
 - **이벤트 테이블 등록 순서**: 반드시 `006-1-add-admin-column.sql` 실행 후 `006-create-events-tables.sql` 실행.
 - **이미 campaigns로 만든 DB인 경우**: `010-rename-campaigns-to-events.sql` 실행 후 events로 사용.
 - **이벤트 참여**: 상시 이벤트는 사용자당 1회만, 기간제는 구간(round)당 1회만 참여 가능 (DB Unique Index).
+- **이벤트 제출 → 관리자 인증 필수**: 사용자가 제출한 모든 이벤트 인증은 **항상 `status: 'PENDING'`** 으로만 저장됨. 관리자가 `/admin/verifications` 인증 심사에서 승인(또는 반려)하기 전까지 보상 지급 없음. 자동 승인 경로 없음.
 - **이벤트 운영 방식 (타입별)**:
   - **SEASONAL**: 구간별 기간·1회 참여. 상태는 LOCKED/OPEN/SUBMITTED/APPROVED/DONE/FAILED (자세한 조건은 `docs/plan-events-operations.md`).
   - **ALWAYS**: 기간 없음, 참여 빈도만 제한. `events.frequency_limit`(ONCE/DAILY/WEEKLY/MONTHLY)으로 일/주/월 1회 등 제어. 최근 제출일은 `event_submissions`에서 조회.
-  - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 쌍방 포인트 지급 (인증 심사 센터에서 처리).
+  - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 **둘 다** V.Point 지급 (다른 이벤트와 동일하게, V.Point 있으면 승인 시점에 즉시 지급).
 - **이벤트 보상 (복수 선택)**:
   - 보상 유형: **V.Point**, **굿즈**, **커피쿠폰**. 하나만 선택하거나 여러 개 선택 가능.
   - `event_rewards` 테이블에 이벤트별로 저장. V.Point·커피쿠폰은 `amount` 필수, 굿즈는 금액 없음.
-  - 신규 이벤트는 `events.reward_type`/`reward_amount`는 NULL이고, 승인 시 `event_rewards`에서 V_POINT 합산 후 포인트 지급.
+  - **승인 시 V.Point 지급**: 보상이 1개든 2개 이상이든, V.Point가 포함되어 있으면 관리자가 승인하는 시점에 참여자(및 칭찬 챌린지 시 수신자)에게 V.Point 즉시 지급. "보상 선택" 없이 지급됨.
 - **인증 방식**:
   - 사진 / 텍스트 / 숫자 / 동료 선택+텍스트. 항목을 여러 개 추가 가능 (예: 텍스트 2개, 사진+텍스트 등).
   - `event_verification_methods.instruction`: 직원에게 보여줄 안내 문구 (예: "이런 이런 사진을 제출하세요", "이런 숫자를 기재하세요").
   - `event_verification_methods.input_style`: 단답(SHORT)=한 줄 입력, 장문(LONG)=여러 줄 입력. 관리자 등록 시 텍스트/숫자 항목에 선택 가능 (마이그레이션 014).
   - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
+
+## 이벤트 카드 버튼 표시 기준 (인증하기 / 보상받기)
+
+메인 **이벤트 & 챌린지** 카드 하단 버튼은 **인증하기**와 **보상받기**만 사용합니다. (참여하기 문구 없이 모두 "인증하기"로 통일.)
+
+| 버튼 | 표시 조건 |
+|------|-----------|
+| **보상받기** | 해당 이벤트에 **승인(APPROVED)된 제출**이 있어, 보상 수령(또는 보상 선택)을 아직 하지 않았을 때. `hasPendingReward` = true 인 이벤트. |
+| **인증하기** | **기간제(SEASONAL)**: 인증 가능(OPEN) 구간이 하나라도 있을 때. **상시(ALWAYS)**: 보상 대기 중인 제출이 없을 때(참여 가능 상태). |
+
+- 기간제·상시 모두 제출 가능한 경우에는 "인증하기"만 노출합니다.
+- 보상받기와 인증하기는 조건에 따라 **동시에** 나올 수 있습니다 (예: 1구간 보상대기 + 2구간 인증가능).
+
+## Phase 3: V.Honors 랭킹
+
+- **표시**: 메인 페이지에만 **TOP 10** 개인 랭킹·팀 랭킹. 전체 보기 링크 및 전용 페이지 없음.
+
+## MAU (월간 활성 사용자)
+
+- **정의**: 최근 30일 이내에 한 번이라도 접속한 고유 사용자 수.
+- **수집**: `users.last_active_at` — 로그인한 사용자(또는 테스트 유저)가 `getCurrentUser()`가 호출될 때마다 갱신.
+- **관리자 대시보드**: "MAU (최근 30일)" 카드에 인원 수 표시. 마이그레이션 `016-users-last-active-at.sql` 미실행 시 "준비 중".
 
 ## 테스트용 포인트 부여 (내 계정에 P 넣기)
 
