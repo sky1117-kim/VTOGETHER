@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: '/admin', label: '대시보드' },
   { href: '/admin/events', label: '이벤트' },
   { href: '/admin/verifications', label: '인증 심사' },
+  { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송' },
   { href: '/admin/donation-targets', label: '기부처' },
 ] as const
 
