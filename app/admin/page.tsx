@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Gift, Heart, ClipboardList, Target, ChevronRight } from 'lucide-react'
+import { Gift, Heart, ClipboardList, Target, ChevronRight, Users } from 'lucide-react'
 import { getCurrentUser } from '@/api/actions/auth'
 import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod } from '@/api/actions/admin'
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
@@ -41,7 +41,7 @@ export default async function AdminPage() {
         <p className="mt-1 text-sm text-gray-500">전사 지표와 자주 쓰는 메뉴를 한눈에 확인하세요.</p>
       </div>
 
-      {/* 지표: 이벤트·기부·달성률·승인대기 (등록 사용자 제외) */}
+      {/* 지표: 이벤트·기부·달성률·승인대기 (첫 줄 4개) */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link
           href="/admin/events"
@@ -104,6 +104,65 @@ export default async function AdminPage() {
           </div>
           <ChevronRight className="size-5 shrink-0 text-gray-400" />
         </Link>
+      </section>
+
+      {/* MAU: 별도 섹션 · 시각화 */}
+      <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-gray-900">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+            <Users className="size-5" />
+          </span>
+          월간 활성 사용자 (MAU)
+        </h2>
+        <p className="mb-5 text-sm text-gray-500">최근 30일 동안 한 번이라도 접속한 사용자 수입니다. 목표: 전 직원의 80% 이상이 월 1회 이상 접속.</p>
+        {dashboardStats.mau != null ? (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-baseline gap-4 gap-y-1">
+              <span className="text-4xl font-bold tabular-nums text-violet-600">
+                {dashboardStats.mau}명
+              </span>
+              <span className="text-lg text-gray-500">
+                / 전체 {userList.length}명
+              </span>
+              {userList.length > 0 && (
+                <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-sm font-medium text-violet-700">
+                  {((dashboardStats.mau / userList.length) * 100).toFixed(1)}%
+                </span>
+              )}
+            </div>
+            {userList.length > 0 && (Math.ceil(userList.length * 0.8) > 0) && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-gray-500">목표 달성률 (80% 목표)</span>
+                    <span className="tabular-nums text-gray-700">
+                      {Math.min(100, (dashboardStats.mau / (userList.length * 0.8)) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="h-4 w-full overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-violet-400 to-violet-600 transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, (dashboardStats.mau / (userList.length * 0.8)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    목표 {Math.ceil(userList.length * 0.8)}명 이상 접속 시 달성
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 py-8 text-center">
+            <Users className="mx-auto size-10 text-gray-300" />
+            <p className="mt-2 text-sm font-medium text-gray-500">준비 중</p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              마이그레이션 <code className="rounded bg-gray-200 px-1">016-users-last-active-at.sql</code> 실행 후 표시됩니다.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* 기부 현황 요약 (기부처별 달성률 그래프) */}

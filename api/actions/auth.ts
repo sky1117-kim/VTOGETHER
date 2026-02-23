@@ -29,6 +29,13 @@ export async function getCurrentUser() {
       .single()
 
     if (!guestError && guestData) {
+      // MAU 집계용: 테스트 유저 접속 시에도 last_active_at 갱신
+      supabase
+        .from('users')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('user_id', GUEST_TEST_USER_ID)
+        .then(() => {})
+        .catch(() => {})
       return {
         id: guestData.user_id,
         user_id: guestData.user_id,
@@ -67,6 +74,15 @@ export async function getCurrentUser() {
       is_admin: false,
     }
   }
+
+  // MAU 집계용: 접속 시 last_active_at 갱신 (비동기, 응답 지연 최소화)
+  const now = new Date().toISOString()
+  supabase
+    .from('users')
+    .update({ last_active_at: now })
+    .eq('user_id', user.id)
+    .then(() => {})
+    .catch(() => {})
 
   return {
     id: user.id,

@@ -139,7 +139,7 @@ export async function updateUserDept(
   }
 }
 
-/** 관리자 대시보드용 지표: 전사 기부 통계 + 진행 중 이벤트 수 + 승인 대기 건수 */
+/** 관리자 대시보드용 지표: 전사 기부 통계 + 진행 중 이벤트 수 + 승인 대기 건수 + MAU */
 export async function getAdminDashboardStats(): Promise<{
   totalCurrent: number
   totalTarget: number
@@ -147,22 +147,30 @@ export async function getAdminDashboardStats(): Promise<{
   completedCount: number
   activeEventsCount: number
   pendingCount: number
+  mau: number | null
   error: string | null
 }> {
   try {
     const donation = await getTotalDonationStats()
     let pendingCount = 0
     let activeEventsCount = 0
+    let mau: number | null = null
     try {
       const supabase = createAdminClient()
-      const [pendingRes, eventsRes] = await Promise.all([
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      const iso = thirtyDaysAgo.toISOString()
+
+      const [pendingRes, eventsRes, mauRes] = await Promise.all([
         supabase.from('event_submissions').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
         supabase.from('events').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
+        supabase.from('users').select('user_id', { count: 'exact', head: true }).gte('last_active_at', iso),
       ])
       if (!pendingRes.error) pendingCount = pendingRes.count ?? 0
       if (!eventsRes.error) activeEventsCount = eventsRes.count ?? 0
+      if (!mauRes.error) mau = mauRes.count ?? 0
     } catch {
-      // 테이블이 없거나 RLS 등으로 실패 시 0으로 둠
+      // 테이블/컬럼 없거나 RLS 등으로 실패 시 숫자는 0, mau는 null(준비 중)
     }
     return {
       totalCurrent: donation.totalCurrent,
@@ -171,6 +179,7 @@ export async function getAdminDashboardStats(): Promise<{
       completedCount: donation.completedCount,
       activeEventsCount,
       pendingCount,
+      mau,
       error: null,
     }
   } catch (e) {
@@ -181,6 +190,7 @@ export async function getAdminDashboardStats(): Promise<{
       completedCount: 0,
       activeEventsCount: 0,
       pendingCount: 0,
+      mau: null,
       error: e instanceof Error ? e.message : '지표 조회 실패',
     }
   }
@@ -233,6 +243,72 @@ export async function getDonationAmountsByPeriod(): Promise<{
       thisMonth: 0,
       error: e instanceof Error ? e.message : '기간별 기부 조회 실패',
     }
+  }
+}
+
+/** 쿠폰/굿즈 등 비포인트 보상 선택 건 — 관리자가 별도 발송 챙길 대상 목록 */
+export type NonPointRewardRow = {
+  submission_id: string
+  event_id: string
+  event_title: string
+  user_id: string
+  user_name: string | null
+  user_email: string | null
+  round_number: number | null
+  reward_type: string
+  chosen_at: string
+}
+
+export async function getNonPointRewardFulfillmentList(): Promise<{
+  data: NonPointRewardRow[] | null
+  error: string | null
+}> {
+  try {
+    const supabase = createAdminClient()
+    const { data: subs, error: subErr } = await supabase
+      .from('event_submissions')
+      .select('submission_id, event_id, round_id, user_id, reward_type, updated_at')
+      .eq('status', 'APPROVED')
+      .eq('reward_received', true)
+      .in('reward_type', ['COFFEE_COUPON', 'GOODS', 'COUPON'])
+      .order('updated_at', { ascending: false })
+
+    if (subErr) return { data: null, error: subErr.message }
+    if (!subs?.length) return { data: [], error: null }
+
+    const eventIds = [...new Set(subs.map((s) => s.event_id))]
+    const userIds = [...new Set(subs.map((s) => s.user_id))]
+    const roundIds = subs.map((s) => s.round_id).filter(Boolean) as string[]
+
+    const [eventsRes, usersRes, roundsRes] = await Promise.all([
+      supabase.from('events').select('event_id, title').in('event_id', eventIds),
+      supabase.from('users').select('user_id, name, email').in('user_id', userIds),
+      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds) : { data: [] },
+    ])
+
+    const eventMap = new Map((eventsRes.data ?? []).map((e) => [e.event_id, e]))
+    const userMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
+    const roundMap = new Map((roundsRes.data ?? []).map((r) => [r.round_id, r]))
+
+    const data: NonPointRewardRow[] = subs.map((s) => {
+      const event = eventMap.get(s.event_id)
+      const user = userMap.get(s.user_id)
+      const round = s.round_id ? roundMap.get(s.round_id) : null
+      return {
+        submission_id: s.submission_id,
+        event_id: s.event_id,
+        event_title: event?.title ?? '—',
+        user_id: s.user_id,
+        user_name: user?.name ?? null,
+        user_email: user?.email ?? null,
+        round_number: round?.round_number ?? null,
+        reward_type: s.reward_type ?? '—',
+        chosen_at: s.updated_at,
+      }
+    })
+    return { data, error: null }
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : '목록 조회 실패' }
   }
 }
 
