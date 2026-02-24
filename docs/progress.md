@@ -24,6 +24,8 @@
 - [x] 반려 알림 (카드/상세에 "반려됨" 표시, 마이페이지 참여 내역에서 반려 사유)
 - [x] 보상 선택 CHOICE/복수 보상: 승인 후 사용자가 V.Point·커피 쿠폰·굿즈 중 선택 (2026.02.13)
 - [x] 관리자 쿠폰/굿즈 발송 대상 페이지 `/admin/reward-fulfillment` (2026.02.13)
+- [x] 쿠폰/굿즈 발송 완료 체크·필터(전체/미발송/발송완료), 마이그레이션 017 (2026.02.24)
+- [x] 이벤트별 제출 목록 엑셀 다운로드 (이벤트 목록·상세에서 버튼) (2026.02.24)
 - [x] ALWAYS 이벤트 빈도 제한(일/주/월 1회): 제출 전 검사 + 모달 안내 (2026.02.13)
 
 ### 관리자 대시보드·심사·기부처 (plan-admin.md)
@@ -50,3 +52,4 @@
 - [x] 이벤트 운영 방식 설계서 `docs/plan-events-operations.md` (SEASONAL/ALWAYS/INTERACTIVE, 2026.02.13)
 - [x] ALWAYS 빈도 제한 마이그레이션 `docs/migrations/011-events-frequency-limit.sql` (2026.02.13)
 - [x] Phase 3 기술 설계서 `docs/plan-phase3.md` (2026.02.23)
+- [x] 쿠폰/굿즈 발송 완료 컬럼 마이그레이션 `docs/migrations/017-event-submissions-non-point-fulfilled-at.sql` (2026.02.24)

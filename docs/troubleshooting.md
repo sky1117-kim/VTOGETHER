@@ -51,6 +51,33 @@
   - 내용: `events` 테이블에 `short_description` 컬럼 추가 (TEXT, NULL 허용)
 - 실행 후 이벤트 상세 페이지에서 "소개문구 · 상태 수정" 저장이 정상 동작합니다.
 
+## 구간 저장 실패: duplicate key value violates unique constraint
+
+- **에러 메시지:** `duplicate key value violates unique constraint "event_rounds_event_id_round_number_key"`
+- **원인:** `event_rounds`의 기존 유니크 제약이 소프트 삭제(deleted_at)를 고려하지 않아, 삭제된 구간이 있어도 같은 번호로 새 구간을 추가할 수 없습니다.
+- **해결:** Supabase SQL Editor에서 **마이그레이션 021**을 실행하세요.
+  - 파일: `docs/migrations/021-event-rounds-partial-unique.sql`
+  - 내용: 기존 유니크 제약 제거 후, `deleted_at IS NULL`인 행만 유일성 유지하는 부분 인덱스 생성
+- ⚠️ **020-soft-delete-all-tables.sql**을 먼저 실행한 뒤 021을 실행하세요.
+
+## column events.deleted_at does not exist
+
+- **에러 메시지:** `column events.deleted_at does not exist`
+- **원인:** `events` 및 관련 테이블에 **deleted_at** 컬럼(소프트 삭제용)이 없습니다. 코드에서 소프트 삭제를 사용하는데 마이그레이션이 적용되지 않았습니다.
+- **해결:** Supabase SQL Editor에서 **마이그레이션 020**을 실행하세요.
+  - 파일: `docs/migrations/020-soft-delete-all-tables.sql`
+  - 내용: events, event_rounds, event_rewards, event_verification_methods, event_submissions 등에 `deleted_at` 컬럼 추가
+- 실행 후 이벤트 목록·상세 조회 및 삭제가 정상 동작합니다.
+
+## 인증 방식 저장 실패: unit 컬럼을 찾을 수 없음
+
+- **에러 메시지:** `인증 방식 저장 실패: Could not find the 'unit' column of 'event_verification_methods' in the schema cache`
+- **원인:** `event_verification_methods` 테이블에 **unit** 컬럼이 없습니다. 숫자(VALUE) 인증 방식에 단위(km/h 등)를 저장하려다 실패합니다.
+- **해결:** Supabase SQL Editor에서 **마이그레이션 019**를 실행하세요.
+  - 파일: `docs/migrations/019-verification-value-unit.sql`
+  - 내용: `event_verification_methods` 테이블에 `unit` 컬럼 추가 (TEXT, NULL 허용)
+- 실행 후 숫자 인증 방식에 단위 설정이 정상 동작합니다.
+
 ## 인증 방식 저장 실패: input_style 컬럼을 찾을 수 없음
 
 - **에러 메시지:** `인증 방식 저장 실패: Could not find the 'input_style' column of 'event_verification_methods' in the schema cache`

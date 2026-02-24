@@ -19,6 +19,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **이벤트 관리**: `/admin/events` — 목록, `/admin/events/new` — 등록 (보상: V.Point/굿즈/커피쿠폰 복수 선택, 인증: 사진·텍스트·숫자·동료선택+텍스트 + 직원 안내문)
 - **인증 심사**: `/admin/verifications` — 이벤트 참여 인증 승인/반려, 일괄 처리
 - **기부처 관리**: `/admin/donation-targets` — 목표 수정, 오프라인 성금 합산
+- **스켈레톤 UI**: 메인·마이·기부·관리자 페이지 로딩 시 콘텐츠 자리 표시용 스켈레톤 표시
 
 ## Getting Started
 
