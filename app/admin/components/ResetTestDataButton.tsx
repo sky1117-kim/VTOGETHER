@@ -26,7 +26,7 @@ export function ResetTestDataButton() {
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+        className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 btn-press"
       >
         {pending ? '처리 중…' : '테스트 데이터 초기화'}
       </button>

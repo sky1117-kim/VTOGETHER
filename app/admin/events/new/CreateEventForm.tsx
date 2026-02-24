@@ -3,6 +3,19 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import {
+  DndContext,
+  closestCenter,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { GripVertical } from 'lucide-react'
 import { createEvent, createRoundsForMonth, getEventForCopy } from '@/api/actions/admin/events'
 import type { VerificationMethodInput, EventRewardInput, EventRow } from '@/api/actions/admin/events'
 import {
@@ -12,6 +25,8 @@ import {
   REWARD_POLICIES,
   REWARD_KINDS,
   VERIFICATION_METHOD_TYPES,
+  VALUE_UNIT_OPTIONS,
+  VALUE_UNIT_CUSTOM,
 } from '@/constants/events'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
 
@@ -23,12 +38,15 @@ const labelClass = 'block text-sm font-bold text-gray-700'
 
 type VerificationMethodType = VerificationMethodInput['method_type']
 
-/** 인증 항목 1개 (타입 + 직원 안내문 + 단답/장문) */
+/** 인증 항목 1개 (타입 + 직원 안내문 + 단답/장문 또는 단위) */
 interface VerificationItem {
   id: string
   method_type: VerificationMethodType
   instruction: string
+  /** TEXT용. VALUE는 숫자만 입력되므로 사용 안 함 */
   input_style: 'SHORT' | 'LONG'
+  /** VALUE용. 단위 (예: km/h, km). 선택 또는 직접 입력 */
+  unit?: string
 }
 
 function buildPayload(
@@ -53,7 +71,13 @@ function buildPayload(
     method_type: item.method_type,
     is_required: true,
     instruction: item.instruction.trim() || null,
-    input_style: item.method_type === 'PHOTO' ? null : item.input_style,
+    input_style: item.method_type === 'PHOTO' ? null : item.method_type === 'VALUE' ? null : item.input_style,
+    unit:
+      item.method_type === 'VALUE'
+        ? item.unit === VALUE_UNIT_CUSTOM
+          ? null
+          : (item.unit?.trim() || null)
+        : null,
   }))
   return {
     title: state.title.trim(),
@@ -67,6 +91,130 @@ function buildPayload(
     frequency_limit: state.type === 'ALWAYS' ? state.frequencyLimit : null,
     verification_methods,
   }
+}
+
+/** 드래그 가능한 인증 항목 카드 */
+function SortableVerificationItem({
+  item,
+  onRemove,
+  onInstructionChange,
+  onInputStyleChange,
+  onUnitChange,
+  inputClass,
+}: {
+  item: VerificationItem
+  index?: number
+  onRemove: (id: string) => void
+  onInstructionChange: (id: string, instruction: string) => void
+  onInputStyleChange: (id: string, input_style: 'SHORT' | 'LONG') => void
+  onUnitChange: (id: string, unit: string) => void
+  inputClass: string
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3 ${isDragging ? 'opacity-50 shadow-lg' : ''}`}
+    >
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="cursor-grab touch-none rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 active:cursor-grabbing"
+          aria-label="순서 변경"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-5 w-5" />
+        </button>
+        <div className="flex flex-1 items-center justify-between">
+          <span className="text-sm font-medium text-gray-700">
+            {VERIFICATION_METHOD_TYPES.find((m) => m.value === item.method_type)?.label ?? item.method_type}
+          </span>
+          <button
+            type="button"
+            onClick={() => onRemove(item.id)}
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-100 hover:border-red-300"
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+      {item.method_type === 'TEXT' && (
+        <div>
+          <label className="text-xs font-medium text-gray-500">입력 형태</label>
+          <select
+            value={item.input_style}
+            onChange={(e) => onInputStyleChange(item.id, e.target.value as 'SHORT' | 'LONG')}
+            className="mt-1 w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+          >
+            <option value="SHORT">단답</option>
+            <option value="LONG">장문</option>
+          </select>
+        </div>
+      )}
+      {item.method_type === 'VALUE' && (
+        <div>
+          <label className="text-xs font-medium text-gray-500">단위 (선택 또는 직접 입력)</label>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <select
+              value={
+                item.unit === VALUE_UNIT_CUSTOM ||
+                (item.unit && !VALUE_UNIT_OPTIONS.some((o) => o.value === item.unit))
+                  ? VALUE_UNIT_CUSTOM
+                  : item.unit ?? ''
+              }
+              onChange={(e) => {
+                const v = e.target.value
+                onUnitChange(item.id, v === VALUE_UNIT_CUSTOM ? VALUE_UNIT_CUSTOM : v)
+              }}
+              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+            >
+              {VALUE_UNIT_OPTIONS.map((o) => (
+                <option key={o.value || 'none'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+              <option value={VALUE_UNIT_CUSTOM}>직접 입력</option>
+            </select>
+            {(item.unit === VALUE_UNIT_CUSTOM ||
+              (item.unit && !VALUE_UNIT_OPTIONS.some((o) => o.value === item.unit))) && (
+              <input
+                type="text"
+                value={item.unit === VALUE_UNIT_CUSTOM ? '' : (item.unit ?? '')}
+                onChange={(e) => onUnitChange(item.id, e.target.value)}
+                placeholder="예: km/h, 마일"
+                className="w-24 rounded border border-gray-300 px-2 py-1.5 text-xs"
+              />
+            )}
+          </div>
+        </div>
+      )}
+      <div>
+        <label className="text-xs font-medium text-gray-500">안내 문구</label>
+        <textarea
+          value={item.instruction}
+          onChange={(e) => onInstructionChange(item.id, e.target.value)}
+          rows={2}
+          className={inputClass}
+          placeholder="직원에게 보여줄 안내 문구"
+        />
+      </div>
+    </li>
+  )
 }
 
 function validateForm(state: {
@@ -131,12 +279,31 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
     const defaultStyle: 'SHORT' | 'LONG' = method_type === 'VALUE' ? 'SHORT' : 'LONG'
     setVerificationItems((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), method_type, instruction: '', input_style: defaultStyle },
+      {
+        id: crypto.randomUUID(),
+        method_type,
+        instruction: '',
+        input_style: defaultStyle,
+        unit: method_type === 'VALUE' ? '' : undefined,
+      },
     ])
   }
 
   const removeVerificationItem = (id: string) => {
     setVerificationItems((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  /** 드래그로 인증 항목 순서 변경 */
+  const reorderVerificationItems = (oldIndex: number, newIndex: number) => {
+    setVerificationItems((prev) => arrayMove(prev, oldIndex, newIndex))
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = verificationItems.findIndex((i) => i.id === active.id)
+    const newIndex = verificationItems.findIndex((i) => i.id === over.id)
+    if (oldIndex >= 0 && newIndex >= 0) reorderVerificationItems(oldIndex, newIndex)
   }
 
   const setVerificationInstruction = (id: string, instruction: string) => {
@@ -147,6 +314,11 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
   const setVerificationInputStyle = (id: string, input_style: 'SHORT' | 'LONG') => {
     setVerificationItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, input_style } : item))
+    )
+  }
+  const setVerificationUnit = (id: string, unit: string) => {
+    setVerificationItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, unit } : item))
     )
   }
 
@@ -181,6 +353,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           method_type: m.method_type,
           instruction: m.instruction ?? '',
           input_style: m.input_style ?? (m.method_type === 'VALUE' ? 'SHORT' : 'LONG'),
+          unit: m.method_type === 'VALUE' ? (m.unit ?? '') : undefined,
         }))
       )
       setMessage({ type: 'ok', text: '기존 이벤트 내용을 불러왔습니다. 필요하면 수정 후 등록하세요.' })
@@ -427,7 +600,9 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       {/* 인증 방식 */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-gray-500">인증 방식 *</h3>
-        <p className="mb-3 text-xs text-gray-500">항목 추가 후 직원에게 보여줄 안내 문구를 입력하세요.</p>
+        <p className="mb-3 text-xs text-gray-500">
+          항목 추가 후 직원에게 보여줄 안내 문구를 입력하세요. 각 항목 왼쪽 아이콘을 드래그하여 순서를 변경할 수 있습니다.
+        </p>
         <div className="flex flex-wrap gap-2">
           {VERIFICATION_METHOD_TYPES.map(({ value, label }) => (
             <button
@@ -436,46 +611,32 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
               onClick={() => addVerificationItem(value)}
               className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
-              + {label}
+              {label}
             </button>
           ))}
         </div>
         {verificationItems.length > 0 && (
-          <ul className="mt-4 space-y-3">
-            {verificationItems.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3">
-                <span className="w-24 shrink-0 text-sm font-medium text-gray-700">
-                  {VERIFICATION_METHOD_TYPES.find((m) => m.value === item.method_type)?.label ?? item.method_type}
-                </span>
-                {(item.method_type === 'TEXT' || item.method_type === 'VALUE') && (
-                  <select
-                    value={item.input_style}
-                    onChange={(e) => setVerificationInputStyle(item.id, e.target.value as 'SHORT' | 'LONG')}
-                    className="w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
-                  >
-                    <option value="SHORT">단답</option>
-                    <option value="LONG">장문</option>
-                  </select>
-                )}
-                <div className="min-w-0 flex-1">
-                  <textarea
-                    value={item.instruction}
-                    onChange={(e) => setVerificationInstruction(item.id, e.target.value)}
-                    rows={2}
-                    className={inputClass}
-                    placeholder="직원 안내 문구"
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext
+              items={verificationItems.map((i) => i.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="mt-4 space-y-3">
+                {verificationItems.map((item, index) => (
+                  <SortableVerificationItem
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    onRemove={removeVerificationItem}
+                    onInstructionChange={setVerificationInstruction}
+                    onInputStyleChange={setVerificationInputStyle}
+                    onUnitChange={setVerificationUnit}
+                    inputClass={inputClass}
                   />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeVerificationItem(item.id)}
-                  className="shrink-0 text-xs text-red-600 hover:underline"
-                >
-                  삭제
-                </button>
-              </li>
-            ))}
-          </ul>
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </section>
 
@@ -483,13 +644,13 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
         <button
           type="submit"
           disabled={pending}
-          className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50"
+          className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
         >
           {pending ? '등록 중…' : '이벤트 등록'}
         </button>
         <Link
           href="/admin/events"
-          className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+          className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 btn-press-link"
         >
           취소
         </Link>

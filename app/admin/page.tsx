@@ -4,11 +4,15 @@ import { getCurrentUser } from '@/api/actions/auth'
 import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod } from '@/api/actions/admin'
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
 import { formatPoints } from '@/lib/formatPoints'
+import { TARGET_DISPLAY_NAMES } from '@/constants/donationTargets'
 import { GrantPointsForm } from './components/GrantPointsForm'
 import { SiteContentForm } from './components/SiteContentForm'
 import { ResetTestDataButton } from './components/ResetTestDataButton'
-import { UserDeptEdit } from './components/UserDeptEdit'
-import { AdminToggle } from './components/AdminToggle'
+import { AdminUserTable } from './components/AdminUserTable'
+import { DonationByTargetPie } from './components/DonationByTargetPie'
+import { UserLevelPie } from './components/UserLevelPie'
+import { DonationPeriodPie } from './components/DonationPeriodPie'
+import { MauDonutChart } from './components/MauDonutChart'
 
 export default async function AdminPage() {
   const user = await getCurrentUser()
@@ -20,6 +24,40 @@ export default async function AdminPage() {
   const targets = donationTargets ?? []
   const periodAmounts = await getDonationAmountsByPeriod()
   const currentUserId = user?.user_id ?? ''
+
+  // 등급별 사용자 수 (시각화용) — Eco Keeper, Green Master, Earth Hero 항상 3가지 표시
+  const levelLabels: Record<string, string> = {
+    ECO_KEEPER: 'Eco Keeper',
+    GREEN_MASTER: 'Green Master',
+    EARTH_HERO: 'Earth Hero',
+  }
+  const levelCounts = userList.reduce<Record<string, number>>((acc, u) => {
+    const label = levelLabels[u.level] ?? u.level ?? 'Eco Keeper'
+    acc[label] = (acc[label] ?? 0) + 1
+    return acc
+  }, {})
+  const levelDistribution = (['Eco Keeper', 'Green Master', 'Earth Hero'] as const).map((name) => ({
+    name,
+    value: levelCounts[name] ?? 0,
+  }))
+
+  // 기부처별 기부 금액 — 홈과 동일한 표기(국제구조위원회, 대한적십자사 등)로 전부 표시
+  const donationByTargetAll = targets.map((t) => ({
+    name: TARGET_DISPLAY_NAMES[t.name] ?? t.name,
+    value: t.current_amount,
+  }))
+
+  // 접속 기간별 사용자 수 (MAU 카드용, last_active_at 기준)
+  const now = new Date()
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
+  const weekAgo = new Date(now)
+  weekAgo.setDate(weekAgo.getDate() - 7)
+  const weekAgoIso = weekAgo.toISOString()
+  const thirtyDaysAgo = new Date(now)
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const thirtyDaysAgoIso = thirtyDaysAgo.toISOString()
+  const activeToday = userList.filter((u) => (u.last_active_at ?? '') >= todayStart).length
+  const activeThisWeek = userList.filter((u) => (u.last_active_at ?? '') >= weekAgoIso).length
 
   return (
     <div className="space-y-8">
@@ -45,7 +83,7 @@ export default async function AdminPage() {
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link
           href="/admin/events"
-          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md"
+          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
         >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600">
             <Gift className="size-6" />
@@ -58,7 +96,10 @@ export default async function AdminPage() {
           </div>
           <ChevronRight className="size-5 shrink-0 text-gray-400" />
         </Link>
-        <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <Link
+          href="/admin/donation-targets"
+          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+        >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
             <Heart className="size-6" />
           </div>
@@ -69,8 +110,12 @@ export default async function AdminPage() {
             </p>
             {dashboardStats.error && <p className="mt-0.5 text-xs text-red-500">{dashboardStats.error}</p>}
           </div>
-        </div>
-        <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <ChevronRight className="size-5 shrink-0 text-gray-400" />
+        </Link>
+        <Link
+          href="/admin/donation-targets"
+          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+        >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
             <Target className="size-6" />
           </div>
@@ -85,10 +130,11 @@ export default async function AdminPage() {
               </p>
             )}
           </div>
-        </div>
+          <ChevronRight className="size-5 shrink-0 text-gray-400" />
+        </Link>
         <Link
           href="/admin/verifications"
-          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md"
+          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
         >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
             <ClipboardList className="size-6" />
@@ -106,63 +152,78 @@ export default async function AdminPage() {
         </Link>
       </section>
 
-      {/* MAU: 별도 섹션 · 시각화 */}
-      <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-gray-900">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
-            <Users className="size-5" />
-          </span>
-          월간 활성 사용자 (MAU)
-        </h2>
-        <p className="mb-5 text-sm text-gray-500">최근 30일 동안 한 번이라도 접속한 사용자 수입니다. 목표: 전 직원의 80% 이상이 월 1회 이상 접속.</p>
-        {dashboardStats.mau != null ? (
-          <div className="space-y-5">
-            <div className="flex flex-wrap items-baseline gap-4 gap-y-1">
-              <span className="text-4xl font-bold tabular-nums text-violet-600">
-                {dashboardStats.mau}명
-              </span>
-              <span className="text-lg text-gray-500">
-                / 전체 {userList.length}명
-              </span>
-              {userList.length > 0 && (
-                <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-sm font-medium text-violet-700">
-                  {((dashboardStats.mau / userList.length) * 100).toFixed(1)}%
-                </span>
-              )}
-            </div>
-            {userList.length > 0 && (Math.ceil(userList.length * 0.8) > 0) && (
-              <>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-medium text-gray-500">목표 달성률 (80% 목표)</span>
-                    <span className="tabular-nums text-gray-700">
-                      {Math.min(100, (dashboardStats.mau / (userList.length * 0.8)) * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="h-4 w-full overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-violet-400 to-violet-600 transition-all duration-500"
-                      style={{
-                        width: `${Math.min(100, (dashboardStats.mau / (userList.length * 0.8)) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    목표 {Math.ceil(userList.length * 0.8)}명 이상 접속 시 달성
-                  </p>
+      {/* 차트: MAU · 기부처별 · 기간별 · 등급별 */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* MAU */}
+        <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800">월간 활성 사용자 (MAU)</h3>
+          {dashboardStats.mau != null && userList.length > 0 ? (
+            <>
+              <MauDonutChart mau={dashboardStats.mau} total={userList.length} />
+              <dl className="mt-2 space-y-1 border-t border-gray-100 pt-2 text-xs">
+                <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-2 text-gray-600">
+                  <span>최근 30일</span>
+                  <span className="whitespace-nowrap text-right font-medium tabular-nums text-gray-900">{dashboardStats.mau}명</span>
                 </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 py-8 text-center">
-            <Users className="mx-auto size-10 text-gray-300" />
-            <p className="mt-2 text-sm font-medium text-gray-500">준비 중</p>
-            <p className="mt-0.5 text-xs text-gray-400">
-              마이그레이션 <code className="rounded bg-gray-200 px-1">016-users-last-active-at.sql</code> 실행 후 표시됩니다.
-            </p>
-          </div>
-        )}
+                <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-2 text-gray-600">
+                  <span>이번 주</span>
+                  <span className="whitespace-nowrap text-right font-medium tabular-nums text-gray-900">{activeThisWeek}명</span>
+                </div>
+                <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-2 text-gray-600">
+                  <span>오늘</span>
+                  <span className="whitespace-nowrap text-right font-medium tabular-nums text-gray-900">{activeToday}명</span>
+                </div>
+              </dl>
+            </>
+          ) : dashboardStats.mau == null ? (
+            <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 text-center text-xs text-gray-500">
+              마이그레이션 016 실행 후 표시
+            </div>
+          ) : (
+            <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 text-xs text-gray-500">
+              데이터 없음
+            </div>
+          )}
+        </div>
+        {/* 기부처별 기부 비율 */}
+        <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800">기부처별 기부 비율</h3>
+          {donationByTargetAll.length > 0 ? (
+            <DonationByTargetPie data={donationByTargetAll} />
+          ) : (
+            <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 text-xs text-gray-500">
+              데이터 없음
+            </div>
+          )}
+        </div>
+        {/* 이번 달 기부 시기별 */}
+        <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800">이번 달 기부 시기별</h3>
+          {periodAmounts.thisMonth > 0 ? (
+            <DonationPeriodPie
+              data={{
+                today: periodAmounts.today,
+                thisWeek: periodAmounts.thisWeek,
+                thisMonth: periodAmounts.thisMonth,
+              }}
+            />
+          ) : (
+            <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 text-xs text-gray-500">
+              데이터 없음
+            </div>
+          )}
+        </div>
+        {/* 등급별 사용자 */}
+        <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800">등급별 사용자</h3>
+          {levelDistribution.length > 0 ? (
+            <UserLevelPie data={levelDistribution} />
+          ) : (
+            <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 text-xs text-gray-500">
+              데이터 없음
+            </div>
+          )}
+        </div>
       </section>
 
       {/* 기부 현황 요약 (기부처별 달성률 그래프) */}
@@ -171,12 +232,13 @@ export default async function AdminPage() {
           <h2 className="mb-4 text-base font-bold text-gray-900">기부 현황 요약</h2>
           <div className="space-y-4">
             {targets.map((t) => {
+              const displayName = TARGET_DISPLAY_NAMES[t.name] ?? t.name
               const pct = t.target_amount > 0 ? Math.min(100, (t.current_amount / t.target_amount) * 100) : 0
               const isDone = t.status === 'COMPLETED'
               return (
                 <div key={t.target_id} className="space-y-1.5">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium text-gray-800">{t.name}</span>
+                    <span className="text-sm font-medium text-gray-800">{displayName}</span>
                     <span className="shrink-0 text-xs tabular-nums text-gray-500">
                       {formatPoints(t.current_amount)} / {formatPoints(t.target_amount)}
                       {isDone && <span className="ml-1 text-green-600">완료</span>}
@@ -196,7 +258,7 @@ export default async function AdminPage() {
           </div>
           <Link
             href="/admin/donation-targets"
-            className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-green-600 hover:text-green-700"
+            className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-green-600 hover:text-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 rounded btn-press-link"
           >
             기부처 관리
             <ChevronRight className="size-4" />
@@ -282,11 +344,11 @@ export default async function AdminPage() {
 
       {/* 바로가기 */}
       <section>
-        <h2 className="mb-3 text-base font-bold text-gray-900">바로가기</h2>
+        <h2 className="mb-4 text-base font-bold text-gray-900">바로가기</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           <Link
             href="/admin/events"
-            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md"
+            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
             <span className="text-lg font-bold text-gray-900">이벤트</span>
             <span className="mt-1 text-sm text-gray-500">이벤트·챌린지 등록 및 목록 관리</span>
@@ -294,7 +356,7 @@ export default async function AdminPage() {
           </Link>
           <Link
             href="/admin/verifications"
-            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md"
+            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
             <span className="text-lg font-bold text-gray-900">인증 심사</span>
             <span className="mt-1 text-sm text-gray-500">참여 인증 승인·반려, 일괄 처리</span>
@@ -302,7 +364,7 @@ export default async function AdminPage() {
           </Link>
           <Link
             href="/admin/donation-targets"
-            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md"
+            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
             <span className="text-lg font-bold text-gray-900">기부처</span>
             <span className="mt-1 text-sm text-gray-500">목표 수정, 오프라인 성금 합산</span>
@@ -313,7 +375,7 @@ export default async function AdminPage() {
 
       {/* 설정·운영 */}
       <section className="space-y-6">
-        <h2 className="text-lg font-bold text-gray-900">설정 · 운영</h2>
+        <h2 className="text-base font-bold text-gray-900">설정 · 운영</h2>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="mb-2 font-bold text-gray-900">메인 화면 문구</h3>
@@ -321,14 +383,6 @@ export default async function AdminPage() {
             히어로 영역 시즌 뱃지·타이틀·부제목. 줄바꿈은 <code className="rounded bg-gray-100 px-1">\n</code> 입력.
           </p>
           <SiteContentForm initial={siteContent} />
-        </div>
-
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 shadow-sm">
-          <h3 className="mb-2 font-bold text-gray-900">테스트 데이터 초기화</h3>
-          <p className="mb-4 text-sm text-gray-600">
-            포인트·기부 내역 초기화 후 테스트용 데이터로 채웁니다.
-          </p>
-          <ResetTestDataButton />
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -349,65 +403,17 @@ export default async function AdminPage() {
               체크를 켜면 해당 사용자가 관리자 페이지 접근·이벤트 관리가 가능합니다.
             </p>
           </div>
-          {userList.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              등록된 사용자가 없습니다. 메인에서 로그인하면 여기에서 관리자를 지정할 수 있습니다.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                  <tr>
-                    <th className="px-6 py-3 font-medium">이름 / 이메일</th>
-                    <th className="px-6 py-3 font-medium">부서</th>
-                    <th className="px-6 py-3 font-medium">관리자</th>
-                    <th className="px-6 py-3 font-medium text-right">보유 P</th>
-                    <th className="px-6 py-3 font-medium text-right">누적 기부</th>
-                    <th className="px-6 py-3 font-medium">등급</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {userList.map((u) => (
-                    <tr key={u.user_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <span className="font-medium text-gray-900">{u.name || '—'}</span>
-                        <span className="block text-xs text-gray-500">{u.email}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <UserDeptEdit userId={u.user_id} initialDeptName={u.dept_name} />
-                      </td>
-                      <td className="px-6 py-4">
-                        <AdminToggle
-                          userId={u.user_id}
-                          initial={!!u.is_admin}
-                          isSelf={u.user_id === currentUserId}
-                        />
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-gray-900">
-                        {u.current_points.toLocaleString()} P
-                      </td>
-                      <td className="px-6 py-4 text-right text-gray-600">
-                        {u.total_donated_amount.toLocaleString()} P
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                            u.level === 'EARTH_HERO'
-                              ? 'bg-purple-100 text-purple-700'
-                              : u.level === 'GREEN_MASTER'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {u.level === 'EARTH_HERO' ? 'Earth Hero' : u.level === 'GREEN_MASTER' ? 'Green Master' : 'Eco Keeper'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="p-4 sm:p-6">
+            <AdminUserTable users={userList} currentUserId={currentUserId} />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 shadow-sm">
+          <h3 className="mb-2 font-bold text-gray-900">테스트 데이터 초기화</h3>
+          <p className="mb-4 text-sm text-gray-600">
+            포인트·기부 내역 초기화 후 테스트용 데이터로 채웁니다.
+          </p>
+          <ResetTestDataButton />
         </div>
       </section>
     </div>

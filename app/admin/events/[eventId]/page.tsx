@@ -5,6 +5,7 @@ import { AddRoundsForm } from './AddRoundsForm'
 import { EditEventForm } from './EditEventForm'
 import { DeleteEventButton } from './DeleteEventButton'
 import { DeleteRoundButton } from './DeleteRoundButton'
+import { ExportEventExcelButton } from '../components/ExportEventExcelButton'
 
 const CATEGORY_LABEL: Record<string, string> = {
   V_TOGETHER: 'V.Together',
@@ -168,6 +169,7 @@ export default async function AdminEventDetailPage({
         <Link href="/admin/events" className="text-sm font-medium text-gray-500 transition hover:text-gray-700">
           ← 이벤트 목록
         </Link>
+        <ExportEventExcelButton eventId={eventId} eventTitle={event.title} variant="detail" />
         <DeleteEventButton eventId={eventId} eventTitle={event.title} />
       </div>
     </div>

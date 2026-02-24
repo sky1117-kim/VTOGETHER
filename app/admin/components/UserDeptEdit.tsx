@@ -40,7 +40,7 @@ export function UserDeptEdit({ userId, initialDeptName }: UserDeptEditProps) {
           type="button"
           onClick={handleSave}
           disabled={pending}
-          className="rounded-lg bg-green-600 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+          className="rounded-lg bg-green-600 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
         >
           {pending ? '저장 중' : '저장'}
         </button>

@@ -130,7 +130,7 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
           상세 소개문구
         </label>
         <p className="mt-0.5 mb-1 text-xs text-gray-500">
-          글자 선택 후 ⌘B(굵게)·⌘I(기울임) 또는 툴바 버튼 — 입력창에서 바로 반영됩니다
+          글자 선택 후 툴바에서 굵게·기울임·목록·<strong>폰트 크기</strong>·<strong>색상</strong> 적용 가능. 이벤트 모달에도 동일하게 표시됩니다.
         </p>
         <RichTextEditor
           id="edit-description"
@@ -218,7 +218,7 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
         <button
           type="submit"
           disabled={pending}
-          className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50"
+          className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
         >
           {pending ? '저장 중…' : '저장'}
         </button>

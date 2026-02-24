@@ -46,7 +46,7 @@ export function OfflineDonationForm({ targetId, targetName }: OfflineDonationFor
         <button
           type="submit"
           disabled={pending || !amount.trim()}
-          className="rounded-lg bg-amber-600 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+          className="rounded-lg bg-amber-600 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-amber-700 disabled:opacity-50 btn-press"
         >
           {pending ? '반영 중' : '합산'}
         </button>

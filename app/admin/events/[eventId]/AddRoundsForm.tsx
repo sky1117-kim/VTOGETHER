@@ -82,7 +82,7 @@ export function AddRoundsForm({ eventId }: AddRoundsFormProps) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50"
+          className="rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
         >
           {pending ? '추가 중…' : '해당 월 3구간 자동 생성'}
         </button>

@@ -1,100 +1,99 @@
-import { getNonPointRewardFulfillmentList } from '@/api/actions/admin'
+import Link from 'next/link'
+import {
+  getNonPointRewardFulfillmentList,
+  getEventsForRewardFulfillment,
+  type RewardFulfillmentFilter,
+} from '@/api/actions/admin'
+import { RewardFulfillmentTable } from './components/RewardFulfillmentTable'
+import { EventFilterSelect } from './components/EventFilterSelect'
 
-const REWARD_TYPE_LABEL: Record<string, string> = {
-  COFFEE_COUPON: '커피 쿠폰',
-  GOODS: '굿즈',
-  COUPON: '쿠폰',
-}
+export default async function AdminRewardFulfillmentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string; eventId?: string }>
+}) {
+  const { filter, eventId } = await searchParams
+  const safeFilter: RewardFulfillmentFilter =
+    filter === 'pending' || filter === 'fulfilled' ? filter : 'all'
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-export default async function AdminRewardFulfillmentPage() {
-  const { data: rows, error } = await getNonPointRewardFulfillmentList()
+  const [{ data: rows, error }, { data: events }] = await Promise.all([
+    getNonPointRewardFulfillmentList(safeFilter, eventId || null),
+    getEventsForRewardFulfillment(),
+  ])
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">쿠폰 / 굿즈 발송 대상</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          보상 선택에서 커피 쿠폰·굿즈를 고른 참여자 목록입니다. 별도로 발송을 챙겨주세요.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">쿠폰 / 굿즈 발송 대상</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            보상 선택에서 커피 쿠폰·굿즈를 고른 참여자 목록입니다. 발송 완료 시 체크해 두세요.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/events"
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            이벤트 관리
+          </Link>
+          <Link
+            href="/admin/verifications"
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            인증 심사
+          </Link>
+          <Link
+            href="/admin"
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            대시보드로
+          </Link>
+        </div>
       </div>
 
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
+      {/* 이벤트 필터: 쿠폰/굿즈 대상이 있으면 표시 (API 이벤트 목록 또는 rows에서 추출) */}
+      {((events?.length ?? 0) > 0 || (rows?.length ?? 0) > 0) && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <EventFilterSelect
+            events={
+              (events?.length ?? 0) > 0
+                ? events!
+                : (rows ?? []).reduce(
+                    (acc: { event_id: string; title: string }[], r) => {
+                      if (!acc.some((e) => e.event_id === r.event_id))
+                        acc.push({ event_id: r.event_id, title: r.event_title })
+                      return acc
+                    },
+                    []
+                  )
+            }
+            currentEventId={eventId ?? null}
+            currentFilter={safeFilter}
+          />
+        </div>
+      )}
+
       {rows && rows.length === 0 && (
         <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-500">
-          아직 쿠폰/굿즈를 선택한 건이 없습니다.
+          {safeFilter === 'all'
+            ? '아직 쿠폰/굿즈를 선택한 건이 없습니다.'
+            : safeFilter === 'pending'
+              ? '미발송 건이 없습니다.'
+              : '발송 완료한 건이 없습니다.'}
         </div>
       )}
 
       {rows && rows.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    이벤트
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    구간
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    참여자
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    이메일
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    선택 보상
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    선택 일시
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {rows.map((r) => (
-                  <tr key={r.submission_id} className="hover:bg-gray-50/50">
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                      {r.event_title}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                      {r.round_number != null ? `${r.round_number}구간` : '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                      {r.user_name ?? '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                      <a href={`mailto:${r.user_email ?? ''}`} className="text-green-600 hover:underline">
-                        {r.user_email ?? '—'}
-                      </a>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                        {REWARD_TYPE_LABEL[r.reward_type] ?? r.reward_type}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                      {formatDate(r.chosen_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <RewardFulfillmentTable
+          rows={rows}
+          currentFilter={safeFilter}
+          currentEventId={eventId ?? null}
+        />
       )}
     </div>
   )
