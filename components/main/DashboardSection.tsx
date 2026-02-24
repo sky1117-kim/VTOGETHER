@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { TrendingUp, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { LevelRoadmapModal } from '@/components/my/LevelRoadmapModal'
+import { PointNotificationBell } from './PointNotificationBell'
+import type { PointNotificationRow } from '@/api/queries/user'
 type Level = 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
 
 const LEVEL_INFO: Record<Level, { label: string; icon: string; next: Level | null; nextMin: number }> = {
@@ -10,29 +12,20 @@ const LEVEL_INFO: Record<Level, { label: string; icon: string; next: Level | nul
   EARTH_HERO: { label: 'Earth Hero', icon: '🌍', next: null, nextMin: 0 },                  // 지구
 }
 
-/** My Status 카드 상단(헤더) 그라데이션·장식 색 + "등급 상세 보기" 링크 색 — 등급별 */
-const LEVEL_HEADER_STYLE: Record<
-  Level,
-  { gradient: string; blurOrb1: string; blurOrb2: string; avatarBg: string; detailLink: string }
-> = {
+/** My Status 카드 상단(헤더) 그라데이션 색 + "등급 상세 보기" 링크 색 — 등급별 */
+const LEVEL_HEADER_STYLE: Record<Level, { gradient: string; avatarBg: string; detailLink: string }> = {
   ECO_KEEPER: {
     gradient: 'bg-gradient-to-br from-slate-400 via-slate-600 to-indigo-800',
-    blurOrb1: 'bg-white/10',
-    blurOrb2: 'bg-slate-500/20',
     avatarBg: 'bg-slate-800',
     detailLink: 'text-slate-600 hover:text-slate-800',
   },
   GREEN_MASTER: {
     gradient: 'bg-gradient-to-br from-emerald-500 via-green-600 to-teal-600',
-    blurOrb1: 'bg-white/10',
-    blurOrb2: 'bg-emerald-400/30',
     avatarBg: 'bg-green-900',
     detailLink: 'text-green-600 hover:text-green-800',
   },
   EARTH_HERO: {
     gradient: 'bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-700',
-    blurOrb1: 'bg-white/10',
-    blurOrb2: 'bg-violet-400/25',
     avatarBg: 'bg-violet-900',
     detailLink: 'text-violet-600 hover:text-violet-800',
   },
@@ -62,6 +55,10 @@ interface DashboardSectionProps {
   heroSeasonBadge?: string
   heroTitle?: string
   heroSubtitle?: string
+  /** 로그인 사용자 ID (알림 버튼용) */
+  userId?: string | null
+  /** 최근 1주일 적립 알림 목록 */
+  recentNotifications?: PointNotificationRow[]
 }
 
 const defaultHero = {
@@ -87,6 +84,8 @@ export function DashboardSection({
   heroSeasonBadge = defaultHero.seasonBadge,
   heroTitle = defaultHero.title,
   heroSubtitle = defaultHero.subtitle,
+  userId = null,
+  recentNotifications = [],
 }: DashboardSectionProps) {
   const level = normalizeLevel(levelProp)
   const safeTitle = heroTitle ?? defaultHero.title
@@ -128,58 +127,69 @@ export function DashboardSection({
       </div>
 
       {/* My Status 카드: 컴팩트 배치 (헤더 · 포인트 · 등급) */}
-      <div className="card-hover w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-lg">
+      <div className="card-hover w-full max-w-sm overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
         {/* Header: 등급별 그라데이션 + 아바타·이름·부서·이메일 */}
-        <div className={`relative ${headerStyle.gradient} px-4 py-4 pb-14`}>
-          <div className={`absolute -mr-24 -mt-24 size-48 rounded-full ${headerStyle.blurOrb1} blur-3xl`} aria-hidden />
-          <div className={`absolute -ml-20 -mb-20 size-40 rounded-full ${headerStyle.blurOrb2} blur-2xl`} aria-hidden />
-          <div className="relative flex items-center gap-3">
-            <Avatar className="size-14 shrink-0 border-2 border-white/50 shadow-lg">
-              <AvatarFallback className={`${headerStyle.avatarBg} text-lg font-bold text-white`}>
-                {displayName?.slice(0, 1) || '?'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xl font-extrabold tracking-tight text-white drop-shadow-md sm:text-2xl">
-                {displayName}
-              </h2>
-              <p className="mt-0.5 truncate text-xs text-white/80 drop-shadow-sm">
-                {deptName?.trim() || '부서.'} · {email || '—'}
-              </p>
+        <div className={`relative ${headerStyle.gradient} px-4 py-4`}>
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <Avatar className="size-12 shrink-0 border-2 border-white/50 shadow-md">
+                <AvatarFallback className={`${headerStyle.avatarBg} text-lg font-bold text-white`}>
+                  {displayName?.slice(0, 1) || '?'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-xl font-extrabold tracking-tight text-white drop-shadow-md sm:text-2xl">
+                  {displayName}
+                </h2>
+                <p className="mt-1 truncate text-xs text-white/80 drop-shadow-sm">
+                  {deptName?.trim() || '부서.'} · {email || '—'}
+                </p>
+              </div>
             </div>
+            {userId && (
+              <div className="shrink-0">
+                <PointNotificationBell
+                  userId={userId}
+                  notifications={recentNotifications}
+                  variant="dark"
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Available Points: 헤더와 살짝 겹침 */}
-        <div className="relative -mt-9 mx-4">
-          <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-md">
+        {/* Available Points */}
+        <div className="border-t border-gray-100 px-4 py-2">
+          <div className="rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
                   Available Points
                 </p>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-gray-900 sm:text-3xl">
+                  <span className="text-xl font-bold text-gray-900 sm:text-2xl">
                     {currentPoints.toLocaleString()}
                   </span>
-                  <span className="text-base font-semibold text-green-600">P</span>
+                  <span className="text-sm font-semibold text-green-600">P</span>
                 </div>
               </div>
-              <Link
-                href="/my"
-                className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-600 transition hover:bg-green-50 hover:text-green-700"
-              >
-                내역
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/my"
+                  className="rounded-md border border-green-300 px-2.5 py-1 text-xs font-semibold text-green-600 transition hover:bg-green-50 hover:text-green-700"
+                >
+                  내역
+                </Link>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Membership Level: 등급 + 진행률 (간격 축소) */}
-        <div className="p-4 pt-5">
+        {/* Membership Level: 등급 + 진행률 */}
+        <div className="p-4 pt-2">
           <LevelRoadmapModal level={level} totalDonated={totalDonated}>
             <div
-              className={`cursor-pointer rounded-xl border px-4 py-4 transition hover:opacity-90 ${
+              className={`cursor-pointer rounded-xl border px-4 py-3 transition hover:opacity-90 ${
                 level === 'EARTH_HERO'
                   ? 'border-violet-200 bg-violet-50/80'
                   : level === 'GREEN_MASTER'
@@ -187,15 +197,15 @@ export function DashboardSection({
                     : 'border-slate-200 bg-slate-50/80'
               }`}
             >
-              <div className="mb-3 flex items-center gap-3">
+              <div className="mb-2 flex items-center gap-2">
                 {/* 등급 이모지: 동그라미, 흰 배경 + 경계선 같은 색 */}
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white bg-white">
-                  <span className="text-2xl leading-none">{levelInfo.icon}</span>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-white">
+                  <span className="text-xl leading-none">{levelInfo.icon}</span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <h3
-                      className={`text-lg font-black tracking-tight sm:text-xl level-label-status ${
+                      className={`text-base font-black tracking-tight sm:text-lg level-label-status ${
                         level === 'EARTH_HERO'
                           ? 'level-label-status-hero'
                           : level === 'GREEN_MASTER'

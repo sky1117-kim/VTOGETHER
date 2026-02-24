@@ -2,6 +2,7 @@
 
 import { createPortal } from 'react-dom'
 import { getTargetTheme } from '@/constants/donationTargets'
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { TARGET_DISPLAY_NAMES } from '@/constants/donationTargets'
 
 /** 기부처 표시 이름 (DB명 → 화면명) */
@@ -21,6 +22,7 @@ export function DonationSuccessModal({
   amount,
   onClose,
 }: DonationSuccessModalProps) {
+  useBodyScrollLock(true) // 이 모달은 열려 있을 때만 렌더되므로 항상 잠금
   const theme = getTargetTheme(targetName)
   const name = displayName(targetName)
 
@@ -52,7 +54,7 @@ export function DonationSuccessModal({
 
   const content = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4"
       onClick={onClose}
       onMouseDown={(e) => e.stopPropagation()}
       role="dialog"

@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto, claimRewardChoice } from '@/api/actions/events'
 import type { VerificationMethodRow, RoundForParticipation, RewardOptionRow, PeerSelectionUserRow } from '@/api/queries/events'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const METHOD_LABEL: Record<string, string> = {
   PHOTO: '사진',
@@ -14,6 +16,25 @@ const METHOD_LABEL: Record<string, string> = {
 
 const inputClass =
   'w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20'
+
+/** 숫자 추출: 콤마(천 단위) 제거, 소수점(.) 하나만 허용 */
+function parseNumberInput(value: string): string {
+  let s = value.replace(/,/g, '')
+  s = s.replace(/[^\d.]/g, '')
+  const firstPeriod = s.indexOf('.')
+  if (firstPeriod === -1) return s
+  return s.slice(0, firstPeriod + 1) + s.slice(firstPeriod + 1).replace(/\./g, '')
+}
+
+/** 천 단위 콤마 포맷 (표시용). 소수점 있으면 그대로 유지 */
+function formatNumberDisplay(value: string): string {
+  const parsed = parseNumberInput(value)
+  if (parsed === '') return ''
+  const [intPart, decPart] = parsed.split('.')
+  const formatted = Number(intPart || 0).toLocaleString('ko-KR')
+  return decPart !== undefined ? `${formatted}.${decPart}` : formatted
+}
+
 const ROUND_STATUS_LABEL: Record<string, string> = {
   OPEN: '인증 가능',
   LOCKED: '미오픈',
@@ -54,6 +75,8 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
   const [peerSearch, setPeerSearch] = useState('')
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
+  /** 숫자(VALUE) 인증 필드별 에러 (숫자 아닌 문자 입력 시) */
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [choicePending, setChoicePending] = useState(false)
   /** 보상 선택 후 확인 대기 (이걸로 하시겠어요?) */
   const [confirmingReward, setConfirmingReward] = useState<'V_POINT' | 'COFFEE_COUPON' | 'GOODS' | null>(null)
@@ -64,6 +87,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setError(null)
       setSuccess(false)
       setFormData({})
+      setFieldErrors({})
       setSelectedRoundId(null)
       setPeerSearch('')
       setConfirmingReward(null)
@@ -133,6 +157,11 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setError(`필수 항목을 모두 입력해주세요: ${missing.join(', ')}`)
       return
     }
+    const valueFieldErrors = Object.entries(fieldErrors).filter(([, msg]) => msg)
+    if (valueFieldErrors.length > 0) {
+      setError(valueFieldErrors[0][1])
+      return
+    }
     setSubmitPending(true)
     setError(null)
     const result = await submitEventSubmission(eventId, roundId, verificationData, peerUserId ?? undefined)
@@ -161,41 +190,75 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     setTimeout(() => onClose(), 1500)
   }
 
+  // 모달 열림 시 배경 스크롤 방지
+  useBodyScrollLock(isOpen)
+
   if (!isOpen) return null
 
   const showRewardChoice = data?.pendingChoiceSubmission && data.rewardOptions?.length > 0
   const cannotParticipateAlways = data?.event.type === 'ALWAYS' && data.canParticipate && !data.canParticipate.allowed
 
   const modal = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden p-4 sm:p-6" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+      {/* 큰 폼 기준 고정 크기 — 로딩↔로드 시 크기 변화 없음. 짧은 내용은 본문에서 중앙 배치 */}
       <div
-        className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-modal"
+        className="relative z-10 flex h-[65vh] min-h-[500px] max-h-[720px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">이벤트 인증</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="닫기"
-          >
-            ✕
-          </button>
+        {/* 헤더 고정 */}
+        <div className="flex-shrink-0 border-b border-gray-100 p-6 pb-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">이벤트 인증</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        {loading && <p className="py-8 text-center text-sm text-gray-500">불러오는 중…</p>}
+        {/* 본문: 스크롤 가능, 짧은 내용일 땐 flex로 중앙 배치 */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-6 pt-4">
+        {loading && (
+          <div className="space-y-6" aria-busy="true" aria-label="이벤트 정보 불러오는 중">
+            <Skeleton className="h-5 w-3/4 max-w-xs rounded" />
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-10 w-24 rounded-xl" />
+              <Skeleton className="h-10 w-28 rounded-xl" />
+              <Skeleton className="h-10 w-24 rounded-xl" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-4 w-20 rounded" />
+              <Skeleton className="h-14 w-full rounded-xl" />
+              <Skeleton className="h-4 w-24 rounded" />
+              <Skeleton className="h-14 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </div>
+          </div>
+        )}
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         )}
         {success && (
-          <div className="mb-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-            제출되었습니다. 심사 후 보상이 지급됩니다.
+          <div className="flex flex-1 flex-col items-center justify-center gap-5">
+            <div className="w-full max-w-md rounded-xl bg-green-50 px-4 py-4 text-center text-sm text-green-800">
+              제출되었습니다. 심사 후 보상이 지급됩니다.
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full max-w-md rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+            >
+              닫기
+            </button>
           </div>
         )}
         {!loading && data && !success && showRewardChoice && (
-          <div className="space-y-6">
+          <div className="flex flex-1 flex-col justify-center space-y-6">
             {confirmingReward == null ? (
               <>
                 <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
@@ -256,7 +319,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                     type="button"
                     disabled={choicePending}
                     onClick={() => confirmingReward && handleRewardChoice(confirmingReward)}
-                    className="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50"
+                    className="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 btn-press"
                   >
                     {choicePending ? '처리 중…' : '이걸로 받기'}
                   </button>
@@ -267,23 +330,25 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
         )}
 
         {!loading && data && !success && !showRewardChoice && cannotParticipateAlways && (
-          <div className="space-y-4">
-            <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {data.canParticipate?.reason ?? '지금은 참여할 수 없습니다.'}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
-            >
+          <div className="flex flex-1 flex-col items-center justify-center gap-5">
+            <div className="w-full max-w-md space-y-4">
+              <p className="text-center text-base font-semibold text-gray-800">{data.event.title}</p>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800">
+                {data.canParticipate?.reason ?? '지금은 참여할 수 없습니다.'}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+              >
                 닫기
-            </button>
+              </button>
+            </div>
           </div>
         )}
 
         {!loading && data && !success && !showRewardChoice && !cannotParticipateAlways && (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="event-verify-form" onSubmit={handleSubmit} className="space-y-6">
             <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
 
             {/* 구간 선택: 카드형 버튼 그룹 */}
@@ -337,10 +402,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                           className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
                         >
                           <label className="mb-2 block text-sm font-bold text-gray-800">
-                            {METHOD_LABEL[m.method_type]}
-                            {m.instruction && (
-                              <span className="ml-1 font-normal text-gray-500">— {m.instruction}</span>
-                            )}
+                            {m.instruction ?? '파일을 첨부해 주세요'}
                           </label>
                           <input
                             type="file"
@@ -360,6 +422,8 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       )
                     }
                     if (m.method_type === 'VALUE') {
+                      const raw = formData[m.method_id] ?? ''
+                      const valueError = fieldErrors[m.method_id]
                       return (
                         <div
                           key={m.method_id}
@@ -367,19 +431,40 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         >
                           <label className="mb-2 block text-sm font-bold text-gray-800">
                             {METHOD_LABEL[m.method_type]}
+                            {m.unit && (
+                              <span className="ml-1 font-normal text-gray-500">— {m.unit}</span>
+                            )}
                             {m.instruction && (
-                              <span className="ml-1 font-normal text-gray-500">— {m.instruction}</span>
+                              <span className="ml-1 font-normal text-gray-500">
+                                {m.unit ? ' · ' : ' — '}
+                                {m.instruction}
+                              </span>
                             )}
                           </label>
                           <input
-                            type="number"
-                            value={formData[m.method_id] ?? ''}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, [m.method_id]: e.target.value }))
-                            }
-                            className={inputClass}
-                            placeholder={m.placeholder ?? '숫자 입력'}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={raw === '' ? '' : formatNumberDisplay(raw)}
+                            onChange={(e) => {
+                              const input = e.target.value
+                              const hasInvalid =
+                                /[^\d,.]/.test(input) || (input.match(/\./g) || []).length > 1
+                              setFieldErrors((prev) => ({
+                                ...prev,
+                                [m.method_id]: hasInvalid ? '숫자, 콤마(천 단위), 소수점(.)만 입력해주세요.' : '',
+                              }))
+                              setFormData((prev) => ({
+                                ...prev,
+                                [m.method_id]: parseNumberInput(input),
+                              }))
+                            }}
+                            className={`${inputClass} ${valueError ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+                            placeholder={m.unit ? `숫자 입력 (콤마·소수점 가능) ${m.unit}` : '숫자 입력 (콤마·소수점 가능)'}
                           />
+                          {valueError && (
+                            <p className="mt-2 text-sm font-medium text-red-600">{valueError}</p>
+                          )}
                         </div>
                       )
                     }
@@ -487,23 +572,24 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         </div>
                       )
                     }
-                    return (
+                    const raw = formData[m.method_id] ?? ''
+                      return (
                       <div
                         key={m.method_id}
                         className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
                       >
                         <label className="mb-2 block text-sm font-bold text-gray-800">
-                          {METHOD_LABEL[m.method_type]}
-                          {m.instruction && (
-                            <span className="ml-1 font-normal text-gray-500">— {m.instruction}</span>
-                          )}
+                          {m.instruction ?? m.placeholder ?? '입력하세요'}
                         </label>
                         {isShort ? (
                           <input
                             type="text"
-                            value={formData[m.method_id] ?? ''}
+                            value={raw}
                             onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, [m.method_id]: e.target.value }))
+                              setFormData((prev) => ({
+                                ...prev,
+                                [m.method_id]: e.target.value,
+                              }))
                             }
                             className={inputClass}
                             placeholder={m.placeholder ?? '입력하세요'}
@@ -525,8 +611,14 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                 </div>
               </div>
             )}
+          </form>
+        )}
+        </div>
 
-            <div className="flex gap-3 border-t border-gray-100 pt-4">
+        {/* 폼일 때만 푸터 고정 (취소/제출) */}
+        {!loading && data && !success && !showRewardChoice && !cannotParticipateAlways && (
+          <div className="flex-shrink-0 border-t border-gray-100 p-6 pt-4">
+            <div className="flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
@@ -536,13 +628,14 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
               </button>
               <button
                 type="submit"
+                form="event-verify-form"
                 disabled={submitPending || data.verificationMethods.length === 0}
-                className="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
               >
                 {submitPending ? '제출 중…' : '인증 제출'}
               </button>
             </div>
-          </form>
+          </div>
         )}
       </div>
     </div>

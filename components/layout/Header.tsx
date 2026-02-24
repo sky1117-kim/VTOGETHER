@@ -15,13 +15,13 @@ export async function Header() {
   const level = user?.level ?? 'ECO_KEEPER'
 
   return (
-    <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/20 bg-white/80 shadow-soft backdrop-blur-xl">
+    <nav className="fixed left-0 right-0 top-0 z-50 bg-white/80 shadow-soft backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 justify-between">
           <div className="flex items-center">
             <Link
               href="/"
-              className="group flex shrink-0 cursor-pointer items-center gap-3 rounded-xl py-1.5 pr-2 transition hover:bg-white/50"
+              className="group flex shrink-0 cursor-pointer items-center gap-3 rounded-xl py-1.5 pr-2 transition hover:bg-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 font-bold text-white shadow-soft transition group-hover:shadow-soft-lg group-hover:scale-105">
                 V
@@ -44,17 +44,11 @@ export async function Header() {
               </span>
             </div>
             <LevelBadge level={level} size="sm" totalDonated={user?.total_donated_amount} />
-            <div className="h-9 w-9 overflow-hidden rounded-full border border-gray-300 bg-gray-200">
-              <div className="flex h-full w-full items-center justify-center text-gray-500">
-                <span className="text-sm font-bold">
-                  {displayName.charAt(0)}
-                </span>
-              </div>
-            </div>
             {user?.is_admin && (
               <Link
                 href="/admin"
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-green-700 transition hover:bg-green-50"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-green-700 transition hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+                aria-label="관리자 페이지로 이동"
               >
                 관리자
               </Link>
@@ -63,7 +57,7 @@ export async function Header() {
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100"
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 btn-press"
                 >
                   로그아웃
                 </button>
@@ -71,7 +65,7 @@ export async function Header() {
             ) : (
               <Link
                 href="/login"
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700"
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white btn-press"
               >
                 로그인
               </Link>

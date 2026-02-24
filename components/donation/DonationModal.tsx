@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { donatePoints } from '@/api/actions/donation'
 import { useRouter } from 'next/navigation'
 import { DonationSuccessModal } from './DonationSuccessModal'
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 
 const DONATION_STEP = 1000
 
@@ -38,6 +39,9 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
   const [successPayload, setSuccessPayload] = useState<{ targetName: string; amount: number } | null>(null)
   const openTimeRef = useRef<number>(0)
   const router = useRouter()
+
+  // 모달 열림 시 배경 스크롤 방지
+  useBodyScrollLock(isOpen)
 
   // 모달이 열릴 때마다 선택 금액·에러 초기화 (깜빡임 방지)
   useEffect(() => {
@@ -123,7 +127,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
         isOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4"
             onClick={handleBackdropClick}
             onMouseDown={(e) => e.stopPropagation()}
             role="dialog"
@@ -200,7 +204,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
                 <button
                   type="submit"
                   disabled={isSubmitting || amount < DONATION_STEP}
-                  className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
                 >
                   {isSubmitting ? '처리 중...' : '기부하기'}
                 </button>

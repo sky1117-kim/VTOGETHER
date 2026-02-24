@@ -171,7 +171,7 @@ export function DonationSection({
                       disabled={userPoints <= 0}
                     >
                       <span
-                        className={`flex w-full cursor-pointer items-center justify-center rounded-xl border-2 py-2.5 text-sm font-bold shadow-soft transition active:scale-[0.98] ${
+                        className={`flex w-full cursor-pointer items-center justify-center rounded-xl border-2 py-2.5 text-sm font-bold shadow-soft transition btn-press ${
                           userPoints > 0
                             ? `${theme.button} hover:shadow-soft-lg`
                             : 'cursor-not-allowed border-gray-300 bg-gray-100 text-gray-400'

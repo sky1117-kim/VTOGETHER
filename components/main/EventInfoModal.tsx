@@ -1,8 +1,10 @@
 'use client'
 
 import { createPortal } from 'react-dom'
+import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import DOMPurify from 'isomorphic-dompurify'
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: '인증가능',
@@ -48,23 +50,40 @@ export function EventInfoModal({
   onVerify,
   isLoggedIn,
 }: EventInfoModalProps) {
+  useBodyScrollLock(isOpen)
+  const descriptionRef = useRef<HTMLDivElement>(null)
+
+  // 커스텀 hex(data-color="#...", data-bg-color="#...") 인라인 스타일로 적용해 글자/배경 제대로 보이게
+  useEffect(() => {
+    const el = descriptionRef.current
+    if (!el) return
+    el.querySelectorAll<HTMLElement>('span[data-color^="#"]').forEach((span) => {
+      const c = span.getAttribute('data-color')
+      if (c) span.style.color = c
+    })
+    el.querySelectorAll<HTMLElement>('span[data-bg-color^="#"]').forEach((span) => {
+      const c = span.getAttribute('data-bg-color')
+      if (c) span.style.backgroundColor = c
+    })
+  }, [event?.description])
+
   if (!isOpen) return null
 
+  // 상세 소개문구: RichTextEditor(TipTap)는 HTML로 저장하므로, 태그가 있으면 HTML로 렌더 (에디터와 동일하게)
   const raw = event?.description?.trim() || '참여하고 포인트를 획득하세요.'
-  const isHtml = /<[a-z][\s\S]*>/i.test(raw)
+  const isHtml = /<[a-z][^>]*>/i.test(raw)
   const description = raw
 
   const modal = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden p-4 sm:p-6" role="dialog" aria-modal="true">
       {/* 배경 딤: 뒤 콘텐츠와 겹치지 않도록 전체 덮기 */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
       <div
-        className="relative z-10 flex max-h-[90vh] min-h-[360px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-modal sm:min-h-[400px]"
+        className="relative z-10 flex max-h-[90vh] min-h-[360px] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-modal sm:min-h-[400px]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
-        {/* 헤더: 대표 이미지(있을 때) + 제목·카테고리·닫기 */}
-        <div className="shrink-0 border-b border-gray-100 bg-gradient-to-br from-green-50 to-white pb-5">
+        {/* 헤더 고정 (상단) */}
+        <div className="flex-shrink-0 border-b border-gray-100 bg-gradient-to-br from-green-50 to-white p-6 pb-5">
           {event?.image_url?.trim() && (
             <div className="mb-4 overflow-hidden rounded-xl bg-gray-100">
               <img
@@ -92,64 +111,81 @@ export function EventInfoModal({
           </div>
         </div>
 
-        {/* 긴 내용: 상세 안내 (스크롤 가능, 하단 여백으로 구간 안내와 겹침 방지) */}
-        <div className="min-h-0 flex-1 overflow-y-auto py-4 pb-2">
+        {/* 본문만 스크롤 */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
             이벤트 상세 안내
           </p>
-          <div className="event-description rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-3 text-sm leading-relaxed text-gray-700 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-0.5 [&_li]:list-disc [&_ul]:list-disc [&_ul]:pl-5 [&_a]:text-green-600 [&_a]:underline [&_strong]:font-bold">
+          {/* 에디터(RichTextEditor)와 동일: 패딩·줄간격·단락/목록 스페이싱·글자색/배경색(hex) 적용 */}
+          <div
+            ref={descriptionRef}
+            className="event-description rte-content min-h-0 w-full break-keep rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-base leading-normal text-gray-900 outline-none [&_a]:text-green-600 [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:leading-normal [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:leading-normal"
+          >
             {isHtml ? (
-              <div className="[&_p]:block [&_br]:block" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(description, { ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'a', 'span'] }) }} />
+              <>
+                <div
+                  className="[&_br]:block [&_p]:block [&_span]:inline"
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(description, {
+                      ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'a', 'span'],
+                      ALLOWED_ATTR: ['href', 'data-size', 'data-color', 'data-bg-color'],
+                    }),
+                  }}
+                />
+              </>
             ) : (
               <ReactMarkdown>{description}</ReactMarkdown>
             )}
           </div>
         </div>
 
-        {event?.type === 'SEASONAL' && event.rounds && event.rounds.length > 0 && (
-          <div className="shrink-0 border-t border-gray-100 bg-white py-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-              구간 안내
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {event.rounds.map((r) => (
-                <span
-                  key={r.round_number}
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    STATUS_CLASS[r.status] ?? 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {r.round_number}구간 {STATUS_LABEL[r.status] ?? r.status}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {isLoggedIn && event && (
-          <div className="shrink-0 space-y-2 border-t border-gray-100 bg-white py-4">
-            {event.hasPendingReward && (
-              <button
-                type="button"
-                onClick={() => onVerify(event.event_id)}
-                className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600"
-              >
-                보상받기
-              </button>
+        {/* 푸터 고정 (하단) */}
+        {(event?.type === 'SEASONAL' && event?.rounds && event.rounds.length > 0) || (isLoggedIn && event) ? (
+          <div className="flex-shrink-0 border-t border-gray-100 bg-white p-6 pt-4">
+            {event?.type === 'SEASONAL' && event.rounds && event.rounds.length > 0 && (
+              <>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  구간 안내
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {event.rounds.map((r) => (
+                    <span
+                      key={r.round_number}
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        STATUS_CLASS[r.status] ?? 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {r.round_number}구간 {STATUS_LABEL[r.status] ?? r.status}
+                    </span>
+                  ))}
+                </div>
+              </>
             )}
-            {((event.type === 'SEASONAL' && event.rounds?.some((r) => r.status === 'OPEN')) ||
-              (event.type === 'ALWAYS' && !event.hasPendingReward)) && (
-              <button
-                type="button"
-                onClick={() => onVerify(event.event_id)}
-                className="w-full rounded-xl bg-green-600 py-3 text-sm font-bold text-white transition hover:bg-green-700"
-              >
-                인증하기
-              </button>
+            {isLoggedIn && event && (
+              <div className="mt-4 space-y-2">
+                {event.hasPendingReward && (
+                  <button
+                    type="button"
+                    onClick={() => onVerify(event.event_id)}
+                    className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600"
+                  >
+                    보상받기
+                  </button>
+                )}
+                {((event.type === 'SEASONAL' && event.rounds?.some((r) => r.status === 'OPEN')) ||
+                  (event.type === 'ALWAYS' && !event.hasPendingReward)) && (
+                  <button
+                    type="button"
+                    onClick={() => onVerify(event.event_id)}
+                    className="w-full rounded-xl bg-green-600 py-3 text-sm font-bold text-white transition hover:bg-green-700 btn-press"
+                  >
+                    인증하기
+                  </button>
+                )}
+              </div>
             )}
           </div>
-        )}
-        </div>
+        ) : null}
       </div>
     </div>
   )

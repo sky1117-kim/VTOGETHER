@@ -3,6 +3,7 @@ import { getTotalDonationStats, getDonationTargets } from '@/api/queries/donatio
 import { getSiteContent } from '@/api/queries/siteContent'
 import { getPersonalRanking, getTeamRanking } from '@/api/queries/ranking'
 import { getEventsWithRoundsForPublic } from '@/api/queries/events'
+import { getRecentPointNotifications } from '@/api/queries/user'
 import { DashboardSection } from '@/components/main/DashboardSection'
 import { DonationSection } from '@/components/main/DonationSection'
 import { CampaignsSection } from '@/components/main/CampaignsSection'
@@ -47,6 +48,15 @@ export default async function HomePage({ searchParams }: PageProps) {
   const totalDonated = user?.total_donated_amount ?? 0
   const level = user?.level ?? 'ECO_KEEPER'
 
+  let recentNotifications: Awaited<ReturnType<typeof getRecentPointNotifications>> = []
+  if (user?.id) {
+    try {
+      recentNotifications = await getRecentPointNotifications(user.id, 7)
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 pb-12 pt-2 sm:px-6 lg:px-8">
       {showAdminDenied && (
@@ -65,6 +75,8 @@ export default async function HomePage({ searchParams }: PageProps) {
           heroSeasonBadge={siteContent.hero_season_badge}
           heroTitle={siteContent.hero_title}
           heroSubtitle={siteContent.hero_subtitle}
+          userId={user?.id ?? null}
+          recentNotifications={recentNotifications}
         />
       </div>
       <div className="animate-fade-up mt-8">

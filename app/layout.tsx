@@ -9,8 +9,13 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "V.Together - Employee ESG Platform",
+  title: "V.Together",
   description: "ESG 경영 실천 및 조직문화 활성화를 위한 통합 임직원 참여 플랫폼",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({

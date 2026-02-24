@@ -197,7 +197,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                           e.stopPropagation()
                           setVerifyModalEventId(c.id)
                         }}
-                        className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600"
+                        className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600 btn-press"
                       >
                         보상받기
                       </button>
@@ -211,7 +211,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                           e.stopPropagation()
                           setVerifyModalEventId(c.id)
                         }}
-                        className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-700"
+                        className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-700 btn-press"
                       >
                         인증하기
                       </button>
