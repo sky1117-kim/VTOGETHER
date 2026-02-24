@@ -89,6 +89,7 @@ export async function getRoundsWithStatusForUser(
       .from('event_rounds')
       .select('round_id, event_id, round_number, start_date, end_date, submission_deadline, reward_amount')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('round_number', { ascending: true })
 
     if (roundsError || !rounds?.length) {
@@ -102,6 +103,7 @@ export async function getRoundsWithStatusForUser(
       .eq('event_id', eventId)
       .eq('user_id', userId)
       .in('round_id', roundIds)
+      .is('deleted_at', null)
 
     const submissionByRound = new Map<string | null, SubmissionRow>()
     for (const s of submissions ?? []) {
@@ -151,6 +153,7 @@ export async function getLastSubmissionForAlwaysEvent(
     .eq('event_id', eventId)
     .eq('user_id', userId)
     .is('round_id', null)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -195,6 +198,7 @@ export async function canParticipateNow(
     .from('events')
     .select('type, frequency_limit')
     .eq('event_id', eventId)
+    .is('deleted_at', null)
     .single()
 
   if (eventError || !event) {

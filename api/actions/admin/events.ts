@@ -33,6 +33,7 @@ export async function getEventsForAdmin(): Promise<{
     const { data, error } = await supabase
       .from('events')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
     if (error) return { data: null, error: error.message }
     return { data: (data ?? []) as EventRow[], error: null }
@@ -77,6 +78,7 @@ export async function getEventWithRoundsForAdmin(eventId: string): Promise<{
       .from('events')
       .select('*')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .single()
     if (eventError || !event) {
       return { data: null, error: eventError?.message ?? '이벤트를 찾을 수 없습니다.' }
@@ -86,6 +88,7 @@ export async function getEventWithRoundsForAdmin(eventId: string): Promise<{
       .from('event_rounds')
       .select('round_id, event_id, round_number, start_date, end_date, submission_deadline, reward_amount, created_at')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('round_number', { ascending: true })
     if (!roundsError && roundsData) rounds = roundsData as EventRoundRow[]
     let rewards: EventRewardRow[] = []
@@ -93,6 +96,7 @@ export async function getEventWithRoundsForAdmin(eventId: string): Promise<{
       .from('event_rewards')
       .select('reward_id, event_id, reward_kind, amount, display_order')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('display_order', { ascending: true })
     if (!rewardsError && rewardsData) rewards = rewardsData as EventRewardRow[]
     // 인증 방식: 조회만 (수정 불가). method_type, instruction만 필수로 선택 (input_style 없을 수 있음)
@@ -101,6 +105,7 @@ export async function getEventWithRoundsForAdmin(eventId: string): Promise<{
       .from('event_verification_methods')
       .select('method_type, instruction')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
     if (!methodsError && methodsData) {
       verification_methods = methodsData.map((m) => ({
@@ -129,7 +134,12 @@ export type EventCopySource = {
     'title' | 'short_description' | 'description' | 'category' | 'type' | 'reward_policy' | 'image_url' | 'frequency_limit'
   >
   rewards: { reward_kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: number | null }[]
-  verification_methods: { method_type: VerificationMethodInput['method_type']; instruction: string | null; input_style: 'SHORT' | 'LONG' | null }[]
+  verification_methods: {
+    method_type: VerificationMethodInput['method_type']
+    instruction: string | null
+    input_style: 'SHORT' | 'LONG' | null
+    unit: string | null
+  }[]
 }
 
 export async function getEventForCopy(eventId: string): Promise<{
@@ -142,6 +152,7 @@ export async function getEventForCopy(eventId: string): Promise<{
       .from('events')
       .select('title, short_description, description, category, type, reward_policy, image_url, frequency_limit')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .single()
     if (eventError || !event) {
       return { data: null, error: eventError?.message ?? '이벤트를 찾을 수 없습니다.' }
@@ -150,17 +161,20 @@ export async function getEventForCopy(eventId: string): Promise<{
       .from('event_rewards')
       .select('reward_kind, amount')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('display_order', { ascending: true })
     const rewards = (rewardsData ?? []) as EventCopySource['rewards']
     const { data: methodsData } = await supabase
       .from('event_verification_methods')
-      .select('method_type, instruction, input_style')
+      .select('method_type, instruction, input_style, unit')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
     const verification_methods = (methodsData ?? []).map((m) => ({
       method_type: m.method_type as EventCopySource['verification_methods'][0]['method_type'],
       instruction: m.instruction ?? null,
       input_style: (m.input_style === 'SHORT' || m.input_style === 'LONG' ? m.input_style : null) as 'SHORT' | 'LONG' | null,
+      unit: m.unit ?? null,
     }))
     return {
       data: {
@@ -182,8 +196,10 @@ export type VerificationMethodInput = {
   placeholder?: string | null
   /** 직원에게 보여줄 인증 안내 (예: 이런 이런 사진을 제출하세요) */
   instruction?: string | null
-  /** 단답(SHORT)=한 줄, 장문(LONG)=여러 줄. TEXT/VALUE용 */
+  /** 단답(SHORT)=한 줄, 장문(LONG)=여러 줄. TEXT용 (VALUE는 숫자만 입력) */
   input_style?: 'SHORT' | 'LONG' | null
+  /** 숫자(VALUE)용. 단위 (예: km/h, km). 선택 또는 직접 입력 */
+  unit?: string | null
 }
 
 /** 보상 1건. 복수 선택 가능. V_POINT/COFFEE_COUPON은 amount 필수, GOODS는 없음 */
@@ -269,6 +285,7 @@ export async function createEvent(
         placeholder: m.placeholder?.trim() || null,
         instruction: m.instruction?.trim() || null,
         input_style: m.input_style ?? null,
+        unit: m.method_type === 'VALUE' ? (m.unit?.trim() || null) : null,
       })
       if (methodError) {
         return { eventId: null, error: `인증 방식 저장 실패: ${methodError.message}` }
@@ -356,12 +373,18 @@ export async function updateEventRewardAmounts(
   }
 }
 
-/** 관리자: 이벤트 삭제 (구간·보상·인증 방식·제출 이력은 DB CASCADE로 함께 삭제) */
+/** 관리자: 이벤트 소프트 삭제 (deleted_at 플래그로 관리, 관련 데이터 함께 플래그) */
 export async function deleteEvent(eventId: string): Promise<{ success: boolean; error: string | null }> {
   if (!eventId?.trim()) return { success: false, error: '이벤트 ID가 없습니다.' }
   try {
     const supabase = createAdminClient()
-    const { error } = await supabase.from('events').delete().eq('event_id', eventId)
+    const now = new Date().toISOString()
+    // 관련 테이블 순서대로 soft delete (자식 → 부모)
+    await supabase.from('event_submissions').update({ deleted_at: now }).eq('event_id', eventId)
+    await supabase.from('event_rounds').update({ deleted_at: now }).eq('event_id', eventId)
+    await supabase.from('event_rewards').update({ deleted_at: now }).eq('event_id', eventId)
+    await supabase.from('event_verification_methods').update({ deleted_at: now }).eq('event_id', eventId)
+    const { error } = await supabase.from('events').update({ deleted_at: now }).eq('event_id', eventId)
     if (error) return { success: false, error: error.message }
     revalidatePath('/admin/events')
     revalidatePath('/admin')
@@ -388,6 +411,7 @@ export async function createRoundsForMonth(
       .from('events')
       .select('type')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .single()
     if (eventError || !event) return { success: false, error: '이벤트를 찾을 수 없습니다.' }
     if (event.type !== 'SEASONAL') return { success: false, error: '기간제(SEASONAL) 이벤트만 구간을 추가할 수 있습니다.' }
@@ -396,6 +420,7 @@ export async function createRoundsForMonth(
       .from('event_rounds')
       .select('round_number')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('round_number', { ascending: false })
       .limit(1)
     const nextNumber = existing?.[0]?.round_number != null ? existing[0].round_number + 1 : 1
@@ -421,7 +446,7 @@ export async function createRoundsForMonth(
   }
 }
 
-/** 관리자: 구간 1건 삭제 (해당 구간 제출 이력 먼저 삭제 후 구간 삭제) */
+/** 관리자: 구간 1건 소프트 삭제 (deleted_at 플래그로 관리) */
 export async function deleteEventRound(
   eventId: string,
   roundId: string
@@ -429,14 +454,15 @@ export async function deleteEventRound(
   if (!eventId?.trim() || !roundId?.trim()) return { success: false, error: '이벤트/구간 ID가 없습니다.' }
   try {
     const supabase = createAdminClient()
+    const now = new Date().toISOString()
     const { error: submissionsError } = await supabase
       .from('event_submissions')
-      .delete()
+      .update({ deleted_at: now })
       .eq('round_id', roundId)
     if (submissionsError) return { success: false, error: `제출 이력 삭제 실패: ${submissionsError.message}` }
     const { error: roundError } = await supabase
       .from('event_rounds')
-      .delete()
+      .update({ deleted_at: now })
       .eq('round_id', roundId)
       .eq('event_id', eventId)
     if (roundError) return { success: false, error: `구간 삭제 실패: ${roundError.message}` }
@@ -446,5 +472,91 @@ export async function deleteEventRound(
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '구간 삭제 중 오류가 발생했습니다.' }
+  }
+}
+
+/** 엑셀 다운로드용: 특정 이벤트의 제출 목록 (관리자 전용) */
+export type EventSubmissionExportRow = {
+  이벤트명: string
+  구간: string
+  참여자명: string
+  이메일: string
+  상태: string
+  제출일시: string
+  보상유형: string
+  반려사유: string
+  인증요약: string
+}
+
+export async function getEventSubmissionsForExport(eventId: string): Promise<{
+  data: EventSubmissionExportRow[] | null
+  eventTitle: string | null
+  error: string | null
+}> {
+  if (!eventId?.trim()) return { data: null, eventTitle: null, error: '이벤트 ID가 없습니다.' }
+  try {
+    const supabase = createAdminClient()
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('title')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .single()
+    if (eventErr || !event) return { data: null, eventTitle: null, error: eventErr?.message ?? '이벤트를 찾을 수 없습니다.' }
+
+    const { data: submissions, error: subErr } = await supabase
+      .from('event_submissions')
+      .select('submission_id, event_id, round_id, user_id, peer_user_id, status, reward_type, rejection_reason, verification_data, created_at')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (subErr) return { data: null, eventTitle: event.title, error: subErr.message }
+    if (!submissions?.length) return { data: [], eventTitle: event.title, error: null }
+
+    const roundIds = [...new Set(submissions.map((s) => s.round_id).filter(Boolean))] as string[]
+    const userIds = [...new Set([...submissions.map((s) => s.user_id), ...submissions.map((s) => s.peer_user_id).filter(Boolean)])] as string[]
+
+    const [roundsRes, usersRes, methodsRes] = await Promise.all([
+      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds).is('deleted_at', null) : { data: [] },
+      userIds.length ? supabase.from('users').select('user_id, name, email').in('user_id', userIds).is('deleted_at', null) : { data: [] },
+      supabase.from('event_verification_methods').select('event_id, method_id, method_type').eq('event_id', eventId).is('deleted_at', null),
+    ])
+
+    const roundMap = new Map((roundsRes.data ?? []).map((r) => [r.round_id, r]))
+    const userMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
+    const methods = (methodsRes.data ?? []) as { method_id: string; method_type: string }[]
+
+    const STATUS_LABEL: Record<string, string> = { PENDING: '승인대기', APPROVED: '승인', REJECTED: '반려' }
+    const REWARD_LABEL: Record<string, string> = { POINTS: 'V.Point', COFFEE_COUPON: '커피쿠폰', GOODS: '굿즈', COUPON: '쿠폰' }
+
+    const data: EventSubmissionExportRow[] = submissions.map((s) => {
+      const round = s.round_id ? roundMap.get(s.round_id) : null
+      const user = userMap.get(s.user_id)
+      const vd = (s.verification_data as Record<string, unknown>) ?? {}
+      const parts: string[] = []
+      for (const { method_id, method_type } of methods) {
+        const val = vd[method_id]
+        if (val === undefined || val === null || val === '') continue
+        if (method_type === 'PHOTO') parts.push('사진')
+        else if (method_type === 'TEXT' || method_type === 'PEER_SELECT') parts.push(String(val).slice(0, 80))
+        else if (method_type === 'VALUE') parts.push(String(val))
+      }
+      return {
+        이벤트명: event.title,
+        구간: round ? `${round.round_number}구간` : '상시',
+        참여자명: user?.name ?? user?.email ?? s.user_id,
+        이메일: user?.email ?? s.user_id,
+        상태: STATUS_LABEL[s.status] ?? s.status,
+        제출일시: new Date(s.created_at).toLocaleString('ko-KR'),
+        보상유형: s.reward_type ? (REWARD_LABEL[s.reward_type] ?? s.reward_type) : '—',
+        반려사유: s.rejection_reason ?? '',
+        인증요약: parts.join(' / ') || '—',
+      }
+    })
+
+    return { data, eventTitle: event.title, error: null }
+  } catch (e) {
+    return { data: null, eventTitle: null, error: e instanceof Error ? e.message : '내보내기 실패' }
   }
 }

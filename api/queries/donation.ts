@@ -6,6 +6,7 @@ export async function getDonationTargets() {
   const { data, error } = await supabase
     .from('donation_targets')
     .select('*')
+    .is('deleted_at', null)
     .order('created_at', { ascending: true })
 
   if (error) {
@@ -22,6 +23,7 @@ export async function getDonationTarget(targetId: string) {
     .from('donation_targets')
     .select('*')
     .eq('target_id', targetId)
+    .is('deleted_at', null)
     .single()
 
   if (error) {
@@ -37,6 +39,7 @@ export async function getTotalDonationStats() {
   const { data, error } = await supabase
     .from('donation_targets')
     .select('target_amount, current_amount, status')
+    .is('deleted_at', null)
 
   if (error) {
     throw error

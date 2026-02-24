@@ -17,32 +17,54 @@ export type UserRow = {
   total_donated_amount: number
   level: string
   is_admin: boolean
+  /** MAU 집계용: 최근 30일 내 접속 시 갱신됨 (016 마이그레이션) */
+  last_active_at: string | null
 }
 
 export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; error: string | null }> {
   try {
     const supabase = createAdminClient()
-    const { data, error } = await supabase
+    let selectColumns = 'user_id, email, name, dept_name, current_points, total_donated_amount, level, is_admin, last_active_at'
+    let { data, error } = await supabase
       .from('users')
-      .select('user_id, email, name, dept_name, current_points, total_donated_amount, level, is_admin')
+      .select(selectColumns)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
+    // last_active_at 컬럼 없음(016 미실행) 시 제외하고 재시도
+    if (error?.message?.includes('last_active_at')) {
+      selectColumns = 'user_id, email, name, dept_name, current_points, total_donated_amount, level, is_admin'
+      const retry = await supabase.from('users').select(selectColumns).is('deleted_at', null).order('created_at', { ascending: false })
+      data = retry.data
+      error = retry.error
+      if (!error && data) {
+        return {
+          data: (data ?? []).map((r) => ({ ...r, is_admin: !!(r as { is_admin?: boolean }).is_admin, last_active_at: null })) as UserRow[],
+          error: null,
+        }
+      }
+    }
     if (error) {
       // is_admin 컬럼이 없을 때(006-1 미실행) 컬럼 제외하고 다시 시도
       if (error.message?.includes('is_admin') || error.message?.includes('column')) {
         const { data: dataFallback, error: err2 } = await supabase
           .from('users')
           .select('user_id, email, name, dept_name, current_points, total_donated_amount, level')
+          .is('deleted_at', null)
           .order('created_at', { ascending: false })
         if (err2) return { data: null, error: err2.message }
         return {
-          data: (dataFallback ?? []).map((r) => ({ ...r, is_admin: false })) as UserRow[],
+          data: (dataFallback ?? []).map((r) => ({ ...r, is_admin: false, last_active_at: null })) as UserRow[],
           error: null,
         }
       }
       return { data: null, error: error.message }
     }
     return {
-      data: (data ?? []).map((r) => ({ ...r, is_admin: !!(r as { is_admin?: boolean }).is_admin })) as UserRow[],
+      data: (data ?? []).map((r) => ({
+        ...r,
+        is_admin: !!(r as { is_admin?: boolean }).is_admin,
+        last_active_at: (r as { last_active_at?: string | null }).last_active_at ?? null,
+      })) as UserRow[],
       error: null,
     }
   } catch (e) {
@@ -52,7 +74,8 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
 
 export async function grantPoints(
   userId: string,
-  amount: number
+  amount: number,
+  reason?: string | null
 ): Promise<{ success: boolean; error: string | null }> {
   if (amount <= 0 || !Number.isInteger(amount)) {
     return { success: false, error: '1 이상의 정수만 입력해주세요.' }
@@ -61,19 +84,34 @@ export async function grantPoints(
     const supabase = createAdminClient()
     const { data: user, error: fetchError } = await supabase
       .from('users')
-      .select('current_points')
+      .select('current_points, name, email')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .single()
     if (fetchError || !user) {
       return { success: false, error: '사용자를 찾을 수 없습니다.' }
     }
-    const newPoints = user.current_points + amount
+    const newPoints = (user.current_points ?? 0) + amount
     const { error: updateError } = await supabase
       .from('users')
       .update({ current_points: newPoints })
       .eq('user_id', userId)
     if (updateError) {
       return { success: false, error: updateError.message }
+    }
+    const description = reason?.trim() || '관리자 지급'
+    const { error: txError } = await supabase.from('point_transactions').insert({
+      user_id: userId,
+      type: 'EARNED',
+      amount,
+      related_id: null,
+      related_type: 'ADMIN_GRANT',
+      description,
+      user_email: user.email ?? null,
+      user_name: user.name ?? null,
+    })
+    if (txError) {
+      return { success: false, error: '거래 기록 실패: ' + txError.message }
     }
     revalidatePath('/admin')
     revalidatePath('/')
@@ -100,6 +138,7 @@ export async function updateUserAdmin(
       .from('users')
       .select('is_admin')
       .eq('user_id', user.id)
+      .is('deleted_at', null)
       .single()
     if (meError || !me?.is_admin) {
       return { success: false, error: '관리자만 설정할 수 있습니다.' }
@@ -162,9 +201,9 @@ export async function getAdminDashboardStats(): Promise<{
       const iso = thirtyDaysAgo.toISOString()
 
       const [pendingRes, eventsRes, mauRes] = await Promise.all([
-        supabase.from('event_submissions').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
-        supabase.from('events').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
-        supabase.from('users').select('user_id', { count: 'exact', head: true }).gte('last_active_at', iso),
+        supabase.from('event_submissions').select('*', { count: 'exact', head: true }).eq('status', 'PENDING').is('deleted_at', null),
+        supabase.from('events').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE').is('deleted_at', null),
+        supabase.from('users').select('user_id', { count: 'exact', head: true }).gte('last_active_at', iso).is('deleted_at', null),
       ])
       if (!pendingRes.error) pendingCount = pendingRes.count ?? 0
       if (!eventsRes.error) activeEventsCount = eventsRes.count ?? 0
@@ -217,6 +256,7 @@ export async function getDonationAmountsByPeriod(): Promise<{
     const { data: rows, error } = await supabase
       .from('donations')
       .select('amount, created_at')
+      .is('deleted_at', null)
       .gte('created_at', startMonth.toISOString())
 
     if (error) return { today: 0, thisWeek: 0, thisMonth: 0, error: error.message }
@@ -257,43 +297,106 @@ export type NonPointRewardRow = {
   round_number: number | null
   reward_type: string
   chosen_at: string
+  /** 발송 완료 시각. null이면 미발송 */
+  fulfilled_at: string | null
 }
 
-export async function getNonPointRewardFulfillmentList(): Promise<{
+/** 필터: 전체 | 미발송 | 발송완료 */
+export type RewardFulfillmentFilter = 'all' | 'pending' | 'fulfilled'
+
+/** 쿠폰/굿즈 발송 대상이 있는 이벤트 목록 (필터 드롭다운용) */
+export async function getEventsForRewardFulfillment(): Promise<{
+  data: { event_id: string; title: string }[] | null
+  error: string | null
+}> {
+  try {
+    const supabase = createAdminClient()
+    const { data: subs } = await supabase
+      .from('event_submissions')
+      .select('event_id')
+      .eq('status', 'APPROVED')
+      .is('deleted_at', null)
+      .eq('reward_received', true)
+      .in('reward_type', ['COFFEE_COUPON', 'GOODS', 'COUPON'])
+    const eventIds = [...new Set((subs ?? []).map((s) => s.event_id))]
+    if (eventIds.length === 0) return { data: [], error: null }
+    const { data: events, error } = await supabase
+      .from('events')
+      .select('event_id, title')
+      .in('event_id', eventIds)
+      .is('deleted_at', null)
+      .order('title', { ascending: true })
+    if (error) return { data: null, error: error.message }
+    return { data: (events ?? []) as { event_id: string; title: string }[], error: null }
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : '이벤트 목록 조회 실패' }
+  }
+}
+
+export async function getNonPointRewardFulfillmentList(
+  filter: RewardFulfillmentFilter = 'all',
+  eventId?: string | null
+): Promise<{
   data: NonPointRewardRow[] | null
   error: string | null
 }> {
   try {
     const supabase = createAdminClient()
-    const { data: subs, error: subErr } = await supabase
+    let query = supabase
       .from('event_submissions')
-      .select('submission_id, event_id, round_id, user_id, reward_type, updated_at')
+      .select('submission_id, event_id, round_id, user_id, reward_type, updated_at, non_point_fulfilled_at')
       .eq('status', 'APPROVED')
+      .is('deleted_at', null)
       .eq('reward_received', true)
       .in('reward_type', ['COFFEE_COUPON', 'GOODS', 'COUPON'])
       .order('updated_at', { ascending: false })
 
-    if (subErr) return { data: null, error: subErr.message }
-    if (!subs?.length) return { data: [], error: null }
+    if (filter === 'pending') query = query.is('non_point_fulfilled_at', null)
+    if (filter === 'fulfilled') query = query.not('non_point_fulfilled_at', 'is', null)
+    if (eventId?.trim()) query = query.eq('event_id', eventId.trim())
 
-    const eventIds = [...new Set(subs.map((s) => s.event_id))]
-    const userIds = [...new Set(subs.map((s) => s.user_id))]
-    const roundIds = subs.map((s) => s.round_id).filter(Boolean) as string[]
+    const { data: subs, error: subErr } = await query
+
+    let subsResult: typeof subs = subs ?? []
+    if (subErr) {
+      // 마이그레이션 017 미실행 시: non_point_fulfilled_at 컬럼 없으면 전체만 조회로 재시도
+      const isColumnMissing = /non_point_fulfilled_at/.test(subErr.message ?? '')
+      if (!isColumnMissing) return { data: null, error: subErr.message }
+      let fallbackQuery = supabase
+        .from('event_submissions')
+        .select('submission_id, event_id, round_id, user_id, reward_type, updated_at')
+        .eq('status', 'APPROVED')
+        .is('deleted_at', null)
+        .eq('reward_received', true)
+        .in('reward_type', ['COFFEE_COUPON', 'GOODS', 'COUPON'])
+        .order('updated_at', { ascending: false })
+      if (eventId?.trim()) fallbackQuery = fallbackQuery.eq('event_id', eventId.trim())
+      const { data: subsFallback, error: subErr2 } = await fallbackQuery
+      if (subErr2) return { data: null, error: subErr2.message }
+      subsResult = subsFallback ?? []
+    }
+
+    if (!subsResult.length) return { data: [], error: null }
+
+    const eventIds = [...new Set(subsResult.map((s) => s.event_id))]
+    const userIds = [...new Set(subsResult.map((s) => s.user_id))]
+    const roundIds = subsResult.map((s) => s.round_id).filter(Boolean) as string[]
 
     const [eventsRes, usersRes, roundsRes] = await Promise.all([
-      supabase.from('events').select('event_id, title').in('event_id', eventIds),
-      supabase.from('users').select('user_id, name, email').in('user_id', userIds),
-      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds) : { data: [] },
+      supabase.from('events').select('event_id, title').in('event_id', eventIds).is('deleted_at', null),
+      supabase.from('users').select('user_id, name, email').in('user_id', userIds).is('deleted_at', null),
+      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds).is('deleted_at', null) : { data: [] },
     ])
 
     const eventMap = new Map((eventsRes.data ?? []).map((e) => [e.event_id, e]))
     const userMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
     const roundMap = new Map((roundsRes.data ?? []).map((r) => [r.round_id, r]))
 
-    const data: NonPointRewardRow[] = subs.map((s) => {
+    const data: NonPointRewardRow[] = subsResult.map((s) => {
       const event = eventMap.get(s.event_id)
       const user = userMap.get(s.user_id)
       const round = s.round_id ? roundMap.get(s.round_id) : null
+      const row = s as { non_point_fulfilled_at?: string | null }
       return {
         submission_id: s.submission_id,
         event_id: s.event_id,
@@ -304,6 +407,7 @@ export async function getNonPointRewardFulfillmentList(): Promise<{
         round_number: round?.round_number ?? null,
         reward_type: s.reward_type ?? '—',
         chosen_at: s.updated_at,
+        fulfilled_at: row.non_point_fulfilled_at ?? null,
       }
     })
     return { data, error: null }
@@ -312,9 +416,32 @@ export async function getNonPointRewardFulfillmentList(): Promise<{
   }
 }
 
+/** 쿠폰/굿즈 발송 완료 체크 토글 (관리자 전용) */
+export async function setRewardFulfillment(
+  submissionId: string,
+  fulfilled: boolean
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = createAdminClient()
+    const { error } = await supabase
+      .from('event_submissions')
+      .update({
+        non_point_fulfilled_at: fulfilled ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('submission_id', submissionId)
+      .in('reward_type', ['COFFEE_COUPON', 'GOODS', 'COUPON'])
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/admin/reward-fulfillment')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '저장 실패' }
+  }
+}
+
 export async function getSiteContentForAdmin(): Promise<Record<string, string>> {
   const supabase = createAdminClient()
-  const { data } = await supabase.from('site_content').select('key, value')
+  const { data } = await supabase.from('site_content').select('key, value').is('deleted_at', null)
   const map: Record<string, string> = {}
   for (const row of data ?? []) {
     map[row.key] = row.value ?? ''
@@ -344,8 +471,9 @@ export async function resetAndSeedTestData(): Promise<{ success: boolean; error:
   try {
     const supabase = createAdminClient()
 
-    const { error: delTx } = await supabase.from('point_transactions').delete().gte('transaction_id', '')
-    const { error: delDon } = await supabase.from('donations').delete().gte('donation_id', '')
+    const now = new Date().toISOString()
+    const { error: delTx } = await supabase.from('point_transactions').update({ deleted_at: now }).is('deleted_at', null)
+    const { error: delDon } = await supabase.from('donations').update({ deleted_at: now }).is('deleted_at', null)
     if (delTx || delDon) {
       return { success: false, error: '데이터 삭제 실패. RLS 정책을 확인하세요.' }
     }
@@ -370,7 +498,7 @@ export async function resetAndSeedTestData(): Promise<{ success: boolean; error:
     ]
     await supabase.from('users').upsert(testUsers, { onConflict: 'user_id' })
 
-    const { data: targets } = await supabase.from('donation_targets').select('target_id').limit(4)
+    const { data: targets } = await supabase.from('donation_targets').select('target_id').is('deleted_at', null).limit(4)
     if (targets?.length) {
       await supabase.from('donation_targets').update({ current_amount: 1200000 }).eq('target_id', targets[0].target_id)
       if (targets[1]) await supabase.from('donation_targets').update({ current_amount: 2400000 }).eq('target_id', targets[1].target_id)

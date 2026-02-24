@@ -4,7 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
-/** 인증 대기 목록 한 행 (관리자용). preview_* 는 verification_data를 method_type별로 풀어서 미리보기용으로 넣은 값 */
+/** 이벤트별 인증 방식 (카드 렌더링용) */
+export type VerificationMethodInfo = { method_id: string; method_type: string }
+
+/** 인증 목록 한 행 (관리자용). preview_* 는 verification_data를 method_type별로 풀어서 미리보기용으로 넣은 값 */
 export type PendingSubmissionRow = {
   submission_id: string
   event_id: string
@@ -16,7 +19,13 @@ export type PendingSubmissionRow = {
   user_email: string | null
   peer_user_id: string | null
   peer_name: string | null
+  /** PENDING | APPROVED | REJECTED */
+  status: string
+  rejection_reason: string | null
+  reviewed_at: string | null
   verification_data: Record<string, unknown> | null
+  /** 이벤트의 인증 방식 목록 (카드형 표시용) */
+  verification_methods: VerificationMethodInfo[]
   /** 인증 미리보기: 사진 URL (method_type=PHOTO) */
   preview_photo_url: string | null
   /** 인증 미리보기: 텍스트 (method_type=TEXT 또는 PEER_SELECT) */
@@ -26,7 +35,7 @@ export type PendingSubmissionRow = {
   created_at: string
 }
 
-/** 관리자: PENDING 상태 제출 목록 조회 (이벤트명·참여자·구간 정보 포함) */
+/** 관리자: 제출 목록 (승인대기·승인·반려) 전체 조회 (이벤트명·참여자·구간 정보 포함) */
 export async function getPendingSubmissionsForAdmin(): Promise<{
   data: PendingSubmissionRow[] | null
   error: string | null
@@ -35,8 +44,9 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
     const supabase = createAdminClient()
     const { data: submissions, error: subError } = await supabase
       .from('event_submissions')
-      .select('submission_id, event_id, round_id, user_id, peer_user_id, verification_data, created_at')
-      .eq('status', 'PENDING')
+      .select('submission_id, event_id, round_id, user_id, peer_user_id, status, rejection_reason, reviewed_at, verification_data, created_at')
+      .in('status', ['PENDING', 'APPROVED', 'REJECTED'])
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (subError) return { data: null, error: subError.message }
@@ -47,10 +57,10 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
     const userIds = [...new Set([...submissions.map((s) => s.user_id), ...submissions.map((s) => s.peer_user_id).filter(Boolean)])] as string[]
 
     const [eventsRes, roundsRes, usersRes, methodsRes] = await Promise.all([
-      eventIds.length ? supabase.from('events').select('event_id, title').in('event_id', eventIds) : { data: [] },
-      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds) : { data: [] },
-      userIds.length ? supabase.from('users').select('user_id, name, email').in('user_id', userIds) : { data: [] },
-      eventIds.length ? supabase.from('event_verification_methods').select('event_id, method_id, method_type').in('event_id', eventIds) : { data: [] },
+      eventIds.length ? supabase.from('events').select('event_id, title').in('event_id', eventIds).is('deleted_at', null) : { data: [] },
+      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds).is('deleted_at', null) : { data: [] },
+      userIds.length ? supabase.from('users').select('user_id, name, email').in('user_id', userIds).is('deleted_at', null) : { data: [] },
+      eventIds.length ? supabase.from('event_verification_methods').select('event_id, method_id, method_type').in('event_id', eventIds).is('deleted_at', null) : { data: [] },
     ])
 
     const eventMap = new Map((eventsRes.data ?? []).map((e) => [e.event_id, e]))
@@ -93,7 +103,11 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
         user_email: user?.email ?? null,
         peer_user_id: s.peer_user_id,
         peer_name: peer?.name ?? null,
+        status: s.status ?? 'PENDING',
+        rejection_reason: s.rejection_reason ?? null,
+        reviewed_at: s.reviewed_at ?? null,
         verification_data: Object.keys(vd).length ? vd : null,
+        verification_methods: methods,
         preview_photo_url,
         preview_text,
         preview_value,
@@ -130,6 +144,7 @@ export async function approveSubmission(submissionId: string): Promise<{
       .from('event_submissions')
       .select('submission_id, event_id, round_id, user_id, peer_user_id, status')
       .eq('submission_id', submissionId)
+      .is('deleted_at', null)
       .single()
 
     if (subError || !sub) return { success: false, error: '제출 건을 찾을 수 없습니다.' }
@@ -139,6 +154,7 @@ export async function approveSubmission(submissionId: string): Promise<{
       .from('events')
       .select('title, reward_policy, reward_type, reward_amount')
       .eq('event_id', sub.event_id)
+      .is('deleted_at', null)
       .single()
 
     if (eventError || !event) return { success: false, error: '이벤트 정보를 찾을 수 없습니다.' }
@@ -147,6 +163,7 @@ export async function approveSubmission(submissionId: string): Promise<{
       .from('event_rewards')
       .select('reward_kind, amount')
       .eq('event_id', sub.event_id)
+      .is('deleted_at', null)
 
     const rewards = eventRewards ?? []
     const isChoiceEvent = event.reward_type === 'CHOICE' || rewards.length > 1
@@ -160,6 +177,7 @@ export async function approveSubmission(submissionId: string): Promise<{
           .from('event_rounds')
           .select('reward_amount')
           .eq('round_id', sub.round_id)
+          .is('deleted_at', null)
           .single()
         if (round?.reward_amount != null) rewardAmount = Number(round.reward_amount)
       }
@@ -172,9 +190,22 @@ export async function approveSubmission(submissionId: string): Promise<{
           .from('event_rounds')
           .select('reward_amount')
           .eq('round_id', sub.round_id)
+          .is('deleted_at', null)
           .single()
         if (round?.reward_amount != null) rewardAmount = Number(round.reward_amount)
       }
+    }
+
+    // 구간 번호(알림 메시지용)
+    let roundNumber: number | null = null
+    if (sub.round_id) {
+      const { data: round } = await supabase
+        .from('event_rounds')
+        .select('round_number')
+        .eq('round_id', sub.round_id)
+        .is('deleted_at', null)
+        .single()
+      roundNumber = round?.round_number ?? null
     }
 
     // V.Point가 있으면(1개든 복수 보상이든) 승인 시점에 참여자(및 BOTH 시 수신자)에게 즉시 지급
@@ -182,17 +213,19 @@ export async function approveSubmission(submissionId: string): Promise<{
     // 단일 비포인트 보상(쿠폰/굿즈 1종): 승인 시 바로 수령 처리하여 관리자 발송 대상에 올림
     const singleNonPointReward = !isChoiceEvent && !isPoints && rewards.length === 1 ? rewards[0]!.reward_kind : null
 
-    if (isPoints) {
-      const userIdsToCredit = [sub.user_id]
-      if (event.reward_policy === 'BOTH' && sub.peer_user_id) {
-        userIdsToCredit.push(sub.peer_user_id)
-      }
+    // 포인트 지급 대상 사용자 목록 (return 시 pointsGranted 계산에 사용하므로 블록 밖에서 선언)
+    const userIdsToCredit = [sub.user_id]
+    if (event.reward_policy === 'BOTH' && sub.peer_user_id) {
+      userIdsToCredit.push(sub.peer_user_id)
+    }
 
+    if (isPoints) {
       for (const uid of userIdsToCredit) {
         const { data: u, error: uErr } = await supabase
           .from('users')
           .select('current_points, name, email')
           .eq('user_id', uid)
+          .is('deleted_at', null)
           .single()
         if (uErr || !u) return { success: false, error: `사용자 조회 실패: ${uid}` }
 
@@ -203,13 +236,23 @@ export async function approveSubmission(submissionId: string): Promise<{
           .eq('user_id', uid)
         if (updateErr) return { success: false, error: '포인트 지급 실패' }
 
+        const isRecipient = uid === sub.peer_user_id
+        const roundDesc = roundNumber != null ? `${roundNumber}구간 승인되어` : '승인되어'
+        // 칭찬 챌린지(BOTH): 제출자 vs 수신자 구분
+        const description =
+          event.reward_policy === 'BOTH' && sub.peer_user_id
+            ? isRecipient
+              ? `칭찬을 받음: 동료가 나를 칭찬하여 ${rewardAmount.toLocaleString()} P 적립`
+              : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} P 적립`
+            : `${event.title} ${roundDesc} ${rewardAmount.toLocaleString()} P 적립되었다`
+
         const { error: txErr } = await supabase.from('point_transactions').insert({
           user_id: uid,
           type: 'EARNED',
           amount: rewardAmount,
           related_id: sub.submission_id,
           related_type: 'EVENT',
-          description: `이벤트 보상: ${event.title}`,
+          description,
           user_email: u.email ?? null,
           user_name: u.name ?? null,
         })
@@ -261,6 +304,7 @@ export async function rejectSubmission(
       .from('event_submissions')
       .select('status')
       .eq('submission_id', submissionId)
+      .is('deleted_at', null)
       .single()
 
     if (!sub) return { success: false, error: '제출 건을 찾을 수 없습니다.' }

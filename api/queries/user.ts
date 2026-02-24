@@ -7,6 +7,7 @@ export async function getUserData(userId: string) {
     .from('users')
     .select('*')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .single()
 
   if (error) {
@@ -31,6 +32,7 @@ export async function getUserDonations(userId: string, limit = 10) {
     `
     )
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -41,6 +43,37 @@ export async function getUserDonations(userId: string, limit = 10) {
   return data
 }
 
+/** 최근 1주일 적립 알림 (알림 버튼용) */
+export type PointNotificationRow = {
+  transaction_id: string
+  amount: number
+  description: string | null
+  created_at: string
+}
+
+export async function getRecentPointNotifications(
+  userId: string,
+  days = 7
+): Promise<PointNotificationRow[]> {
+  const supabase = await createClient()
+  const since = new Date()
+  since.setDate(since.getDate() - days)
+  const sinceIso = since.toISOString()
+
+  const { data, error } = await supabase
+    .from('point_transactions')
+    .select('transaction_id, amount, description, created_at')
+    .eq('user_id', userId)
+    .eq('type', 'EARNED')
+    .is('deleted_at', null)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
+    .limit(30)
+
+  if (error) return []
+  return (data ?? []) as PointNotificationRow[]
+}
+
 export async function getUserPointTransactions(userId: string, limit = 20) {
   const supabase = await createClient()
 
@@ -48,6 +81,7 @@ export async function getUserPointTransactions(userId: string, limit = 20) {
     .from('point_transactions')
     .select('*')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -79,6 +113,7 @@ export async function getUserEventSubmissions(
     .from('event_submissions')
     .select('submission_id, event_id, round_id, status, rejection_reason, created_at')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -89,6 +124,7 @@ export async function getUserEventSubmissions(
     .from('events')
     .select('event_id, title')
     .in('event_id', eventIds)
+    .is('deleted_at', null)
   const eventTitleBy = new Map((events ?? []).map((e) => [e.event_id, e.title]))
 
   const roundIds = subs.map((s) => s.round_id).filter(Boolean) as string[]
@@ -98,6 +134,7 @@ export async function getUserEventSubmissions(
       .from('event_rounds')
       .select('round_id, round_number')
       .in('round_id', roundIds)
+      .is('deleted_at', null)
     roundNumberBy = new Map((rounds ?? []).map((r) => [r.round_id, r.round_number]))
   }
 

@@ -49,6 +49,7 @@ export async function getEventForParticipationAction(eventId: string) {
       .from('event_verification_methods')
       .select('method_id, method_type, instruction, label, placeholder, input_style')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('method_id')
     if (methods?.length) {
       result.data.verificationMethods = methods as typeof result.data.verificationMethods
@@ -87,6 +88,7 @@ export async function submitEventSubmission(
       .from('events')
       .select('event_id, type, status')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .single()
     if (eventErr || !event) return { success: false, error: '이벤트를 찾을 수 없습니다.' }
     if (event.status !== 'ACTIVE') return { success: false, error: '진행 중인 이벤트가 아닙니다.' }
@@ -105,6 +107,7 @@ export async function submitEventSubmission(
       .from('event_verification_methods')
       .select('method_id, method_type')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
     const methodList = methods ?? []
     const hasPeerSelect = methodList.some((r) => (r as { method_type?: string }).method_type === 'PEER_SELECT')
     if (hasPeerSelect && (!peerUserId || !String(peerUserId).trim())) {
@@ -156,6 +159,7 @@ export async function claimRewardChoice(
       .from('event_submissions')
       .select('submission_id, event_id, round_id, user_id, peer_user_id, status, reward_received')
       .eq('submission_id', submissionId)
+      .is('deleted_at', null)
       .single()
 
     if (subErr || !sub) return { success: false, error: '제출 건을 찾을 수 없습니다.' }
@@ -167,36 +171,49 @@ export async function claimRewardChoice(
       .from('event_rewards')
       .select('reward_kind, amount')
       .eq('event_id', sub.event_id)
+      .is('deleted_at', null)
     const option = (rewards ?? []).find((r) => r.reward_kind === rewardKind)
     if (!option) return { success: false, error: `선택할 수 없는 보상입니다: ${REWARD_KIND_LABEL[rewardKind] ?? rewardKind}` }
 
     const admin = createAdminClient()
-    const { data: event } = await admin.from('events').select('title, reward_policy').eq('event_id', sub.event_id).single()
+    const { data: event } = await admin.from('events').select('title, reward_policy').eq('event_id', sub.event_id).is('deleted_at', null).single()
 
     let rewardAmount = 0
+    let roundNumber: number | null = null
     if (rewardKind === 'V_POINT' && option.amount != null) {
       rewardAmount = Number(option.amount)
       if (sub.round_id) {
-        const { data: round } = await admin.from('event_rounds').select('reward_amount').eq('round_id', sub.round_id).single()
+        const { data: round } = await admin.from('event_rounds').select('reward_amount, round_number').eq('round_id', sub.round_id).is('deleted_at', null).single()
         if (round?.reward_amount != null) rewardAmount = round.reward_amount
+        roundNumber = round?.round_number ?? null
       }
     }
 
     if (rewardKind === 'V_POINT' && rewardAmount > 0) {
       const userIdsToCredit = [sub.user_id]
       if (event?.reward_policy === 'BOTH' && sub.peer_user_id) userIdsToCredit.push(sub.peer_user_id)
+      const eventTitle = event?.title ?? '이벤트'
+      const roundDesc = roundNumber != null ? `${roundNumber}구간 승인되어` : '승인되어'
       for (const uid of userIdsToCredit) {
-        const { data: u, error: uErr } = await admin.from('users').select('current_points, name, email').eq('user_id', uid).single()
+        const { data: u, error: uErr } = await admin.from('users').select('current_points, name, email').eq('user_id', uid).is('deleted_at', null).single()
         if (uErr || !u) return { success: false, error: '사용자 조회 실패' }
         const newPoints = (u.current_points ?? 0) + rewardAmount
         await admin.from('users').update({ current_points: newPoints }).eq('user_id', uid)
+        const isRecipient = uid === sub.peer_user_id
+        // 칭찬 챌린지(BOTH): 제출자 vs 수신자 구분
+        const description =
+          event?.reward_policy === 'BOTH' && sub.peer_user_id
+            ? isRecipient
+              ? `칭찬을 받음: 동료가 나를 칭찬하여 ${rewardAmount.toLocaleString()} P 적립`
+              : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} P 적립`
+            : `${eventTitle} ${roundDesc} ${rewardAmount.toLocaleString()} P 적립되었다`
         await admin.from('point_transactions').insert({
           user_id: uid,
           type: 'EARNED',
           amount: rewardAmount,
           related_id: sub.submission_id,
           related_type: 'EVENT',
-          description: `이벤트 보상: ${event?.title ?? ''}`,
+          description,
           user_email: u.email ?? null,
           user_name: u.name ?? null,
         })

@@ -25,6 +25,7 @@ export async function getDonationTargetsForAdmin(): Promise<{
     const { data, error } = await supabase
       .from('donation_targets')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
     if (error) return { data: null, error: error.message }
     return { data: (data ?? []) as DonationTargetRow[], error: null }
@@ -72,6 +73,7 @@ export async function addOfflineDonation(
       .from('donation_targets')
       .select('current_amount, target_amount, status')
       .eq('target_id', targetId)
+      .is('deleted_at', null)
       .single()
     if (fetchError || !row) {
       return { success: false, error: '기부처를 찾을 수 없습니다.' }

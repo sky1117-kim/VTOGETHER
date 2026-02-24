@@ -20,6 +20,7 @@ export async function getEventsForPublic(): Promise<
     .from('events')
     .select('*')
     .eq('status', 'ACTIVE')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
   if (error) return []
   const list = (events ?? []) as PublicEventRow[]
@@ -30,6 +31,7 @@ export async function getEventsForPublic(): Promise<
     .from('event_rounds')
     .select('event_id')
     .in('event_id', eventIds)
+    .is('deleted_at', null)
   const countByEvent = new Map<string, number>()
   for (const r of rounds ?? []) {
     countByEvent.set(r.event_id, (countByEvent.get(r.event_id) ?? 0) + 1)
@@ -69,6 +71,7 @@ export async function getEventsWithRoundsForPublic(
     .from('event_rounds')
     .select('round_id, event_id, round_number, start_date, end_date, submission_deadline')
     .in('event_id', eventIds)
+    .is('deleted_at', null)
     .order('round_number', { ascending: true })
   const roundsByEvent = new Map<string, typeof roundsRows>()
   for (const r of roundsRows ?? []) {
@@ -85,6 +88,7 @@ export async function getEventsWithRoundsForPublic(
       .select('round_id, status, reward_received')
       .eq('user_id', userId)
       .in('round_id', roundIds)
+      .is('deleted_at', null)
     for (const s of subs ?? []) {
       submissionsByRound.set(s.round_id, {
         status: s.status,
@@ -123,6 +127,7 @@ export async function getEventsWithRoundsForPublic(
         .from('event_submissions')
         .select('event_id')
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .eq('status', 'APPROVED')
         .eq('reward_received', false)
         .is('round_id', null)
@@ -152,6 +157,8 @@ export type VerificationMethodRow = {
   label: string | null
   placeholder: string | null
   input_style?: 'SHORT' | 'LONG' | null
+  /** 숫자(VALUE)용. 단위 (예: km/h, km) */
+  unit?: string | null
 }
 
 export type RoundForParticipation = {
@@ -206,14 +213,16 @@ export async function getEventForParticipation(
     .from('events')
     .select('event_id, title, type, reward_type')
     .eq('event_id', eventId)
+    .is('deleted_at', null)
     .eq('status', 'ACTIVE')
     .single()
   if (eventErr || !event) return { data: null, error: eventErr?.message ?? '이벤트를 찾을 수 없습니다.' }
 
   const { data: methods } = await supabase
     .from('event_verification_methods')
-    .select('method_id, method_type, instruction, label, placeholder, input_style')
+    .select('method_id, method_type, instruction, label, placeholder, input_style, unit')
     .eq('event_id', eventId)
+    .is('deleted_at', null)
     .order('method_id')
   const verificationMethods = (methods ?? []) as VerificationMethodRow[]
 
@@ -223,6 +232,7 @@ export async function getEventForParticipation(
     const { data: users } = await supabase
       .from('users')
       .select('user_id, name, email, dept_name')
+      .is('deleted_at', null)
       .order('name', { ascending: true, nullsFirst: false })
     peerSelectionUsers = (users ?? []).map((u) => ({
       user_id: u.user_id,
@@ -236,6 +246,7 @@ export async function getEventForParticipation(
     .from('event_rewards')
     .select('reward_kind, amount')
     .eq('event_id', eventId)
+    .is('deleted_at', null)
     .order('reward_kind')
   const rewardOptions: RewardOptionRow[] = (eventRewards ?? []).map((r) => ({
     reward_kind: r.reward_kind as RewardOptionRow['reward_kind'],
@@ -249,6 +260,7 @@ export async function getEventForParticipation(
       .from('event_submissions')
       .select('submission_id, round_id')
       .eq('event_id', eventId)
+      .is('deleted_at', null)
       .eq('user_id', userId)
       .eq('status', 'APPROVED')
       .eq('reward_received', false)
@@ -262,6 +274,7 @@ export async function getEventForParticipation(
           .from('event_rounds')
           .select('round_number')
           .eq('round_id', pending.round_id)
+          .is('deleted_at', null)
           .single()
         round_number = round?.round_number ?? null
       }
@@ -272,9 +285,10 @@ export async function getEventForParticipation(
   let rounds: RoundForParticipation[] = []
   if (event.type === 'SEASONAL') {
     const { data: roundsData } = await supabase
-      .from('event_rounds')
-      .select('round_id, round_number, start_date, end_date, submission_deadline')
-      .eq('event_id', eventId)
+.from('event_rounds')
+    .select('round_id, round_number, start_date, end_date, submission_deadline')
+    .eq('event_id', eventId)
+    .is('deleted_at', null)
       .order('round_number', { ascending: true })
     rounds = (roundsData ?? []).map((r) => ({
       ...r,

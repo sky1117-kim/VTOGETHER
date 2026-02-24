@@ -36,6 +36,7 @@ export async function donatePoints(targetId: string, amount: number) {
     .from('users')
     .select('current_points, total_donated_amount, email, name')
     .eq('user_id', effectiveUserId)
+    .is('deleted_at', null)
     .single()
 
   if (userError || !userData) {
@@ -59,6 +60,7 @@ export async function donatePoints(targetId: string, amount: number) {
     .from('donation_targets')
     .select('*')
     .eq('target_id', targetId)
+    .is('deleted_at', null)
     .single()
 
   if (targetError || !target) {

@@ -135,3 +135,14 @@ export const TARGET_THEMES: Record<string, TargetTheme> = {
 export function getTargetTheme(targetName: string): TargetTheme {
   return TARGET_THEMES[targetName] ?? defaultTheme
 }
+
+/** 기부처별 차트 색상 (고유 색상 — 아름다운가게 초록, 혜명보육원 노랑, 대한적십자사 빨강, 국제구조위원회 파랑) */
+export const TARGET_CHART_COLORS: Record<string, string> = {
+  '아름다운 가게': '#059669',
+  '아름다운가게': '#059669',
+  '혜명보육원': '#d97706',
+  '대한적십자사': '#dc2626',
+  '국제구조위원회': '#2563eb',
+  '한국환경공단': '#dc2626',
+  '한국사회복지협의회': '#2563eb',
+}

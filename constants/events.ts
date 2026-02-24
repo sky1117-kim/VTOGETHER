@@ -36,3 +36,18 @@ export const VERIFICATION_METHOD_TYPES = [
   { value: 'VALUE' as const, label: '숫자' },
   { value: 'PEER_SELECT' as const, label: '동료 선택 + 텍스트' },
 ] as const
+
+/** 숫자(VALUE) 인증 방식용 단위 옵션. 선택 또는 직접 입력 가능 */
+export const VALUE_UNIT_OPTIONS = [
+  { value: 'km/h', label: 'km/h' },
+  { value: 'km', label: 'km' },
+  { value: 'm', label: 'm' },
+  { value: '걸음', label: '걸음' },
+  { value: 'kcal', label: 'kcal' },
+  { value: '분', label: '분' },
+  { value: '회', label: '회' },
+  { value: '', label: '단위 없음' },
+] as const
+
+/** 직접 입력 선택 시 사용하는 플레이스홀더 값 */
+export const VALUE_UNIT_CUSTOM = '__CUSTOM__'

@@ -20,6 +20,7 @@ export async function getPersonalRanking(limit = 10): Promise<PersonalRankItem[]
   const { data } = await supabase
     .from('users')
     .select('name, dept_name, level, total_donated_amount')
+    .is('deleted_at', null)
     .order('total_donated_amount', { ascending: false })
     .limit(limit)
   if (!data?.length) return []
@@ -37,6 +38,7 @@ export async function getTeamRanking(limit = 10): Promise<TeamRankItem[]> {
   const { data } = await supabase
     .from('users')
     .select('dept_name, total_donated_amount')
+    .is('deleted_at', null)
   if (!data?.length) return []
   const byDept = new Map<string, number>()
   for (const row of data) {

@@ -26,6 +26,7 @@ export async function getCurrentUser() {
       .from('users')
       .select('*')
       .eq('user_id', GUEST_TEST_USER_ID)
+      .is('deleted_at', null)
       .single()
 
     if (!guestError && guestData) {
@@ -59,6 +60,7 @@ export async function getCurrentUser() {
     .from('users')
     .select('*')
     .eq('user_id', user.id)
+    .is('deleted_at', null)
     .single()
 
   if (error || !userData) {
