@@ -134,7 +134,7 @@ export default async function AdminEventsPage() {
                     {new Date(e.created_at).toLocaleDateString('ko-KR')}
                   </td>
                   <td className="pl-2 pr-4 py-3 align-middle">
-                    <EventRowActions eventId={e.event_id} eventTitle={e.title} />
+                    <EventRowActions eventId={e.event_id} eventTitle={e.title} status={e.status} />
                   </td>
                 </tr>
               ))}

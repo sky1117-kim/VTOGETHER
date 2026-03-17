@@ -23,7 +23,7 @@ export function DeptBarChart({ data }: { data: DeptItem[] }) {
             <XAxis type="number" domain={[0, Math.max(maxVal + 1, 5)]} hide />
             <YAxis type="category" dataKey="name" width={56} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
             <Tooltip
-              formatter={(value: number) => [value + '명', '인원']}
+              formatter={(value: number | undefined) => [(value ?? 0) + '명', '인원']}
               contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
               cursor={{ fill: '#f1f5f9' }}
             />

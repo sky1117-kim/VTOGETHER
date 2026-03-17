@@ -60,14 +60,17 @@ CREATE INDEX IF NOT EXISTS idx_point_transactions_created_at ON point_transactio
 CREATE INDEX IF NOT EXISTS idx_users_level ON users(level);
 CREATE INDEX IF NOT EXISTS idx_users_total_donated_amount ON users(total_donated_amount DESC);
 
--- updated_at 자동 업데이트 함수
+-- updated_at 자동 업데이트 함수 (search_path 고정으로 보안 취약점 방지)
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
 -- updated_at 트리거
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
@@ -76,28 +79,37 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 CREATE TRIGGER update_donation_targets_updated_at BEFORE UPDATE ON donation_targets
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- ESG Level 자동 계산 함수
+-- ESG Level 자동 계산 함수 (search_path 고정으로 보안 취약점 방지)
 CREATE OR REPLACE FUNCTION calculate_esg_level(donated_amount INTEGER)
-RETURNS TEXT AS $$
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = ''
+AS $$
 BEGIN
-  IF donated_amount >= 80001 THEN
+  IF donated_amount >= 100001 THEN
     RETURN 'EARTH_HERO';
-  ELSIF donated_amount >= 30001 THEN
+  ELSIF donated_amount >= 50001 THEN
     RETURN 'GREEN_MASTER';
+  ELSIF donated_amount >= 10000 THEN
+    RETURN 'ECO_KEEPER';
   ELSE
     RETURN 'ECO_KEEPER';
   END IF;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$;
 
--- ESG Level 자동 업데이트 트리거
+-- ESG Level 자동 업데이트 트리거 (search_path 고정으로 보안 취약점 방지)
 CREATE OR REPLACE FUNCTION update_user_level()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
 BEGIN
-  NEW.level = calculate_esg_level(NEW.total_donated_amount);
+  NEW.level = public.calculate_esg_level(NEW.total_donated_amount);
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE TRIGGER update_user_level_trigger
   BEFORE INSERT OR UPDATE OF total_donated_amount ON users
@@ -110,24 +122,18 @@ ALTER TABLE donation_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE point_transactions ENABLE ROW LEVEL SECURITY;
 
--- Users RLS 정책
--- 본인 정보만 조회/수정 가능, 공개 정보(랭킹용)는 읽기 가능
-CREATE POLICY "Users can view own data"
+-- Users RLS 정책 (026: auth initplan + 정책 병합 적용)
+CREATE POLICY "Users can view own data or rankings"
   ON users FOR SELECT
-  USING (auth.uid()::text = user_id);
+  USING (true);
 
 CREATE POLICY "Users can update own data"
   ON users FOR UPDATE
-  USING (auth.uid()::text = user_id);
+  USING ((select auth.uid())::text = user_id);
 
--- 최초 로그인 시 콜백에서 본인 user_id로 한 건 INSERT 허용
 CREATE POLICY "Users can insert own row"
   ON users FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
-
-CREATE POLICY "Public can view user rankings"
-  ON users FOR SELECT
-  USING (true);
+  WITH CHECK ((select auth.uid())::text = user_id);
 
 -- DonationTargets RLS 정책
 -- 모든 사용자 읽기 가능, 관리자만 수정 가능 (관리자 정책은 나중에 추가)
@@ -136,24 +142,22 @@ CREATE POLICY "Anyone can view donation targets"
   USING (true);
 
 -- Donations RLS 정책
--- 본인 기부 내역만 조회 가능, 본인만 생성 가능
 CREATE POLICY "Users can view own donations"
   ON donations FOR SELECT
-  USING (auth.uid()::text = user_id);
+  USING ((select auth.uid())::text = user_id);
 
 CREATE POLICY "Users can create own donations"
   ON donations FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
+  WITH CHECK ((select auth.uid())::text = user_id);
 
 -- PointTransactions RLS 정책
--- 본인 거래 내역만 조회 가능
 CREATE POLICY "Users can view own transactions"
   ON point_transactions FOR SELECT
-  USING (auth.uid()::text = user_id);
--- 기부/사용 시 본인 거래 내역 INSERT 허용
+  USING ((select auth.uid())::text = user_id);
+
 CREATE POLICY "Users can insert own transactions"
   ON point_transactions FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
+  WITH CHECK ((select auth.uid())::text = user_id);
 
 -- site_content: 메인 화면 문구 (관리자 편집)
 CREATE TABLE IF NOT EXISTS site_content (

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto, claimRewardChoice } from '@/api/actions/events'
+import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
 import type { VerificationMethodRow, RoundForParticipation, RewardOptionRow, PeerSelectionUserRow } from '@/api/queries/events'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -11,7 +12,7 @@ const METHOD_LABEL: Record<string, string> = {
   PHOTO: '사진',
   TEXT: '텍스트',
   VALUE: '숫자',
-  PEER_SELECT: '동료 선택 + 텍스트',
+  PEER_SELECT: '동료 선택',
 }
 
 const inputClass =
@@ -75,11 +76,19 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
   const [peerSearch, setPeerSearch] = useState('')
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
+  /** PHOTO 인증 방식: method_id별 업로드된 사진 URL 배열 (2장 이상 필수) */
+  const [photoUrlsByMethod, setPhotoUrlsByMethod] = useState<Record<string, string[]>>({})
+  /** 칭찬 챌린지(PEER_SELECT) 시 익명으로 칭찬 보내기 선택 여부 */
+  const [isAnonymous, setIsAnonymous] = useState(false)
   /** 숫자(VALUE) 인증 필드별 에러 (숫자 아닌 문자 입력 시) */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [choicePending, setChoicePending] = useState(false)
   /** 보상 선택 후 확인 대기 (이걸로 하시겠어요?) */
   const [confirmingReward, setConfirmingReward] = useState<'V_POINT' | 'COFFEE_COUPON' | 'GOODS' | null>(null)
+
+  // 모달/이벤트 변경 시 최신 값 유지 (늦게 도착한 응답 무시용)
+  const latestRef = useRef({ isOpen, eventId })
+  latestRef.current = { isOpen, eventId }
 
   useEffect(() => {
     if (!isOpen || !eventId) {
@@ -87,16 +96,21 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setError(null)
       setSuccess(false)
       setFormData({})
+      setPhotoUrlsByMethod({})
       setFieldErrors({})
       setSelectedRoundId(null)
       setPeerSearch('')
       setConfirmingReward(null)
+      setIsAnonymous(false)
       return
     }
+    const fetchingFor = eventId
     setLoading(true)
     setError(null)
     getEventForParticipationAction(eventId)
       .then((res) => {
+        // 모달 닫았거나 다른 이벤트 선택 시 응답 무시 (경쟁 상태 방지)
+        if (latestRef.current.eventId !== fetchingFor || !latestRef.current.isOpen) return
         if (res.error || !res.data) {
           setError(res.error ?? '불러오기 실패')
           setData(null)
@@ -107,25 +121,46 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
         if (openRound) setSelectedRoundId(openRound.round_id)
         else if (res.data.rounds.length > 0) setSelectedRoundId(res.data.rounds[0].round_id)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (latestRef.current.eventId === fetchingFor && latestRef.current.isOpen) {
+          setLoading(false)
+        }
+      })
   }, [isOpen, eventId])
 
-  const handlePhotoChange = async (methodId: string, file: File | null) => {
-    if (!file) {
-      setFormData((prev) => ({ ...prev, [methodId]: '' }))
-      return
-    }
+  const handlePhotoAdd = async (methodId: string, file: File | null) => {
+    if (!file) return
     setUploadingId(methodId)
     setError(null)
-    const fd = new FormData()
-    fd.set('file', file)
-    const result = await uploadEventVerificationPhoto(fd)
+    let result = await uploadEventPhotoClient(file)
+    if (result.error) {
+      const fd = new FormData()
+      fd.set('file', file)
+      result = await uploadEventVerificationPhoto(fd)
+    }
     setUploadingId(null)
     if (result.error) {
       setError(result.error)
       return
     }
-    if (result.url) setFormData((prev) => ({ ...prev, [methodId]: result.url! }))
+    if (result.url) {
+      setPhotoUrlsByMethod((prev) => ({
+        ...prev,
+        [methodId]: [...(prev[methodId] ?? []), result.url!],
+      }))
+    }
+  }
+
+  const handlePhotoRemove = (methodId: string, index: number) => {
+    setPhotoUrlsByMethod((prev) => {
+      const arr = prev[methodId] ?? []
+      const next = arr.filter((_, i) => i !== index)
+      if (next.length === 0) {
+        const { [methodId]: _, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [methodId]: next }
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -141,12 +176,14 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     let peerUserId: string | null = null
     for (const m of data.verificationMethods) {
       if (m.method_type === 'PEER_SELECT') {
-        const text = formData[m.method_id]?.trim() ?? ''
         const peer = formData[m.method_id + '_peer']?.trim() ?? ''
         if (!peer) missing.push('동료 선택')
-        if (!text) missing.push('칭찬 메시지')
-        verificationData[m.method_id] = text
+        verificationData[m.method_id] = peer
         if (peer) peerUserId = peer
+      } else if (m.method_type === 'PHOTO') {
+        const urls = photoUrlsByMethod[m.method_id] ?? []
+        if (urls.length < 2) missing.push('사진 (2장 이상)')
+        verificationData[m.method_id] = urls
       } else {
         const value = formData[m.method_id]?.trim() ?? ''
         if (!value) missing.push(METHOD_LABEL[m.method_type])
@@ -164,7 +201,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     }
     setSubmitPending(true)
     setError(null)
-    const result = await submitEventSubmission(eventId, roundId, verificationData, peerUserId ?? undefined)
+    const result = await submitEventSubmission(eventId, roundId, verificationData, peerUserId ?? undefined, isAnonymous)
     setSubmitPending(false)
     if (result.error) {
       setError(result.error)
@@ -257,6 +294,21 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
             </button>
           </div>
         )}
+        {!loading && data && !success && data.pendingChoiceSubmission && data.rewardOptions.length === 0 && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-5">
+            <p className="text-center text-base font-semibold text-gray-800">{data.event.title}</p>
+            <div className="w-full max-w-md rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800">
+              승인되었으나 보상 옵션이 설정되지 않았습니다. 관리자에게 문의하세요.
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full max-w-md rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+            >
+              닫기
+            </button>
+          </div>
+        )}
         {!loading && data && !success && showRewardChoice && (
           <div className="flex flex-1 flex-col justify-center space-y-6">
             {confirmingReward == null ? (
@@ -281,6 +333,9 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       {opt.reward_kind === 'V_POINT' && opt.amount != null && (
                         <span className="ml-2 text-green-600"> {opt.amount} P</span>
                       )}
+                      {opt.reward_kind === 'COFFEE_COUPON' && opt.amount != null && (
+                        <span className="ml-2 text-green-600"> {opt.amount}매</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -303,6 +358,10 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                     {confirmingReward === 'V_POINT' && (() => {
                       const opt = data.rewardOptions.find((o) => o.reward_kind === 'V_POINT')
                       return opt?.amount != null ? ` ${opt.amount} P` : ''
+                    })()}
+                    {confirmingReward === 'COFFEE_COUPON' && (() => {
+                      const opt = data.rewardOptions.find((o) => o.reward_kind === 'COFFEE_COUPON')
+                      return opt?.amount != null ? ` ${opt.amount}매` : ''
                     })()}
                   </p>
                   <p className="mt-1 text-xs text-gray-600">선택 후에는 변경할 수 없습니다.</p>
@@ -396,27 +455,47 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                   {data.verificationMethods.map((m) => {
                     const isShort = m.input_style === 'SHORT'
                     if (m.method_type === 'PHOTO') {
+                      const urls = photoUrlsByMethod[m.method_id] ?? []
                       return (
                         <div
                           key={m.method_id}
                           className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
                         >
                           <label className="mb-2 block text-sm font-bold text-gray-800">
-                            {m.instruction ?? '파일을 첨부해 주세요'}
+                            {m.label?.trim() || m.instruction?.trim() || '사진을 첨부해 주세요'}
+                            <span className="ml-1 font-normal text-amber-600">(2장 이상 필수)</span>
                           </label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              handlePhotoChange(m.method_id, e.target.files?.[0] ?? null)
-                            }
-                            className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-green-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white file:hover:bg-green-600"
-                          />
+                          <div className="space-y-2">
+                            {urls.map((url, i) => (
+                              <div key={url} className="flex items-center gap-2">
+                                <img src={url} alt={`첨부 ${i + 1}`} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => handlePhotoRemove(m.method_id, i)}
+                                  className="rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            ))}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) handlePhotoAdd(m.method_id, file)
+                                e.target.value = ''
+                              }}
+                              className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-green-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white file:hover:bg-green-600"
+                            />
+                          </div>
                           {uploadingId === m.method_id && (
                             <p className="mt-2 text-xs text-gray-500">업로드 중…</p>
                           )}
-                          {formData[m.method_id] && (
-                            <p className="mt-2 text-xs font-medium text-green-600">✓ 첨부 완료</p>
+                          {urls.length > 0 && (
+                            <p className="mt-2 text-xs font-medium text-green-600">
+                              ✓ {urls.length}장 첨부됨 {urls.length < 2 && '(2장 이상 필요)'}
+                            </p>
                           )}
                         </div>
                       )
@@ -430,21 +509,20 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                           className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
                         >
                           <label className="mb-2 block text-sm font-bold text-gray-800">
-                            {METHOD_LABEL[m.method_type]}
+                            {(m.label?.trim() || METHOD_LABEL[m.method_type])}
                             {m.unit && (
                               <span className="ml-1 font-normal text-gray-500">— {m.unit}</span>
                             )}
-                            {m.instruction && (
+                            {m.instruction?.trim() && (
                               <span className="ml-1 font-normal text-gray-500">
                                 {m.unit ? ' · ' : ' — '}
-                                {m.instruction}
+                                {m.instruction.trim()}
                               </span>
                             )}
                           </label>
                           <input
                             type="text"
                             inputMode="numeric"
-                            pattern="[0-9]*"
                             value={raw === '' ? '' : formatNumberDisplay(raw)}
                             onChange={(e) => {
                               const input = e.target.value
@@ -488,15 +566,17 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       const selectedPeer = selectedPeerId
                         ? filtered.find((u) => u.user_id === selectedPeerId)
                         : null
+                      // 제목(label): 관리자가 설정한 값 사용. 비우면 방식명(동료 선택) fallback
+                      const displayLabel = (m.label?.trim() || METHOD_LABEL[m.method_type])
                       return (
                         <div
                           key={m.method_id}
                           className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
                         >
                           <label className="mb-2 block text-sm font-bold text-gray-800">
-                            {METHOD_LABEL[m.method_type]}
-                            {m.instruction && (
-                              <span className="ml-1 font-normal text-gray-500">— {m.instruction}</span>
+                            {displayLabel}
+                            {m.instruction?.trim() && (
+                              <span className="ml-1 font-normal text-gray-500">— {m.instruction.trim()}</span>
                             )}
                           </label>
                           {selectedPeer ? (
@@ -557,18 +637,15 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                               )}
                             </>
                           )}
-                          <label className="mt-4 mb-2 block text-sm font-bold text-gray-800">
-                            칭찬 메시지
+                          <label className="mt-4 flex cursor-pointer items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isAnonymous}
+                              onChange={(e) => setIsAnonymous(e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                            />
+                            <span className="text-sm text-gray-700">익명으로 칭찬 보내기 (칭찬 받는 분에게는 익명으로 표시되며, 관리자는 제출자 확인 가능)</span>
                           </label>
-                          <textarea
-                            value={formData[m.method_id] ?? ''}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, [m.method_id]: e.target.value }))
-                            }
-                            rows={3}
-                            className={inputClass}
-                            placeholder="칭찬 메시지를 입력하세요"
-                          />
                         </div>
                       )
                     }
@@ -579,7 +656,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
                       >
                         <label className="mb-2 block text-sm font-bold text-gray-800">
-                          {m.instruction ?? m.placeholder ?? '입력하세요'}
+                          {(m.label?.trim() || m.instruction?.trim() || m.placeholder?.trim()) ?? '입력하세요'}
                         </label>
                         {isShort ? (
                           <input

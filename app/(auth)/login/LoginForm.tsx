@@ -37,9 +37,8 @@ export default function LoginForm({ error }: { error?: string }) {
               나의 활동이<br />
               <span className="text-green-400">세상의 기회</span>가 되도록
             </h1>
-            <p className="text-slate-300 text-sm leading-relaxed font-medium">
-              임직원 여러분의 작은 실천을 모아 큰 변화를 만듭니다. 사내 계정으로
-              로그인하여 챌린지에 참여해보세요.
+            <p className="text-slate-300 text-sm leading-relaxed font-medium whitespace-nowrap">
+              VNTGian 여러분의 실천을 모아 큰 변화를 만듭니다.
             </p>
           </div>
         </div>

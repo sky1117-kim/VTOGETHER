@@ -64,6 +64,7 @@ export type EventRewardRow = {
 export type EventVerificationMethodRow = {
   method_type: 'PHOTO' | 'TEXT' | 'VALUE' | 'PEER_SELECT'
   instruction: string | null
+  label?: string | null
   input_style?: string | null
 }
 
@@ -99,11 +100,11 @@ export async function getEventWithRoundsForAdmin(eventId: string): Promise<{
       .is('deleted_at', null)
       .order('display_order', { ascending: true })
     if (!rewardsError && rewardsData) rewards = rewardsData as EventRewardRow[]
-    // 인증 방식: 조회만 (수정 불가). method_type, instruction만 필수로 선택 (input_style 없을 수 있음)
+    // 인증 방식: 조회만 (수정 불가). method_type, instruction, label 조회
     let verification_methods: EventVerificationMethodRow[] = []
     const { data: methodsData, error: methodsError } = await supabase
       .from('event_verification_methods')
-      .select('method_type, instruction')
+      .select('method_type, instruction, label')
       .eq('event_id', eventId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true })
@@ -111,6 +112,7 @@ export async function getEventWithRoundsForAdmin(eventId: string): Promise<{
       verification_methods = methodsData.map((m) => ({
         method_type: m.method_type as EventVerificationMethodRow['method_type'],
         instruction: m.instruction ?? null,
+        label: m.label ?? null,
       }))
     }
     return {
@@ -138,6 +140,7 @@ export type EventCopySource = {
     method_type: VerificationMethodInput['method_type']
     instruction: string | null
     input_style: 'SHORT' | 'LONG' | null
+    label: string | null
     unit: string | null
   }[]
 }
@@ -166,7 +169,7 @@ export async function getEventForCopy(eventId: string): Promise<{
     const rewards = (rewardsData ?? []) as EventCopySource['rewards']
     const { data: methodsData } = await supabase
       .from('event_verification_methods')
-      .select('method_type, instruction, input_style, unit')
+      .select('method_type, instruction, input_style, label, unit')
       .eq('event_id', eventId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true })
@@ -174,6 +177,7 @@ export async function getEventForCopy(eventId: string): Promise<{
       method_type: m.method_type as EventCopySource['verification_methods'][0]['method_type'],
       instruction: m.instruction ?? null,
       input_style: (m.input_style === 'SHORT' || m.input_style === 'LONG' ? m.input_style : null) as 'SHORT' | 'LONG' | null,
+      label: m.label ?? null,
       unit: m.unit ?? null,
     }))
     return {
@@ -533,13 +537,18 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
     const data: EventSubmissionExportRow[] = submissions.map((s) => {
       const round = s.round_id ? roundMap.get(s.round_id) : null
       const user = userMap.get(s.user_id)
+      const peer = s.peer_user_id ? userMap.get(s.peer_user_id) : null
       const vd = (s.verification_data as Record<string, unknown>) ?? {}
       const parts: string[] = []
       for (const { method_id, method_type } of methods) {
         const val = vd[method_id]
         if (val === undefined || val === null || val === '') continue
-        if (method_type === 'PHOTO') parts.push('사진')
-        else if (method_type === 'TEXT' || method_type === 'PEER_SELECT') parts.push(String(val).slice(0, 80))
+        if (method_type === 'PHOTO') {
+          const count = Array.isArray(val) ? (val as string[]).length : 1
+          parts.push(count > 1 ? `사진 ${count}장` : '사진')
+        }
+        else if (method_type === 'TEXT') parts.push(String(val).slice(0, 80))
+        else if (method_type === 'PEER_SELECT') parts.push(peer?.name ?? '동료 선택됨')
         else if (method_type === 'VALUE') parts.push(String(val))
       }
       return {

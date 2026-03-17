@@ -82,7 +82,7 @@ export function RichTextEditor({
     if (!editor) return
     const current = editor.getHTML()
     const next = value?.trim() ? value : '<p></p>'
-    if (current !== next) editor.commands.setContent(next, false)
+    if (current !== next) editor.commands.setContent(next, { emitUpdate: false })
   }, [editor, value])
 
   // 로드된 HTML에 커스텀 hex가 있으면 인라인 스타일 적용 (DOM 반영 후 실행)

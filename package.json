@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:setup": "bash scripts/setup-secrets.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

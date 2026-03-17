@@ -49,11 +49,20 @@ export type RoundStatusLabel = {
   status: 'LOCKED' | 'OPEN' | 'SUBMITTED' | 'APPROVED' | 'DONE' | 'FAILED' | 'REJECTED'
 }
 
+/** ALWAYS 이벤트 카드용: 참여 가능 여부 (빈도 제한 체크 결과) */
+export type AlwaysParticipationStatus = {
+  allowed: boolean
+  reason?: string
+  nextAvailableAt?: string
+}
+
 export type PublicEventWithRounds = PublicEventRow & {
   rounds_count: number
   rounds: RoundStatusLabel[]
   /** 승인됐으나 보상 미수령(보상 선택 대기). 카드에서 "보상받기" 버튼 노출용 */
   hasPendingReward?: boolean
+  /** ALWAYS 이벤트일 때만: 빈도 제한 체크 결과 (카드 태그용) */
+  alwaysParticipation?: AlwaysParticipationStatus
 }
 
 export async function getEventsWithRoundsForPublic(
@@ -83,17 +92,19 @@ export async function getEventsWithRoundsForPublic(
   let submissionsByRound = new Map<string, { status: string; reward_received: boolean }>()
   if (userId) {
     const roundIds = (roundsRows ?? []).map((r) => r.round_id)
-    const { data: subs } = await supabase
-      .from('event_submissions')
-      .select('round_id, status, reward_received')
-      .eq('user_id', userId)
-      .in('round_id', roundIds)
-      .is('deleted_at', null)
-    for (const s of subs ?? []) {
-      submissionsByRound.set(s.round_id, {
-        status: s.status,
-        reward_received: s.reward_received ?? false,
-      })
+    if (roundIds.length > 0) {
+      const { data: subs } = await supabase
+        .from('event_submissions')
+        .select('round_id, status, reward_received')
+        .eq('user_id', userId)
+        .in('round_id', roundIds)
+        .is('deleted_at', null)
+      for (const s of subs ?? []) {
+        submissionsByRound.set(s.round_id, {
+          status: s.status,
+          reward_received: s.reward_received ?? false,
+        })
+      }
     }
   }
 
@@ -118,8 +129,9 @@ export async function getEventsWithRoundsForPublic(
     eventRoundsMap.set(eid, list)
   }
 
-  // ALWAYS 이벤트: 승인·보상 미수령 건 있는지 조회 (보상받기 버튼용)
+  // ALWAYS 이벤트: 승인·보상 미수령 건 있는지 조회 (보상받기 버튼용) + 참여 가능 여부 (빈도 제한, 카드 태그용)
   let alwaysPendingRewardByEvent = new Map<string, boolean>()
+  const alwaysParticipationByEvent = new Map<string, AlwaysParticipationStatus>()
   if (userId) {
     const alwaysEvents = base.filter((e) => e.type === 'ALWAYS')
     if (alwaysEvents.length > 0) {
@@ -134,6 +146,15 @@ export async function getEventsWithRoundsForPublic(
       for (const s of alwaysSubs ?? []) {
         alwaysPendingRewardByEvent.set(s.event_id, true)
       }
+      const { canParticipateNowBatch } = await import('./event-status')
+      const batchResult = await canParticipateNowBatch(
+        alwaysEvents.map((ev) => ({
+          event_id: ev.event_id,
+          frequency_limit: typeof ev.frequency_limit === 'string' ? ev.frequency_limit : null,
+        })),
+        userId
+      )
+      for (const [eid, res] of batchResult) alwaysParticipationByEvent.set(eid, res)
     }
   }
 
@@ -141,10 +162,12 @@ export async function getEventsWithRoundsForPublic(
     const rounds = eventRoundsMap.get(e.event_id) ?? []
     const hasPendingRewardSeasonal = e.type === 'SEASONAL' && rounds.some((r) => r.status === 'APPROVED')
     const hasPendingRewardAlways = e.type === 'ALWAYS' && alwaysPendingRewardByEvent.get(e.event_id)
+    const alwaysParticipation = e.type === 'ALWAYS' ? alwaysParticipationByEvent.get(e.event_id) : undefined
     return {
       ...e,
       rounds,
       hasPendingReward: hasPendingRewardSeasonal || hasPendingRewardAlways || false,
+      alwaysParticipation,
     }
   })
 }
@@ -223,7 +246,7 @@ export async function getEventForParticipation(
     .select('method_id, method_type, instruction, label, placeholder, input_style, unit')
     .eq('event_id', eventId)
     .is('deleted_at', null)
-    .order('method_id')
+    .order('created_at', { ascending: true })
   const verificationMethods = (methods ?? []) as VerificationMethodRow[]
 
   const hasPeerSelect = verificationMethods.some((m) => m.method_type === 'PEER_SELECT')
@@ -252,10 +275,11 @@ export async function getEventForParticipation(
     reward_kind: r.reward_kind as RewardOptionRow['reward_kind'],
     amount: r.amount != null ? Number(r.amount) : null,
   }))
+  // 보상 선택 필요: CHOICE 타입이거나 복수 보상. 단, reward_received=false인 제출이 있으면 무조건 조회 (이벤트 수정 등으로 옵션이 바뀌었을 수 있음)
   const needsRewardChoice = event.reward_type === 'CHOICE' || rewardOptions.length > 1
 
   let pendingChoiceSubmission: PendingChoiceSubmission | null = null
-  if (userId && needsRewardChoice && rewardOptions.length > 0) {
+  if (userId && rewardOptions.length > 0) {
     const { data: pending } = await supabase
       .from('event_submissions')
       .select('submission_id, round_id')
@@ -285,10 +309,10 @@ export async function getEventForParticipation(
   let rounds: RoundForParticipation[] = []
   if (event.type === 'SEASONAL') {
     const { data: roundsData } = await supabase
-.from('event_rounds')
-    .select('round_id, round_number, start_date, end_date, submission_deadline')
-    .eq('event_id', eventId)
-    .is('deleted_at', null)
+      .from('event_rounds')
+      .select('round_id, round_number, start_date, end_date, submission_deadline')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
       .order('round_number', { ascending: true })
     rounds = (roundsData ?? []).map((r) => ({
       ...r,

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Gift, Heart, ClipboardList, Target, ChevronRight, Users } from 'lucide-react'
 import { getCurrentUser } from '@/api/actions/auth'
-import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod } from '@/api/actions/admin'
+import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod, getEventEarnedStats } from '@/api/actions/admin'
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
 import { formatPoints } from '@/lib/formatPoints'
 import { TARGET_DISPLAY_NAMES } from '@/constants/donationTargets'
@@ -23,6 +23,7 @@ export default async function AdminPage() {
   const { data: donationTargets } = await getDonationTargetsForAdmin()
   const targets = donationTargets ?? []
   const periodAmounts = await getDonationAmountsByPeriod()
+  const eventEarnedStats = await getEventEarnedStats()
   const currentUserId = user?.user_id ?? ''
 
   // 등급별 사용자 수 (시각화용) — Eco Keeper, Green Master, Earth Hero 항상 3가지 표시
@@ -150,6 +151,55 @@ export default async function AdminPage() {
           </div>
           <ChevronRight className="size-5 shrink-0 text-gray-400" />
         </Link>
+      </section>
+
+      {/* 이벤트 적립 현황: Culture 매칭 / V.Together (매칭 없음) */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 className="mb-4 text-sm font-semibold text-gray-800">이벤트 적립 현황</h3>
+        <p className="mb-4 text-xs text-gray-500">
+          Culture 이벤트 적립분은 회사 매칭 대상, V.Together는 매칭 없음
+        </p>
+        {eventEarnedStats.error ? (
+          <p className="text-sm text-red-500">{eventEarnedStats.error}</p>
+        ) : (
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
+              <dt className="text-xs font-medium text-gray-500">Culture V.Point</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
+                {formatPoints(eventEarnedStats.cultureEarned)}
+              </dd>
+              <p className="mt-0.5 text-xs text-gray-500">매칭 대상</p>
+            </div>
+            <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
+              <dt className="text-xs font-medium text-gray-500">V.Together V.Point</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
+                {formatPoints(eventEarnedStats.vTogetherEarned)}
+              </dd>
+              <p className="mt-0.5 text-xs text-gray-500">매칭 없음</p>
+            </div>
+            <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-4">
+              <dt className="text-xs font-medium text-amber-700">매칭금</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-amber-800">
+                {formatPoints(eventEarnedStats.matchingAmount)}
+              </dd>
+              <p className="mt-0.5 text-xs text-amber-600">Culture 적립분과 동일</p>
+            </div>
+            <div className="rounded-lg border border-green-100 bg-green-50/50 p-4">
+              <dt className="text-xs font-medium text-gray-500">전체 V.Point 적립</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
+                {formatPoints(eventEarnedStats.totalEarned)}
+              </dd>
+              <p className="mt-0.5 text-xs text-gray-500">사용자 적립분</p>
+            </div>
+            <div className="rounded-lg border-2 border-green-200 bg-green-50 p-4 sm:col-span-2">
+              <dt className="text-xs font-bold text-green-700">전체 모인금액</dt>
+              <dd className="mt-1 text-2xl font-bold tabular-nums text-green-800">
+                {formatPoints(eventEarnedStats.totalCollected)}
+              </dd>
+              <p className="mt-0.5 text-xs text-green-600">V.Together + Culture + 매칭금</p>
+            </div>
+          </dl>
+        )}
       </section>
 
       {/* 차트: MAU · 기부처별 · 기간별 · 등급별 */}

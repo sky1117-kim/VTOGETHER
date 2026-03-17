@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/admin/verifications', label: '인증 심사' },
   { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송' },
   { href: '/admin/donation-targets', label: '기부처' },
+  { href: '/admin/recent-users', label: '최근 접속 사용자' },
 ] as const
 
 interface AdminNavProps {

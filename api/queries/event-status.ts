@@ -183,6 +183,72 @@ function isSameMonthUTC(a: Date, b: Date): boolean {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth()
 }
 
+/** ALWAYS 이벤트 여러 개의 참여 가능 여부를 1회 쿼리로 일괄 조회 */
+export async function canParticipateNowBatch(
+  events: { event_id: string; frequency_limit: string | null }[],
+  userId: string
+): Promise<Map<string, { allowed: boolean; reason?: string; nextAvailableAt?: string }>> {
+  const result = new Map<string, { allowed: boolean; reason?: string; nextAvailableAt?: string }>()
+  if (events.length === 0) return result
+
+  const eventIds = events.map((e) => e.event_id)
+  const supabase = await createClient()
+  const now = new Date()
+
+  const { data: subs } = await supabase
+    .from('event_submissions')
+    .select('event_id, created_at')
+    .eq('user_id', userId)
+    .in('event_id', eventIds)
+    .is('round_id', null)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+
+  // 이벤트별 가장 최근 제출 1건
+  const lastByEvent = new Map<string, { created_at: string }>()
+  for (const s of subs ?? []) {
+    if (!lastByEvent.has(s.event_id)) lastByEvent.set(s.event_id, { created_at: s.created_at })
+  }
+
+  for (const ev of events) {
+    const frequency = (ev.frequency_limit ?? 'ONCE') as FrequencyLimit
+    const last = lastByEvent.get(ev.event_id)
+    if (!last) {
+      result.set(ev.event_id, { allowed: true })
+      continue
+    }
+    const lastAt = new Date(last.created_at)
+    switch (frequency) {
+      case 'ONCE':
+        result.set(ev.event_id, { allowed: false, reason: '이미 참여한 이벤트입니다.' })
+        break
+      case 'DAILY':
+        if (isSameDayUTC(now, lastAt)) {
+          const next = new Date(lastAt)
+          next.setUTCDate(next.getUTCDate() + 1)
+          next.setUTCHours(0, 0, 0, 0)
+          result.set(ev.event_id, { allowed: false, reason: '오늘 이미 참여했습니다.', nextAvailableAt: next.toISOString() })
+        } else {
+          result.set(ev.event_id, { allowed: true })
+        }
+        break
+      case 'WEEKLY':
+        result.set(ev.event_id, isSameWeekUTC(now, lastAt)
+          ? { allowed: false, reason: '이번 주 이미 참여했습니다.' }
+          : { allowed: true })
+        break
+      case 'MONTHLY':
+        result.set(ev.event_id, isSameMonthUTC(now, lastAt)
+          ? { allowed: false, reason: '이번 달 이미 참여했습니다.' }
+          : { allowed: true })
+        break
+      default:
+        result.set(ev.event_id, { allowed: true })
+    }
+  }
+  return result
+}
+
 /**
  * ALWAYS 이벤트: 지금 참여 가능한지 (빈도 제한 체크)
  * SEASONAL이면 true (구간별 로직은 getRoundsWithStatusForUser 사용)

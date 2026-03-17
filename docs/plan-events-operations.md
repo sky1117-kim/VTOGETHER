@@ -136,8 +136,8 @@ async function canParticipateNow(eventId: string, userId: string): Promise<boole
 
 ### 4.2 DB/폼 매핑
 - `event_submissions.peer_user_id` = 수신자(B)의 `user_id`.
-- `verification_data`: `{ peer_id: string, text: string }` (동료 검색 API로 선택된 ID, 메시지).
-- 이벤트 설정: `reward_policy = 'BOTH'`, 인증 방식에 `PEER_SELECT` + `TEXT`.
+- `verification_data`: `{ [method_id]: value }` — PEER_SELECT 항목에는 peer_user_id, TEXT 항목에는 칭찬 메시지.
+- 이벤트 설정: `reward_policy = 'BOTH'`, 인증 방식에 `PEER_SELECT`(동료 선택) + `TEXT`(칭찬 메시지) 각각 추가.
 
 ### 4.3 승인 시 트랜잭션 (이미 구현)
 

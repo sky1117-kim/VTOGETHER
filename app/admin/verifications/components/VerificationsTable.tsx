@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import type { PendingSubmissionRow } from '@/api/actions/admin/verifications'
 import {
@@ -244,7 +245,17 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
         /* 테이블형: 기본 */
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[1000px] table-fixed text-left">
+              <colgroup>
+                <col className="w-12" />
+                <col className="w-24" />
+                <col className="w-32" />
+                <col className="w-20" />
+                <col className="w-40" />
+                <col className="w-24" />
+                <col className="w-24" />
+                <col className="w-44" />
+              </colgroup>
               <thead className="border-b border-gray-200 bg-gray-50/80">
                 <tr>
                   <th className="px-4 py-4">
@@ -255,13 +266,13 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                       className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
                     />
                   </th>
-                  <th className="px-4 py-4 font-semibold text-gray-700">상태</th>
-                  <th className="px-4 py-4 font-semibold text-gray-700">이벤트</th>
-                  <th className="px-4 py-4 font-semibold text-gray-700">구간</th>
-                  <th className="px-4 py-4 font-semibold text-gray-700">참여자</th>
-                  <th className="px-4 py-4 font-semibold text-gray-700">인증 미리보기</th>
-                  <th className="px-4 py-4 font-semibold text-gray-700">제출일</th>
-                  <th className="px-4 py-4 font-semibold text-gray-700">액션</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-gray-700">상태</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-gray-700">이벤트</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-gray-700">구간</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-gray-700">참여자</th>
+                  <th className="px-2 py-4 text-sm font-semibold text-gray-700">인증 미리보기</th>
+                  <th className="border-l border-gray-200 px-2 py-4 text-sm font-semibold text-gray-700">제출일</th>
+                  <th className="border-l border-gray-200 px-4 py-4 text-sm font-semibold text-gray-700">액션</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -270,7 +281,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                   return (
                   <tr
                     key={row.submission_id}
-                    className={`transition ${isResolved ? 'bg-gray-50/70 opacity-80' : 'hover:bg-gray-50/50'}`}
+                    className={`group transition ${isResolved ? 'bg-gray-50/70 opacity-80' : 'hover:bg-gray-50/50'}`}
                   >
                     <td className="px-4 py-4">
                       <input
@@ -281,9 +292,9 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                         className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="whitespace-nowrap px-4 py-4">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
                           row.status === 'PENDING'
                             ? 'bg-amber-100 text-amber-800'
                             : row.status === 'APPROVED'
@@ -294,37 +305,37 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                         {STATUS_LABEL[row.status] ?? row.status}
                       </span>
                     </td>
-                    <td className={`px-4 py-4 font-medium ${isResolved ? 'text-gray-500' : 'text-gray-900'}`}>{row.event_title}</td>
-                    <td className={`px-4 py-4 ${isResolved ? 'text-gray-500' : 'text-gray-600'}`}>{row.round_number != null ? `${row.round_number}구간` : '상시'}</td>
-                    <td className="min-w-0 max-w-[180px] px-4 py-4">
-                      <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden">
-                        <span className={`truncate font-medium ${isResolved ? 'text-gray-500' : 'text-gray-900'}`} title={row.user_name ?? row.user_email ?? row.user_id}>
+                    <td className={`truncate px-4 py-4 text-sm font-medium ${isResolved ? 'text-gray-500' : 'text-gray-900'}`} title={row.event_title}>{row.event_title}</td>
+                    <td className={`whitespace-nowrap px-4 py-4 text-sm ${isResolved ? 'text-gray-500' : 'text-gray-600'}`}>{row.round_number != null ? `${row.round_number}구간` : '상시'}</td>
+                    <td className="overflow-hidden px-4 py-4">
+                      <div
+                        className="flex min-w-0 items-center gap-1 overflow-hidden"
+                        title={`${row.user_name ?? row.user_email ?? row.user_id}${row.peer_name ? ` → ${row.peer_name}` : ''}${row.is_anonymous ? ' (익명 제출)' : ''}`}
+                      >
+                        <span className={`min-w-0 truncate text-sm font-medium ${isResolved ? 'text-gray-500' : 'text-gray-900'}`}>
                           {row.user_name ?? row.user_email ?? row.user_id}
+                          {row.peer_name && ` → ${row.peer_name}`}
                         </span>
-                        {row.peer_name && (
-                          <span className="truncate text-xs text-gray-500" title={row.peer_name}>
-                            → {row.peer_name}
+                        {row.is_anonymous && (
+                          <span className="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600" title="칭찬 수신자에게는 익명 표시">
+                            익명
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="max-w-[240px] px-4 py-4">
-                      <VerificationPreviewCompact
-                        photoUrl={row.preview_photo_url ?? undefined}
-                        text={row.preview_text ?? undefined}
-                        value={row.preview_value ?? undefined}
-                      />
+                    <td className="overflow-hidden px-2 py-4">
+                      <VerificationPreviewCell row={row} />
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-gray-500">
-                      {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    <td className="whitespace-nowrap border-l border-gray-100 px-2 py-4 text-sm text-gray-500">
+                      {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className={`whitespace-nowrap border-l border-gray-100 px-4 py-4 ${isResolved ? 'bg-gray-50/70' : 'bg-white group-hover:bg-gray-50/50'}`}>
                       {isResolved ? (
-                        <span className="text-xs text-gray-400">
+                        <span className="block truncate text-sm text-gray-400" title={row.rejection_reason ? `반려: ${row.rejection_reason}` : undefined}>
                           {row.status === 'APPROVED' ? '승인됨' : row.rejection_reason ? `반려: ${row.rejection_reason}` : '반려됨'}
                         </span>
                       ) : (
-                        <div className="flex gap-2">
+                        <div className="flex shrink-0 flex-nowrap gap-2">
                           <button
                             type="button"
                             onClick={() => handleApprove(row.submission_id)}
@@ -454,15 +465,14 @@ function SubmissionCard({
             {STATUS_LABEL[row.status] ?? row.status}
           </span>
           <div className="min-w-0 overflow-hidden">
-            <p className={`truncate font-semibold ${resolved ? 'text-gray-500' : 'text-gray-900'}`}>{row.user_name ?? row.user_email ?? row.user_id}</p>
-            {row.peer_name && (
-              <p className="truncate text-xs text-gray-500">→ {row.peer_name}</p>
-            )}
-            <p className="mt-0.5 text-xs text-gray-500">
+            <p className={`truncate text-sm font-semibold ${resolved ? 'text-gray-500' : 'text-gray-900'}`} title={`${row.user_name ?? row.user_email ?? row.user_id}${row.peer_name ? ` → ${row.peer_name}` : ''}`}>
+              {row.user_name ?? row.user_email ?? row.user_id}
+              {row.peer_name && ` → ${row.peer_name}`}
+              {row.is_anonymous && ' (익명)'}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-gray-500">
               {row.round_number != null ? `${row.round_number}구간` : '상시'} · {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-              {resolved && row.rejection_reason && (
-                <span className="ml-1 text-gray-400">· 반려: {row.rejection_reason}</span>
-              )}
+              {resolved && row.rejection_reason && ` · 반려: ${row.rejection_reason}`}
             </p>
           </div>
         </div>
@@ -473,23 +483,41 @@ function SubmissionCard({
         {methods.length > 0 ? (
           methods.map((m) => {
             const val = vd[m.method_id]
-            if (val === undefined || val === null || String(val).trim() === '') return null
-            const str = String(val).trim()
+            if (val === undefined || val === null) return null
+            const urls = m.method_type === 'PHOTO'
+              ? (Array.isArray(val) ? (val as string[]).filter(Boolean) : [String(val).trim()].filter(Boolean))
+              : []
+            const str = m.method_type === 'PHOTO' ? '' : String(val).trim()
+            if (m.method_type === 'PHOTO' && urls.length === 0) return null
+            if (m.method_type !== 'PHOTO' && str === '') return null
 
             if (m.method_type === 'PHOTO') {
-              return <VerificationPhotoCard key={m.method_id} url={str} />
-            }
-            if (m.method_type === 'VALUE') {
+              const displayLabel = m.label || (METHOD_LABEL[m.method_type] ?? m.method_type)
               return (
-                <div key={m.method_id} className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{METHOD_LABEL[m.method_type] ?? m.method_type}</p>
-                  <p className="mt-1 text-lg font-bold text-gray-900">{str}</p>
+                <div key={m.method_id} className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-500">{displayLabel} {urls.length > 1 && `(${urls.length}장)`}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {urls.map((url, i) => (
+                      <VerificationPhotoCard key={url} url={url} />
+                    ))}
+                  </div>
                 </div>
               )
             }
+            if (m.method_type === 'VALUE') {
+              const displayLabel = m.label || '수치'
+              const displayValue = m.unit ? `${str} ${m.unit}` : str
+              return (
+                <div key={m.method_id} className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
+                  <p className="text-xs font-semibold text-gray-500">{displayLabel}</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900">{displayValue}</p>
+                </div>
+              )
+            }
+            const displayLabel = m.label || (METHOD_LABEL[m.method_type] ?? m.method_type)
             return (
               <div key={m.method_id} className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{METHOD_LABEL[m.method_type] ?? m.method_type}</p>
+                <p className="text-xs font-semibold text-gray-500">{displayLabel}</p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-800">{str}</p>
               </div>
             )
@@ -556,67 +584,247 @@ function VerificationPhotoCard({ url }: { url: string }) {
       </div>
       {expand && (
         <div
-          className="fixed inset-0 z-30 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/95 p-4"
           onClick={() => setExpand(false)}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Escape' && setExpand(false)}
         >
-          <img src={url} alt="인증 원본" className="max-h-full max-w-full object-contain" />
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            <img src={url} alt="인증 원본" className="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+            <button
+              type="button"
+              onClick={() => setExpand(false)}
+              className="absolute -right-2 -top-2 rounded-full bg-white/95 p-2 text-gray-700 shadow-lg transition hover:bg-white"
+              aria-label="닫기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
       )}
     </>
   )
 }
 
-function VerificationPreviewCompact({
-  photoUrl,
-  text,
-  value,
-}: {
-  photoUrl?: string
-  text?: string
-  value?: number | string
-}) {
-  const [expandPhoto, setExpandPhoto] = useState(false)
-  const hasPhoto = !!photoUrl
-  const hasText = text !== undefined && text !== ''
-  const hasValue = value !== undefined && value !== null && value !== ''
+/** 인증 미리보기: 버튼만 표시, 클릭 시 전체 모달 */
+function VerificationPreviewCell({ row }: { row: PendingSubmissionRow }) {
+  const vd = row.verification_data ?? {}
+  const methods = row.verification_methods ?? []
+  const [showModal, setShowModal] = useState(false)
 
-  if (!hasPhoto && !hasText && !hasValue) return <span className="text-gray-400">—</span>
+  const items: { type: 'photo' | 'text' | 'value'; label?: string; unit?: string; value: string; values?: string[] }[] = []
+
+  if (methods.length > 0) {
+    for (const m of methods) {
+      const val = vd[m.method_id]
+      if (val === undefined || val === null) continue
+      if (m.method_type === 'PHOTO') {
+        const urls = Array.isArray(val) ? (val as string[]).filter(Boolean) : [String(val).trim()].filter(Boolean)
+        if (urls.length > 0) items.push({ type: 'photo', value: urls[0], values: urls })
+      } else {
+        const str = Array.isArray(val) ? (val as string[]).join(', ') : String(val).trim()
+        if (str === '') continue
+        if (m.method_type === 'VALUE') items.push({ type: 'value', label: m.label ?? undefined, unit: m.unit ?? undefined, value: str })
+        else if (m.method_type === 'PEER_SELECT') items.push({ type: 'text', label: m.label ?? undefined, value: row.peer_name ?? '동료 선택됨' })
+        else items.push({ type: 'text', label: m.label ?? undefined, value: str })
+      }
+    }
+  } else {
+    if (row.preview_photo_url) items.push({ type: 'photo', value: row.preview_photo_url })
+    if (row.preview_text) items.push({ type: 'text', value: row.preview_text })
+    if (row.preview_value != null && row.preview_value !== '') items.push({ type: 'value', value: String(row.preview_value) })
+  }
+
+  if (items.length === 0) return <span className="text-gray-400">—</span>
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {hasPhoto && (
-        <>
+    <>
+      <button
+        type="button"
+        onClick={() => setShowModal(true)}
+        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+      >
+        미리보기
+      </button>
+      {showModal && (
+        <VerificationDetailModal
+          row={row}
+          items={items}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/** 인증 상세 모달: 항목 설명 + 제출답변 예쁜 레이아웃 */
+function VerificationDetailModal({
+  row,
+  items,
+  onClose,
+}: {
+  row: PendingSubmissionRow
+  items: { type: 'photo' | 'text' | 'value'; label?: string; unit?: string; value: string; values?: string[] }[]
+  onClose: () => void
+}) {
+  const [expandPhoto, setExpandPhoto] = useState<string | null>(null)
+  const methods = row.verification_methods ?? []
+  const vd = row.verification_data ?? {}
+
+  // methods 순서대로 항목 구성 (label, value). PHOTO는 배열 지원 (values)
+  const modalItems = methods.length > 0
+    ? methods
+        .map((m) => {
+          let val = vd[m.method_id]
+          if (val === undefined || val === null) {
+            if (m.method_type === 'PHOTO' && row.preview_photo_url) val = row.preview_photo_url
+            else return null
+          }
+          const urls = m.method_type === 'PHOTO'
+            ? (Array.isArray(val) ? (val as string[]).filter(Boolean) : [String(val).trim()].filter(Boolean))
+            : []
+          const str = m.method_type === 'PHOTO' ? urls[0] ?? '' : String(val).trim()
+          if (m.method_type === 'PHOTO' && urls.length === 0) return null
+          if (m.method_type !== 'PHOTO' && !str) return null
+          const label = m.label || METHOD_LABEL[m.method_type] || m.method_type
+          const displayValue = m.method_type === 'PEER_SELECT' ? (row.peer_name ?? '동료 선택됨') : str
+          return { method_type: m.method_type, label, unit: m.unit, value: displayValue, photoUrls: urls }
+        })
+        .filter(Boolean) as { method_type: string; label: string; unit?: string | null; value: string; photoUrls?: string[] }[]
+    : items.map((item) => ({
+        method_type: item.type === 'photo' ? 'PHOTO' : item.type === 'value' ? 'VALUE' : 'TEXT',
+        label: item.label || (item.type === 'photo' ? '사진' : item.type === 'value' ? '수치' : '텍스트'),
+        unit: item.unit,
+        value: item.value,
+        photoUrls: item.type === 'photo' ? (item.values ?? [item.value]) : undefined,
+      }))
+
+  // Portal로 document.body에 렌더링 → 테이블 overflow/stacking context 영향 없이 모달이 최상단에 표시됨
+  const modal = (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-md p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-lg font-bold text-gray-900">인증 상세 보기</h3>
+              <div className="mt-2 space-y-1 text-sm text-gray-600">
+                <p>
+                  <span className="font-medium text-gray-500">이벤트</span> {row.event_title}
+                  <span className="ml-2 text-gray-400">·</span>
+                  <span className="font-medium text-gray-500">구간</span> {row.round_number != null ? `${row.round_number}구간` : '상시'}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-500">참여자</span>{' '}
+                  {row.user_name ?? row.user_email ?? row.user_id}
+                  {row.peer_name && (
+                    <>
+                      <span className="text-gray-400"> → </span>
+                      {row.peer_name}
+                    </>
+                  )}
+                  {row.is_anonymous && (
+                    <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">익명 제출</span>
+                  )}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-500">제출일시</span>{' '}
+                  {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              aria-label="닫기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* 항목별 카드: 항목 설명 + 제출 답변 */}
+        <div className="space-y-4 p-6">
+          {modalItems.map((item, i) => (
+            <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{item.label}</p>
+              <p className="mt-1 text-xs text-gray-400">제출 답변</p>
+              {item.method_type === 'PHOTO' ? (
+                <div className="mt-3 space-y-3">
+                  {(item.photoUrls ?? (item.value ? [item.value] : [])).filter(Boolean).map((url, i) => (
+                    <div key={url}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandPhoto(url)}
+                        className="block w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition hover:opacity-90"
+                      >
+                        <img
+                          src={url}
+                          alt={`${item.label} ${i + 1}`}
+                          className="h-48 w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            const next = e.currentTarget.nextElementSibling
+                            if (next instanceof HTMLElement) next.style.display = 'block'
+                          }}
+                        />
+                        <span className="hidden py-8 text-center text-sm text-gray-500" aria-hidden>
+                          이미지를 불러올 수 없습니다.
+                        </span>
+                      </button>
+                      {(item.photoUrls ?? [item.value]).length > 1 && (
+                        <p className="mt-1 text-center text-xs text-gray-500">{i + 1} / {(item.photoUrls ?? [item.value]).length}장</p>
+                      )}
+                    </div>
+                  ))}
+                  <p className="text-center text-xs text-gray-500">클릭 시 크게 보기</p>
+                  {expandPhoto && (
+                    <div
+                      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/95 p-4"
+                      onClick={() => setExpandPhoto(null)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Escape' && setExpandPhoto(null)}
+                    >
+                      <img src={expandPhoto} alt="인증 원본" className="max-h-[90vh] max-w-full rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
+                  <p className="whitespace-pre-wrap break-words text-base font-medium text-gray-900">
+                    {item.unit ? `${item.value} ${item.unit}` : item.value}
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-gray-100 p-4">
           <button
             type="button"
-            onClick={() => setExpandPhoto(true)}
-            className="h-14 w-14 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 object-cover transition hover:opacity-90"
+            onClick={onClose}
+            className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-gray-800"
           >
-            <img src={photoUrl} alt="인증" className="h-full w-full object-cover" />
+            닫기
           </button>
-          {expandPhoto && (
-            <div
-              className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 p-4"
-              onClick={() => setExpandPhoto(false)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Escape' && setExpandPhoto(false)}
-            >
-              <img src={photoUrl} alt="인증 원본" className="max-h-full max-w-full object-contain" />
-            </div>
-          )}
-        </>
-      )}
-      {hasText && (
-        <span className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs text-gray-800 line-clamp-2 max-w-[160px]">
-          {String(text)}
-        </span>
-      )}
-      {hasValue && (
-        <span className="font-bold text-gray-900">{String(value)}</span>
-      )}
+        </div>
+      </div>
     </div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(modal, document.body) : null
 }

@@ -1,27 +1,30 @@
+import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/api/actions/auth'
-import { getUserEventSubmissions, getUserPointTransactions } from '@/api/queries/user'
+import { getReceivedCompliments, getUserEventSubmissions, getUserPointTransactions } from '@/api/queries/user'
 import { LevelBadge } from '@/components/my/LevelBadge'
 import { EventParticipationSection } from '@/components/my/EventParticipationSection'
 import { PointDisplay } from '@/components/my/PointDisplay'
 import { PointHistorySection } from '@/components/my/PointHistorySection'
+import { ReceivedComplimentsSection } from '@/components/my/ReceivedComplimentsSection'
 
 export default async function MyPage() {
   const user = await getCurrentUser()
+  if (!user) {
+    redirect('/login')
+  }
 
+  // 각각 독립적으로 조회 (하나 실패해도 나머지는 표시). 병렬 실행으로 속도 유지
   let transactions: Awaited<ReturnType<typeof getUserPointTransactions>> = []
   let eventSubmissions: Awaited<ReturnType<typeof getUserEventSubmissions>> = []
-  if (user) {
-    try {
-      transactions = (await getUserPointTransactions(user.id, 100)) ?? []
-    } catch {
-      // ignore
-    }
-    try {
-      eventSubmissions = (await getUserEventSubmissions(user.id, 30)) ?? []
-    } catch {
-      // ignore
-    }
-  }
+  let receivedCompliments: Awaited<ReturnType<typeof getReceivedCompliments>> = []
+  const [txRes, subRes, compRes] = await Promise.allSettled([
+    getUserPointTransactions(user.id, 100),
+    getUserEventSubmissions(user.id, 30),
+    getReceivedCompliments(user.id, 50),
+  ])
+  transactions = txRes.status === 'fulfilled' ? (txRes.value ?? []) : []
+  eventSubmissions = subRes.status === 'fulfilled' ? (subRes.value ?? []) : []
+  receivedCompliments = compRes.status === 'fulfilled' ? (compRes.value ?? []) : []
 
   return (
     <div className="mx-auto max-w-4xl px-4 pb-12 pt-6 sm:px-6 lg:px-8">
@@ -39,25 +42,23 @@ export default async function MyPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-xl font-bold text-gray-900">
-                {user ? user.name || user.email : '게스트'}
+                {user.name || user.email}
               </h2>
               {/* 계정 정보: 로그인 시 Google에서 불러온 이메일, 관리자 입력 부서 */}
-              {user && (
-                <dl className="mt-3 space-y-1 text-sm">
-                  {user.email && (
-                    <div>
-                      <dt className="inline font-medium text-gray-500">이메일 </dt>
-                      <dd className="inline text-gray-800">{user.email}</dd>
-                    </div>
-                  )}
-                  {user.dept_name && (
-                    <div>
-                      <dt className="inline font-medium text-gray-500">부서 </dt>
-                      <dd className="inline text-gray-800">{user.dept_name}</dd>
-                    </div>
-                  )}
-                </dl>
-              )}
+              <dl className="mt-3 space-y-1 text-sm">
+                {user.email && (
+                  <div>
+                    <dt className="inline font-medium text-gray-500">이메일 </dt>
+                    <dd className="inline text-gray-800">{user.email}</dd>
+                  </div>
+                )}
+                {user.dept_name && (
+                  <div>
+                    <dt className="inline font-medium text-gray-500">부서 </dt>
+                    <dd className="inline text-gray-800">{user.dept_name}</dd>
+                  </div>
+                )}
+              </dl>
             </div>
             <LevelBadge level={user?.level ?? 'ECO_KEEPER'} size="lg" />
           </div>
@@ -70,6 +71,7 @@ export default async function MyPage() {
 
         <EventParticipationSection submissions={eventSubmissions} />
         <PointHistorySection transactions={transactions} />
+        <ReceivedComplimentsSection compliments={receivedCompliments} />
       </div>
     </div>
   )

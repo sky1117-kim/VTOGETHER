@@ -17,6 +17,10 @@
 이미 예전에 `campaigns` 테이블을 만든 경우에만 **`010-rename-campaigns-to-events.sql`** 을 실행해 events로 바꾸세요.  
 `users.is_admin` 컬럼이 없으면 events 테이블 RLS 정책에서 오류가 납니다.
 
+**Supabase Lint (auth_rls_initplan, multiple_permissive_policies) 해결:**  
+Database → Security Advisor / Performance Advisor에서 RLS 관련 경고가 뜨면 **`026-fix-rls-auth-initplan-and-merge-policies.sql`** 을 실행하세요.  
+`auth.uid()` → `(select auth.uid())` 로 변경해 쿼리당 1회만 평가되도록 하고, 동일 role/action의 복수 정책을 OR 조건으로 병합합니다.
+
 ## My Status 진행률이 안 뜨거나 에러가 날 때
 
 - **원인:** DB의 `users.level` 값이 `ECO_KEEPER`, `GREEN_MASTER`, `EARTH_HERO` 셋이 아니거나, 메인 문구(site_content)가 비어 있으면 카드/진행률이 깨질 수 있습니다.
@@ -87,6 +91,15 @@
   - 내용: `event_verification_methods` 테이블에 `input_style` 컬럼 추가 (TEXT, NULL 허용, 'SHORT'/'LONG' 값만 허용)
 - 실행 후 이벤트 등록·수정 시 인증 방식 저장이 정상 동작합니다.
 
+## 사진 업로드가 느릴 때 (직접 업로드로 속도 개선)
+
+- **증상:** 이벤트 인증에서 사진 업로드가 오래 걸리거나 "업로드 중..."에서 멈춤.
+- **원인:** 기존에는 브라우저 → Cloud Run → Supabase 경로로 업로드되어, Cloud Run을 경유하는 구간에서 지연이 발생할 수 있습니다.
+- **해결:** Supabase SQL Editor에서 **마이그레이션 028**을 실행하세요.
+  - 파일: `docs/migrations/028-storage-event-verification-upload-policy.sql`
+  - 내용: 로그인한 사용자가 `event-verification` 버킷에 직접 업로드할 수 있는 Storage 정책 추가
+  - 실행 후 브라우저 → Supabase 직접 업로드로 전환되어 속도가 개선됩니다. (정책이 없으면 기존 방식으로 폴백)
+
 ## Bucket not found (이벤트 인증 사진 업로드 시)
 
 - **에러 메시지:** `Bucket not found` (이벤트 인증 모달에서 사진 선택 후 업로드할 때)
@@ -99,3 +112,45 @@
   5. **Public bucket**을 켜기 (인증 제출 후 이미지 URL을 화면에 보여주려면 공개 필요)
   6. **Create bucket** 클릭
 - 생성 후 이벤트 인증 모달에서 다시 사진을 선택·업로드하면 정상 동작합니다.
+
+## 테스트 유저 2가 이벤트 참여(사진 업로드 등)가 안 될 때
+
+- **증상:** 테스트 유저 1은 이벤트 인증·사진 업로드가 되는데, 테스트 유저 2는 모든 이벤트에서 실패함. "업로드 중..."에서 멈추거나 제출 시 에러.
+- **원인:** `event_submissions` 테이블의 `user_id`가 `users(user_id)`를 참조합니다. **테스트 유저 2가 `users` 테이블에 없으면** 제출이 FK(외래키) 위반으로 실패합니다. 로그인 시 auth 콜백에서 users에 자동 등록되지만, 이전에 RLS 등으로 upsert가 실패했을 수 있습니다.
+- **해결:**
+  1. **코드 수정 반영:** auth 콜백이 이제 admin 클라이언트로 users upsert를 수행합니다. 최신 코드로 배포 후, **테스트 유저 2로 로그아웃 → 다시 로그인**하면 users에 자동 등록됩니다.
+  2. **수동 등록:** Supabase **Table Editor** → **users**에서 테스트 유저 2의 `user_id`(Supabase Auth의 UUID)가 있는지 확인하세요. 없으면 아래 SQL로 추가할 수 있습니다.
+     ```sql
+     -- Supabase Auth 사용자 ID는 Authentication → Users에서 확인
+     INSERT INTO users (user_id, email, name, dept_name, current_points, total_donated_amount, level)
+     VALUES ('여기에_Supabase_Auth_UUID', 'test2@vntgcorp.com', '테스트유저2', NULL, 0, 0, 'ECO_KEEPER')
+     ON CONFLICT (user_id) DO NOTHING;
+     ```
+  3. **Storage 버킷:** 사진 업로드가 "업로드 중..."에서 멈추면 `event-verification` 버킷이 있는지, Public인지 확인하세요. (위 "Bucket not found" 항목 참고)
+
+## 인증 승인 후 아무것도 진행이 안 될 때
+
+- **증상:** 제출 후 관리자가 승인했는데, 포인트가 안 들어오거나 "보상받기" 버튼이 안 보임.
+- **원인:** 1) 페이지가 새로고침되지 않아 이전 상태가 보임. 2) 이벤트에 보상(V.Point 등)이 없거나, 복수 보상이면 사용자가 직접 선택해야 함.
+- **해결:**
+  1. **페이지 새로고침:** 메인 페이지를 새로고침(F5)하거나 탭을 전환했다가 다시 돌아오면 최신 상태가 반영됩니다. (탭 전환 시 자동 갱신됨)
+  2. **보상받기 클릭:** 복수 보상(V.Point + 커피쿠폰 등)이면 승인 후 즉시 지급되지 않습니다. 메인 카드에서 **"보상받기"** 버튼을 눌러 받을 보상을 선택하세요.
+  3. **이벤트 보상 확인:** 관리자 페이지에서 해당 이벤트의 보상이 등록되어 있는지 확인하세요. event_rewards에 V.Point 등이 없으면 포인트가 지급되지 않습니다.
+
+## 세아웍스 API "This operation was aborted" (타임아웃)
+
+- **증상:** 디버그 API에서 `error: "This operation was aborted"` 반환
+- **원인:** 세아웍스 API가 20초 내에 응답하지 않음. Cloud Run에서 세아웍스 개발 서버로의 접근이 막혀 있거나, API가 사내망 전용일 수 있음.
+- **해결:**
+  1. **VNTG 그룹웨어서비스팀(정선우 담당자)** 에 문의: Cloud Run(Google IP)에서 `devapi-seahworks.seah.co.kr` 접근이 가능한지, IP 화이트리스트 등이 필요한지 확인
+  2. **로컬에서 테스트:** `npm run dev` 후 `http://localhost:3000/api/debug/seah-orgsync` 호출 — 사내망에서 실행 시 접근 가능할 수 있음
+  3. **운영 API 사용:** 개발 API 대신 운영 API URL로 전환 (정의서의 운영 서버 URL + GW_PRD_ORGSYNC 계정)
+
+## 로그인 시 HTTP 500 에러 (개발 서버 / Cloud Run)
+
+- **증상:** 로그인 후 "페이지가 작동하지 않습니다" (HTTP ERROR 500)
+- **원인:** 세아웍스 API 연동 시 환경 변수 미설정 또는 API 호출 실패
+- **해결:**
+  1. **Cloud Run 배포 시:** `.env`에 `SEAH_ORGSYNC_USER_API_URL`, `SEAH_ORGSYNC_USERNAME`, `SEAH_ORGSYNC_PASSWORD`가 있으면 배포 스크립트가 자동 포함합니다. 없으면 부서 동기화만 스킵되고 로그인은 정상 동작합니다.
+  2. **여전히 500이면:** Cloud Run 로그 확인 (`gcloud run services logs read vtogether --region=asia-northeast3`) — 실제 에러 메시지 확인.
+  3. **세아웍스 API 비활성화:** 부서 동기화가 필요 없으면 `.env`에서 `SEAH_ORGSYNC_*` 변수를 제거하면 API 호출을 건너뜁니다.

@@ -81,9 +81,9 @@ export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
                   </td>
                   <td className="px-6 py-4 font-bold text-gray-900">
                     {item.name}
-                    {type === 'PERSONAL' && 'dept' in item && item.dept && (
+                    {type === 'PERSONAL' && 'dept' in item && item.dept != null && (
                       <span className="ml-1 text-xs font-normal text-gray-400">
-                        {item.dept}
+                        {String(item.dept)}
                       </span>
                     )}
                   </td>

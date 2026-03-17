@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getDeptNameByEmail } from '@/lib/seah-orgsync'
 import { NextResponse } from 'next/server'
 import { redirect } from 'next/navigation'
 
@@ -22,8 +24,12 @@ export async function GET(request: Request) {
     }
 
     // 로그인 시마다 Google에서 이메일·이름 자동 동기화 후 users 테이블에 반영
+    // admin 클라이언트 사용: RLS 우회하여 모든 신규 로그인 사용자가 users에 확실히 등록됨
     if (data.user) {
-      const { error: upsertError } = await supabase
+      const admin = createAdminClient()
+
+      // 1) 먼저 부서 없이 즉시 users에 등록 (로그인 차단 방지)
+      const { error: upsertError } = await admin
         .from('users')
         .upsert(
           {
@@ -31,14 +37,25 @@ export async function GET(request: Request) {
             email: data.user.email!,
             name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || null,
           },
-          {
-            onConflict: 'user_id',
-          }
+          { onConflict: 'user_id' }
         )
 
       if (upsertError) {
-        console.error('Error upserting user:', upsertError)
+        console.error('[Auth] users upsert 실패:', upsertError)
       }
+
+      // 2) 세아웍스 부서 조회는 백그라운드에서 실행 (API 타임아웃/실패 시에도 로그인은 정상 진행)
+      const email = data.user.email!
+      void (async () => {
+        try {
+          const deptName = await getDeptNameByEmail(email)
+          if (deptName) {
+            await admin.from('users').update({ dept_name: deptName }).eq('user_id', data.user!.id)
+          }
+        } catch (e) {
+          console.warn('[Auth] 세아웍스 부서 조회 실패 (백그라운드):', e)
+        }
+      })()
     }
   }
 

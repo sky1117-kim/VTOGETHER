@@ -25,7 +25,7 @@ export function DonationByTargetPie({ data }: { data: DonationByTargetItem[] }) 
       <div className="flex h-[90px] w-full items-center justify-center">
         {hasChart ? (
           <ResponsiveContainer width="100%" height={90}>
-            <PieChart margin={0}>
+            <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
               <Pie
                 data={chartData.map((d) => ({ ...d, name: d.name }))}
                 cx="50%"
@@ -42,7 +42,7 @@ export function DonationByTargetPie({ data }: { data: DonationByTargetItem[] }) 
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number) => [`${value.toLocaleString()} P`, '기부액']}
+                formatter={(value: number | undefined) => [`${(value ?? 0).toLocaleString()} P`, '기부액']}
                 contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
               />
             </PieChart>

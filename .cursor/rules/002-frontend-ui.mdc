@@ -1,0 +1,34 @@
+---
+alwaysApply: true
+---
+
+description: 프론트엔드 개발 규칙 (Next.js 16, UI, CSS, 반응형)
+
+# 기술 스택 (Tech Stack)
+- **Framework**: Next.js 16 (App Router 방식)
+- **UI Library**: Shadcn UI (Radix UI 기반)
+- **Styling**: Tailwind CSS
+- **State**: Zustand (전역 상태), React Hooks (로컬 상태)
+
+# UI/UX 구현 규칙
+1. **서버 컴포넌트 우선 (Server Components First)**:
+   - 기본적으로 모든 컴포넌트는 서버 컴포넌트로 작성하세요.
+   - `useState`, `useEffect`, `onClick` 같은 기능이 필요할 때만 파일 최상단에 `'use client'`를 추가하세요.
+
+2. **디자인 시스템 엄수**:
+   - 새로운 CSS 파일을 만들거나 `<style>` 태그를 쓰지 마세요.
+   - 오직 **Tailwind CSS 클래스**와 **Shadcn UI 컴포넌트**만 조합해서 디자인하세요.
+   - 색상이나 간격이 고민되면 Shadcn의 기본 설정(`primary`, `secondary`, `muted` 등)을 따르세요.
+
+3. **반응형 디자인 필수 (Mobile/Tablet Responsive)**:
+   - **모바일 퍼스트(Mobile First)**: 항상 모바일 화면을 기본으로 잡고, 태블릿(`md:`)과 데스크탑(`lg:`) 스타일을 추가하세요.
+   - **레이아웃**: 모바일에서는 **세로 배치(flex-col)**, 큰 화면에서는 **가로 배치(flex-row)**가 되도록 `flex`와 `grid`를 활용하세요.
+   - **오버플로우 방지**: 테이블(Table)이나 긴 텍스트는 모바일 화면 밖으로 튀어 나가지 않게 `overflow-x-auto` (가로 스크롤) 또는 `truncate` 처리를 반드시 해야 합니다.
+   - **터치 영역**: 모바일 사용자를 위해 버튼과 입력창의 크기는 충분히 확보하세요.
+
+4. **에러 처리 (UX)**:
+   - 에러가 발생하면 콘솔에만 찍지 말고, 사용자가 알 수 있게 `toast`(토스트 메시지)나 알림창을 띄워주세요.
+   - 예: `toast.error("저장에 실패했습니다. 다시 시도해주세요.")`
+
+5. **SEO 무시**:
+   - 이 서비스는 사내 도구/커뮤니티이므로 복잡한 SEO 설정(Open Graph, Metadata)에 시간을 쓰지 마세요. 기능 구현에 집중하세요.

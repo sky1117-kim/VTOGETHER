@@ -50,7 +50,7 @@ export async function getEventForParticipationAction(eventId: string) {
       .select('method_id, method_type, instruction, label, placeholder, input_style')
       .eq('event_id', eventId)
       .is('deleted_at', null)
-      .order('method_id')
+      .order('created_at', { ascending: true })
     if (methods?.length) {
       result.data.verificationMethods = methods as typeof result.data.verificationMethods
     }
@@ -70,12 +70,14 @@ async function checkAlwaysFrequency(eventId: string, userId: string): Promise<{ 
  * 로그인한 사용자가 이벤트 인증 제출 (메인 페이지 모달에서 호출).
  * ALWAYS 이벤트는 빈도 제한(일/주/월 1회) 검사 후 제출.
  * 칭찬 챌린지(PEER_SELECT)일 때 peerUserId로 선택한 동료 전달.
+ * isAnonymous true면 칭찬 수신자에게는 익명으로 표시, 관리자는 제출자 확인 가능.
  */
 export async function submitEventSubmission(
   eventId: string,
   roundId: string | null,
   verificationData: Record<string, unknown>,
-  peerUserId?: string | null
+  peerUserId?: string | null,
+  isAnonymous?: boolean
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const supabase = await createClient()
@@ -99,7 +101,7 @@ export async function submitEventSubmission(
     if (event.type === 'ALWAYS') {
       roundId = null
       const freq = await checkAlwaysFrequency(eventId, userId)
-      if (!freq.ok) return { success: false, error: freq.error ?? undefined }
+      if (!freq.ok) return { success: false, error: freq.error ?? null }
     }
 
     // 필수 인증 항목(사진·텍스트 등)이 모두 채워졌는지 서버에서 검증
@@ -113,10 +115,15 @@ export async function submitEventSubmission(
     if (hasPeerSelect && (!peerUserId || !String(peerUserId).trim())) {
       return { success: false, error: '칭찬할 동료를 선택해주세요.' }
     }
-    const requiredIds = methodList.map((r) => (r as { method_id: string }).method_id)
-    for (const methodId of requiredIds) {
-      const val = verificationData[methodId]
-      if (val === undefined || val === null || String(val).trim() === '') {
+    const requiredMethods = methodList as { method_id: string; method_type: string }[]
+    for (const m of requiredMethods) {
+      const val = verificationData[m.method_id]
+      if (m.method_type === 'PHOTO') {
+        const urls = Array.isArray(val) ? val.filter((u): u is string => typeof u === 'string' && u.trim()) : []
+        if (urls.length < 2) {
+          return { success: false, error: '사진을 2장 이상 제출해주세요.' }
+        }
+      } else if (val === undefined || val === null || String(val).trim() === '') {
         return { success: false, error: '필수 인증 항목(사진·텍스트 등)을 모두 입력해주세요.' }
       }
     }
@@ -128,6 +135,7 @@ export async function submitEventSubmission(
       status: 'PENDING',
       verification_data: verificationData,
       peer_user_id: peerUserId && peerUserId.trim() ? peerUserId.trim() : null,
+      is_anonymous: hasPeerSelect && !!isAnonymous,
     })
     if (insertErr) {
       if (insertErr.code === '23505') return { success: false, error: '이미 해당 구간에 제출했습니다.' }
@@ -157,7 +165,7 @@ export async function claimRewardChoice(
 
     const { data: sub, error: subErr } = await supabase
       .from('event_submissions')
-      .select('submission_id, event_id, round_id, user_id, peer_user_id, status, reward_received')
+      .select('submission_id, event_id, round_id, user_id, peer_user_id, is_anonymous, status, reward_received')
       .eq('submission_id', submissionId)
       .is('deleted_at', null)
       .single()
@@ -194,19 +202,31 @@ export async function claimRewardChoice(
       if (event?.reward_policy === 'BOTH' && sub.peer_user_id) userIdsToCredit.push(sub.peer_user_id)
       const eventTitle = event?.title ?? '이벤트'
       const roundDesc = roundNumber != null ? `${roundNumber}구간 승인되어` : '승인되어'
+
+      // 사용자 정보 1회 조회 (칭찬 챌린지 시 2명일 수 있음)
+      const { data: usersData, error: usersErr } = await admin
+        .from('users')
+        .select('user_id, current_points, name, email')
+        .in('user_id', userIdsToCredit)
+        .is('deleted_at', null)
+      if (usersErr || !usersData || usersData.length !== userIdsToCredit.length) {
+        return { success: false, error: '사용자 조회 실패' }
+      }
+      const userMap = new Map(usersData.map((u) => [u.user_id, u]))
+
       for (const uid of userIdsToCredit) {
-        const { data: u, error: uErr } = await admin.from('users').select('current_points, name, email').eq('user_id', uid).is('deleted_at', null).single()
-        if (uErr || !u) return { success: false, error: '사용자 조회 실패' }
+        const u = userMap.get(uid)
+        if (!u) return { success: false, error: '사용자 조회 실패' }
         const newPoints = (u.current_points ?? 0) + rewardAmount
         await admin.from('users').update({ current_points: newPoints }).eq('user_id', uid)
         const isRecipient = uid === sub.peer_user_id
-        // 칭찬 챌린지(BOTH): 제출자 vs 수신자 구분
+        const anonymousFromRecipient = sub.is_anonymous && isRecipient
         const description =
           event?.reward_policy === 'BOTH' && sub.peer_user_id
             ? isRecipient
-              ? `칭찬을 받음: 동료가 나를 칭찬하여 ${rewardAmount.toLocaleString()} P 적립`
+              ? `칭찬을 받음: ${anonymousFromRecipient ? '익명의 동료가' : '동료가'} 나를 칭찬하여 ${rewardAmount.toLocaleString()} P 적립`
               : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} P 적립`
-            : `${eventTitle} ${roundDesc} ${rewardAmount.toLocaleString()} P 적립되었다`
+            : `${eventTitle} ${roundDesc} ${rewardAmount.toLocaleString()} P 적립`
         await admin.from('point_transactions').insert({
           user_id: uid,
           type: 'EARNED',

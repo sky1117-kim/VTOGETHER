@@ -260,6 +260,7 @@ export interface Database {
           status: 'PENDING' | 'APPROVED' | 'REJECTED'
           verification_data: Json | null
           peer_user_id: string | null
+          is_anonymous: boolean
           reward_received: boolean
           reward_type: string | null
           reward_amount: number | null
@@ -277,6 +278,7 @@ export interface Database {
           status?: 'PENDING' | 'APPROVED' | 'REJECTED'
           verification_data?: Json | null
           peer_user_id?: string | null
+          is_anonymous?: boolean
           reward_received?: boolean
           reward_type?: string | null
           reward_amount?: number | null
@@ -293,6 +295,7 @@ export interface Database {
           status?: 'PENDING' | 'APPROVED' | 'REJECTED'
           verification_data?: Json | null
           peer_user_id?: string | null
+          is_anonymous?: boolean
           reward_received?: boolean
           reward_type?: string | null
           reward_amount?: number | null

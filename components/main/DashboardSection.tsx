@@ -3,7 +3,7 @@ import { TrendingUp, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { LevelRoadmapModal } from '@/components/my/LevelRoadmapModal'
 import { PointNotificationBell } from './PointNotificationBell'
-import type { PointNotificationRow } from '@/api/queries/user'
+import type { NotificationItem } from '@/api/queries/user'
 type Level = 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
 
 const LEVEL_INFO: Record<Level, { label: string; icon: string; next: Level | null; nextMin: number }> = {
@@ -57,8 +57,8 @@ interface DashboardSectionProps {
   heroSubtitle?: string
   /** 로그인 사용자 ID (알림 버튼용) */
   userId?: string | null
-  /** 최근 1주일 적립 알림 목록 */
-  recentNotifications?: PointNotificationRow[]
+  /** 최근 1주일 적립 + 보상 선택 대기 알림 목록 */
+  recentNotifications?: NotificationItem[]
 }
 
 const defaultHero = {
@@ -126,8 +126,8 @@ export function DashboardSection({
         <div className="absolute bottom-0 right-0 h-80 w-80 translate-x-1/4 translate-y-1/4 rounded-full bg-green-600 opacity-25 mix-blend-overlay blur-3xl" aria-hidden />
       </div>
 
-      {/* My Status 카드: 컴팩트 배치 (헤더 · 포인트 · 등급) */}
-      <div className="card-hover w-full max-w-sm overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+      {/* My Status 카드: 컴팩트 배치 (헤더 · 포인트 · 등급) — 알림 모달 정렬용 */}
+      <div data-my-status-card className="card-hover w-full max-w-sm overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
         {/* Header: 등급별 그라데이션 + 아바타·이름·부서·이메일 */}
         <div className={`relative ${headerStyle.gradient} px-4 py-4`}>
           <div className="relative flex items-center justify-between gap-3">
@@ -141,9 +141,18 @@ export function DashboardSection({
                 <h2 className="truncate text-xl font-extrabold tracking-tight text-white drop-shadow-md sm:text-2xl">
                   {displayName}
                 </h2>
-                <p className="mt-1 truncate text-xs text-white/80 drop-shadow-sm">
-                  {deptName?.trim() || '부서.'} · {email || '—'}
-                </p>
+                {/* 부서·이메일: 줄바꿈 허용, 전체 표시, 가독성 향상 */}
+                <div className="mt-1.5 space-y-0.5 text-sm font-medium text-white drop-shadow-sm [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]">
+                  {deptName?.trim() && (
+                    <p className="break-words">{deptName.trim()}</p>
+                  )}
+                  {email && (
+                    <p className="break-all font-normal text-white/95">{email}</p>
+                  )}
+                  {!deptName?.trim() && !email && (
+                    <p className="text-white/80">—</p>
+                  )}
+                </div>
               </div>
             </div>
             {userId && (

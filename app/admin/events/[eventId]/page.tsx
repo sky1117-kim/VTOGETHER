@@ -113,8 +113,10 @@ export default async function AdminEventDetailPage({
           <ul className="mt-3 space-y-2">
             {verification_methods.map((m, i) => (
               <li key={i} className="flex flex-wrap items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                <span className="shrink-0 font-medium text-gray-700">{METHOD_TYPE_LABEL[m.method_type] ?? m.method_type}</span>
-                {m.instruction && <span className="text-gray-600">— {m.instruction}</span>}
+                <span className="shrink-0 font-medium text-gray-700">
+                  {(m.label && m.label.trim()) ? m.label.trim() : (METHOD_TYPE_LABEL[m.method_type] ?? m.method_type)}
+                </span>
+                {m.instruction?.trim() && <span className="text-gray-600">— {m.instruction.trim()}</span>}
               </li>
             ))}
           </ul>

@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { EventVerifyModal } from './EventVerifyModal'
 import { EventInfoModal } from './EventInfoModal'
+import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/events'
 
 type Tab = 'ALL' | 'V.Together' | 'Culture'
 
@@ -38,10 +40,18 @@ interface CampaignsSectionProps {
 }
 
 export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: CampaignsSectionProps) {
+  const router = useRouter()
   const [filter, setFilter] = useState<Tab>('ALL')
   const [displayFilter, setDisplayFilter] = useState<Tab>('ALL')
   const [isFadingOut, setIsFadingOut] = useState(false)
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 탭 전환 시 최신 데이터 로드 (관리자 승인 후 돌아왔을 때 "보상받기" 등 반영)
+  useEffect(() => {
+    const onVisible = () => router.refresh()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [router])
 
   const handleFilterChange = useCallback((tab: Tab) => {
     if (tab === filter) return
@@ -62,13 +72,15 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
     id: e.event_id,
     category: CATEGORY_DISPLAY[e.category] ?? 'V.Together',
     title: e.title,
-    desc: (e.short_description ?? e.description)?.trim() || '참여하고 포인트를 획득하세요.',
+    desc: String(e.short_description ?? e.description ?? '').trim() || '참여하고 포인트를 획득하세요.',
     icon: CATEGORY_ICON[e.category] ?? '🎯',
     image_url: e.image_url ?? null,
     type: e.type as string,
     rounds_count: e.rounds_count ?? 0,
     rounds: e.rounds ?? [],
     hasPendingReward: (e as { hasPendingReward?: boolean }).hasPendingReward ?? false,
+    frequency_limit: (e as { frequency_limit?: string | null }).frequency_limit ?? null,
+    alwaysParticipation: (e as { alwaysParticipation?: { allowed: boolean; reason?: string } }).alwaysParticipation,
   }))
 
   const filtered =
@@ -182,6 +194,18 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                       ))}
                     </div>
                   )}
+                  {c.type === 'ALWAYS' && c.frequency_limit && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                        {FREQUENCY_TAG_LABEL[c.frequency_limit] ?? `${c.frequency_limit} 가능`}
+                      </span>
+                      {c.alwaysParticipation && !c.alwaysParticipation.allowed && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                          {ALREADY_SUBMITTED_TAG_LABEL[c.frequency_limit] ?? '이미 제출함'}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               {/* 카드 하단: 상세 보기 + 액션 버튼 — mt-auto로 카드마다 하단 정렬 통일 */}
@@ -235,6 +259,8 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           type: infoModalEvent.type,
           rounds: infoModalEvent.rounds,
           hasPendingReward: (infoModalEvent as { hasPendingReward?: boolean }).hasPendingReward,
+          frequency_limit: (infoModalEvent as { frequency_limit?: string | null }).frequency_limit ?? null,
+          alwaysParticipation: (infoModalEvent as { alwaysParticipation?: { allowed: boolean; reason?: string } }).alwaysParticipation,
         } : null}
         isOpen={!!infoModalEvent}
         onClose={() => setInfoModalEvent(null)}
@@ -248,7 +274,10 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
         eventId={verifyModalEventId}
         isOpen={!!verifyModalEventId}
         onClose={() => setVerifyModalEventId(null)}
-        onSuccess={() => setVerifyModalEventId(null)}
+        onSuccess={() => {
+          setVerifyModalEventId(null)
+          router.refresh()
+        }}
       />
     </section>
   )

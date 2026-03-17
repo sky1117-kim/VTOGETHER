@@ -1,5 +1,9 @@
+'use client'
+
+import { useState } from 'react'
 import type { UserEventSubmissionRow } from '@/api/queries/user'
 
+const INITIAL_SHOW = 5
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '심사 중',
   APPROVED: '승인',
@@ -12,6 +16,10 @@ interface EventParticipationSectionProps {
 
 /** 마이페이지: 이벤트 인증 참여 내역 (반려 시 사유 표시) */
 export function EventParticipationSection({ submissions }: EventParticipationSectionProps) {
+  const [showAll, setShowAll] = useState(false)
+  const displayed = showAll ? submissions : submissions.slice(0, INITIAL_SHOW)
+  const hasMore = submissions.length > INITIAL_SHOW
+
   if (submissions.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -27,8 +35,8 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
       <p className="mb-4 text-sm text-gray-500">
         인증 제출 상태와 반려 사유를 확인할 수 있습니다.
       </p>
-      <ul className="space-y-3">
-        {submissions.map((s) => (
+      <ul className="max-h-[320px] space-y-3 overflow-y-auto md:max-h-[400px]">
+        {displayed.map((s) => (
           <li
             key={s.submission_id}
             className="rounded-xl border border-gray-100 bg-gray-50/50 p-4"
@@ -65,6 +73,15 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
           </li>
         ))}
       </ul>
+      {hasMore && !showAll && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-3 w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
+        >
+          더보기 ({submissions.length - INITIAL_SHOW}건)
+        </button>
+      )}
     </div>
   )
 }

@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getDeptNameByEmail } from '@/lib/seah-orgsync'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -31,12 +33,11 @@ export async function getCurrentUser() {
 
     if (!guestError && guestData) {
       // MAU 집계용: 테스트 유저 접속 시에도 last_active_at 갱신
-      supabase
+      void supabase
         .from('users')
         .update({ last_active_at: new Date().toISOString() })
         .eq('user_id', GUEST_TEST_USER_ID)
-        .then(() => {})
-        .catch(() => {})
+        .then(() => {}, () => {})
       return {
         id: guestData.user_id,
         user_id: guestData.user_id,
@@ -79,12 +80,27 @@ export async function getCurrentUser() {
 
   // MAU 집계용: 접속 시 last_active_at 갱신 (비동기, 응답 지연 최소화)
   const now = new Date().toISOString()
-  supabase
+  void supabase
     .from('users')
     .update({ last_active_at: now })
     .eq('user_id', user.id)
-    .then(() => {})
-    .catch(() => {})
+    .then(() => {}, () => {})
+
+  // 부서가 비어 있으면 세아웍스에서 백그라운드 동기화 (재로그인 불필요)
+  if (!userData.dept_name?.trim() && user.email) {
+    void (async () => {
+      try {
+        const deptName = await getDeptNameByEmail(user.email!)
+        if (deptName) {
+          const admin = createAdminClient()
+          await admin.from('users').update({ dept_name: deptName }).eq('user_id', user.id)
+          revalidatePath('/', 'layout')
+        }
+      } catch {
+        // 실패해도 무시 (다음 접속 시 재시도)
+      }
+    })()
+  }
 
   return {
     id: user.id,

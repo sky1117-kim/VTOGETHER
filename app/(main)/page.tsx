@@ -3,7 +3,7 @@ import { getTotalDonationStats, getDonationTargets } from '@/api/queries/donatio
 import { getSiteContent } from '@/api/queries/siteContent'
 import { getPersonalRanking, getTeamRanking } from '@/api/queries/ranking'
 import { getEventsWithRoundsForPublic } from '@/api/queries/events'
-import { getRecentPointNotifications } from '@/api/queries/user'
+import { getNotificationsForBell } from '@/api/queries/user'
 import { DashboardSection } from '@/components/main/DashboardSection'
 import { DonationSection } from '@/components/main/DonationSection'
 import { CampaignsSection } from '@/components/main/CampaignsSection'
@@ -48,10 +48,10 @@ export default async function HomePage({ searchParams }: PageProps) {
   const totalDonated = user?.total_donated_amount ?? 0
   const level = user?.level ?? 'ECO_KEEPER'
 
-  let recentNotifications: Awaited<ReturnType<typeof getRecentPointNotifications>> = []
+  let recentNotifications: Awaited<ReturnType<typeof getNotificationsForBell>> = []
   if (user?.id) {
     try {
-      recentNotifications = await getRecentPointNotifications(user.id, 7)
+      recentNotifications = await getNotificationsForBell(user.id, 7)
     } catch {
       // ignore
     }

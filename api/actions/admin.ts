@@ -38,7 +38,10 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
       error = retry.error
       if (!error && data) {
         return {
-          data: (data ?? []).map((r) => ({ ...r, is_admin: !!(r as { is_admin?: boolean }).is_admin, last_active_at: null })) as UserRow[],
+          data: (data ?? []).map((r) => {
+            const row = r as unknown as Record<string, unknown>
+            return { ...row, is_admin: !!(row.is_admin as boolean), last_active_at: null } as UserRow
+          }),
           error: null,
         }
       }
@@ -53,23 +56,43 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
           .order('created_at', { ascending: false })
         if (err2) return { data: null, error: err2.message }
         return {
-          data: (dataFallback ?? []).map((r) => ({ ...r, is_admin: false, last_active_at: null })) as UserRow[],
+          data: (dataFallback ?? []).map((r) => {
+            const row = r as unknown as Record<string, unknown>
+            return { ...row, is_admin: false, last_active_at: null } as UserRow
+          }),
           error: null,
         }
       }
       return { data: null, error: error.message }
     }
     return {
-      data: (data ?? []).map((r) => ({
-        ...r,
-        is_admin: !!(r as { is_admin?: boolean }).is_admin,
-        last_active_at: (r as { last_active_at?: string | null }).last_active_at ?? null,
-      })) as UserRow[],
+      data: (data ?? []).map((r) => {
+        const row = r as unknown as Record<string, unknown>
+        return { ...row, is_admin: !!(row.is_admin as boolean), last_active_at: (row.last_active_at as string | null) ?? null } as UserRow
+      }),
       error: null,
     }
   } catch (e) {
     return { data: null, error: e instanceof Error ? e.message : 'Failed to fetch users' }
   }
+}
+
+/** 최근 접속한 사용자 목록 (last_active_at 기준 내림차순, 관리자용) */
+export async function getRecentActiveUsersForAdmin(): Promise<{
+  data: UserRow[] | null
+  error: string | null
+}> {
+  const result = await getUsersForAdmin()
+  if (result.error || !result.data) return result
+  const sorted = [...result.data].sort((a, b) => {
+    const aAt = a.last_active_at ?? ''
+    const bAt = b.last_active_at ?? ''
+    if (!aAt && !bAt) return 0
+    if (!aAt) return 1
+    if (!bAt) return -1
+    return bAt.localeCompare(aAt)
+  })
+  return { data: sorted, error: null }
 }
 
 export async function grantPoints(
@@ -286,6 +309,68 @@ export async function getDonationAmountsByPeriod(): Promise<{
   }
 }
 
+/** 이벤트 적립 현황: Culture/V.Together별 V.Point, 매칭금 (Culture만 매칭 대상) */
+export async function getEventEarnedStats(): Promise<{
+  cultureEarned: number
+  vTogetherEarned: number
+  matchingAmount: number
+  totalEarned: number
+  totalCollected: number
+  error: string | null
+}> {
+  const empty = { cultureEarned: 0, vTogetherEarned: 0, matchingAmount: 0, totalEarned: 0, totalCollected: 0, error: null as string | null }
+  try {
+    const supabase = createAdminClient()
+    const { data: txRows, error: txErr } = await supabase
+      .from('point_transactions')
+      .select('amount, related_id')
+      .eq('type', 'EARNED')
+      .eq('related_type', 'EVENT')
+      .is('deleted_at', null)
+    if (txErr) return { ...empty, error: txErr.message }
+    const txs = txRows ?? []
+    if (txs.length === 0) return empty
+
+    const submissionIds = [...new Set(txs.map((t) => (t as { related_id: string }).related_id).filter(Boolean))]
+    const { data: subs } = await supabase
+      .from('event_submissions')
+      .select('submission_id, event_id')
+      .in('submission_id', submissionIds)
+      .is('deleted_at', null)
+    const subToEvent = new Map((subs ?? []).map((s) => [(s as { submission_id: string }).submission_id, (s as { event_id: string }).event_id]))
+    const eventIds = [...new Set(subToEvent.values())]
+    const { data: evRows } = await supabase
+      .from('events')
+      .select('event_id, category')
+      .in('event_id', eventIds)
+      .is('deleted_at', null)
+    const eventToCategory = new Map((evRows ?? []).map((e) => [(e as { event_id: string }).event_id, (e as { category: string }).category]))
+
+    let cultureEarned = 0
+    let vTogetherEarned = 0
+    for (const t of txs) {
+      const subId = (t as { related_id: string }).related_id
+      const amount = Number((t as { amount: number }).amount) || 0
+      const eventId = subId ? subToEvent.get(subId) : null
+      const category = eventId ? eventToCategory.get(eventId) : null
+      if (category === 'CULTURE') cultureEarned += amount
+      else if (category === 'V_TOGETHER') vTogetherEarned += amount
+    }
+    const matchingAmount = cultureEarned
+    const totalCollected = vTogetherEarned + cultureEarned + matchingAmount
+    return {
+      cultureEarned,
+      vTogetherEarned,
+      matchingAmount,
+      totalEarned: cultureEarned + vTogetherEarned,
+      totalCollected,
+      error: null,
+    }
+  } catch (e) {
+    return { ...empty, error: e instanceof Error ? e.message : '이벤트 적립 현황 조회 실패' }
+  }
+}
+
 /** 쿠폰/굿즈 등 비포인트 보상 선택 건 — 관리자가 별도 발송 챙길 대상 목록 */
 export type NonPointRewardRow = {
   submission_id: string
@@ -373,7 +458,7 @@ export async function getNonPointRewardFulfillmentList(
       if (eventId?.trim()) fallbackQuery = fallbackQuery.eq('event_id', eventId.trim())
       const { data: subsFallback, error: subErr2 } = await fallbackQuery
       if (subErr2) return { data: null, error: subErr2.message }
-      subsResult = subsFallback ?? []
+      subsResult = (subsFallback ?? []).map((s) => ({ ...s, non_point_fulfilled_at: null }))
     }
 
     if (!subsResult.length) return { data: [], error: null }

@@ -1,0 +1,59 @@
+---
+alwaysApply: true
+---
+description: 프로젝트 아키텍처, 폴더 구조, 기술 선택 기준 (Decision Making)
+
+# 프로젝트 구조 원칙 (Modular Architecture)
+이 프로젝트는 **Next.js 16 App Router**를 기반으로 하며, **기능별 모듈 분리**를 원칙으로 합니다.
+
+## 1. 폴더 구조 (Directory Map)
+- **`app/`**: 페이지 라우팅 및 레이아웃 (View)
+- **`api/`**: **서버 로직 (Controller)**
+  - `api/queries/`: 데이터 조회 함수 (Read Only)
+  - `api/actions/`: 데이터 변경 함수 (Mutations)
+- **`hooks/`**: 커스텀 React Hooks (Reusable Logic)
+- **`store/`**: 전역 상태 관리 (Global State)
+- **`types/`**: 타입 정의 (Definitions)
+- **`constants/`**: 상수 값 (Config)
+- **`components/`**: UI 컴포넌트
+
+## 2. 기술 선택 결정 가이드 (Decision Guide) - 중요!
+AI는 코드를 작성하기 전에 아래 질문을 통해 **무엇을 사용할지** 결정해야 합니다.
+
+### Q1. 언제 `Server Action`을 써야 하나요? (`api/actions/`)
+- **DB를 변경할 때**: 데이터 추가(INSERT), 수정(UPDATE), 삭제(DELETE).
+- **보안이 필요할 때**: API 키 숨기기, 쿠키 설정, 외부 결제 연동.
+- **폼(Form) 제출**: `<form action={serverAction}>` 패턴 사용할 때.
+- **규칙**: 파일 최상단에 `'use server'` 필수. `try/catch`로 에러 처리 필수.
+
+### Q2. 언제 `Store (Zustand)`를 써야 하나요? (`store/`)
+- **여러 페이지에서 공유할 때**: 로그인 세션, 다크모드 설정, 장바구니.
+- **컴포넌트 간 거리가 멀 때**: 헤더의 버튼이 푸터의 내용을 바꿀 때.
+- **주의**: 단순히 DB에서 가져온 데이터를 **잠깐 보여주는 용도로 Store에 담지 마세요.** (그건 React Query나 그냥 Fetch로 충분합니다.)
+
+### Q3. 언제 `Hooks`를 써야 하나요? (`hooks/`)
+- **UI 로직이 반복될 때**: 스크롤 감지(`useScroll`), 폼 입력 핸들링(`useInput`), 클릭 감지(`useOnClickOutside`).
+- **클라이언트 전용 기능**: `window`, `document` 객체를 다룰 때.
+- **규칙**: 파일 이름은 `use-`로 시작해야 합니다.
+
+### Q4. 언제 `Server Component` (기본)를 써야 하나요?
+- **위의 경우가 아닐 때 전부 다.**
+- 특히 **단순 데이터 조회(Get/Select)**는 무조건 서버 컴포넌트에서 `await`로 처리합니다.
+
+## 3. 데이터 흐름 전략 (Data Flow)
+
+### 🚀 트랙 A: 조회 및 렌더링 (Fast Track)
+**[Page.tsx] ➡️ [api/queries] ➡️ [Supabase DB]**
+- `useState`, `useEffect` 금지.
+- DB에서 데이터를 가져와서 HTML을 바로 그립니다. 가장 빠릅니다.
+
+### 🔄 트랙 B: 사용자 행동 및 변경 (Interactive Track)
+**[Component] ➡️ [Server Action] ➡️ [Supabase DB] ➡️ [revalidatePath]**
+- 사용자가 버튼을 클릭하면 `Server Action`을 호출합니다.
+- 작업이 끝나면 `revalidatePath()`를 호출하여 화면을 새로고침합니다.
+- 복잡한 UI 상태(모달 열기 등)는 `Store`나 `useState`로 처리합니다.
+
+## 4. 폴더/파일 규칙 (Conventions)
+- **URL 매핑**: 폴더 이름이 곧 URL입니다.
+- **그룹 라우팅**: `(admin)`, `(auth)` 등 괄호를 사용하여 레이아웃을 분리하세요.
+- **상수 관리**: "로그인 하세요" 같은 하드코딩 문자열은 `constants/messages.ts`에, 메뉴 목록은 `constants/menus.ts`에 정의하세요.

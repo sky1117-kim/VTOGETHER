@@ -1,0 +1,14 @@
+# 업로드 제외 (gcloud run deploy --source 시)
+node_modules
+.next
+.git
+.env
+.env.local
+.env.*.local
+.vscode
+.cursor
+.DS_Store
+*.log
+docs
+*.md
+!README.md

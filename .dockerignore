@@ -1,0 +1,26 @@
+# 의존성 (Dockerfile에서 npm ci로 설치)
+node_modules
+npm-debug.log*
+
+# 빌드 산출물 (Dockerfile에서 다시 빌드)
+.next
+
+# Git
+.git
+.gitignore
+
+# 환경 설정 (Cloud Run에서 시크릿으로 주입)
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.vscode
+.cursor
+.DS_Store
+*.log
+
+# 문서·테스트 (배포 불필요)
+docs
+*.md
+!README.md

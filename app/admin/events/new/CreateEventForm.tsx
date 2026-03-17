@@ -25,6 +25,8 @@ import {
   REWARD_POLICIES,
   REWARD_KINDS,
   VERIFICATION_METHOD_TYPES,
+  VALUE_LABEL_OPTIONS,
+  VALUE_LABEL_CUSTOM,
   VALUE_UNIT_OPTIONS,
   VALUE_UNIT_CUSTOM,
 } from '@/constants/events'
@@ -38,10 +40,12 @@ const labelClass = 'block text-sm font-bold text-gray-700'
 
 type VerificationMethodType = VerificationMethodInput['method_type']
 
-/** 인증 항목 1개 (타입 + 직원 안내문 + 단답/장문 또는 단위) */
+/** 인증 항목 1개 (타입 + 제목 + 직원 안내문 + 단답/장문 또는 단위) */
 interface VerificationItem {
   id: string
   method_type: VerificationMethodType
+  /** 모든 방식 공통. 심사 시 "(제목) - 제출답변" 형태로 표시. 비우면 방식명(사진/텍스트 등) 사용 */
+  label?: string
   instruction: string
   /** TEXT용. VALUE는 숫자만 입력되므로 사용 안 함 */
   input_style: 'SHORT' | 'LONG'
@@ -71,7 +75,14 @@ function buildPayload(
     method_type: item.method_type,
     is_required: true,
     instruction: item.instruction.trim() || null,
-    input_style: item.method_type === 'PHOTO' ? null : item.method_type === 'VALUE' ? null : item.input_style,
+    input_style: item.method_type === 'PHOTO' ? null : item.method_type === 'VALUE' ? null : item.method_type === 'PEER_SELECT' ? null : item.input_style,
+    // 제목(label): 모든 방식 공통. VALUE는 항목명(거리/속도 등), 그 외는 사용자 입력 제목. 심사 시 "(제목) - 제출답변" 표시
+    label:
+      item.method_type === 'VALUE'
+        ? item.label && item.label !== VALUE_LABEL_CUSTOM
+          ? (item.label.trim() || null)
+          : null
+        : (item.label?.trim() || null),
     unit:
       item.method_type === 'VALUE'
         ? item.unit === VALUE_UNIT_CUSTOM
@@ -99,6 +110,7 @@ function SortableVerificationItem({
   onRemove,
   onInstructionChange,
   onInputStyleChange,
+  onLabelChange,
   onUnitChange,
   inputClass,
 }: {
@@ -107,6 +119,7 @@ function SortableVerificationItem({
   onRemove: (id: string) => void
   onInstructionChange: (id: string, instruction: string) => void
   onInputStyleChange: (id: string, input_style: 'SHORT' | 'LONG') => void
+  onLabelChange: (id: string, label: string) => void
   onUnitChange: (id: string, unit: string) => void
   inputClass: string
 }) {
@@ -123,6 +136,8 @@ function SortableVerificationItem({
     transform: CSS.Transform.toString(transform),
     transition,
   }
+
+  const methodLabel = VERIFICATION_METHOD_TYPES.find((m) => m.value === item.method_type)?.label ?? item.method_type
 
   return (
     <li
@@ -142,7 +157,7 @@ function SortableVerificationItem({
         </button>
         <div className="flex flex-1 items-center justify-between">
           <span className="text-sm font-medium text-gray-700">
-            {VERIFICATION_METHOD_TYPES.find((m) => m.value === item.method_type)?.label ?? item.method_type}
+            {methodLabel}
           </span>
           <button
             type="button"
@@ -152,6 +167,52 @@ function SortableVerificationItem({
             삭제
           </button>
         </div>
+      </div>
+      {/* 제목: 모든 방식 공통. 심사 시 "(제목) - 제출답변" 형태로 표시. 비우면 방식명(사진/텍스트 등) 사용 */}
+      <div>
+        <label className="text-xs font-medium text-gray-500">제목 (심사 시 표시)</label>
+        {item.method_type === 'VALUE' ? (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <select
+              value={
+                item.label === VALUE_LABEL_CUSTOM ||
+                (item.label && !VALUE_LABEL_OPTIONS.some((o) => o.value === item.label))
+                  ? VALUE_LABEL_CUSTOM
+                  : item.label ?? ''
+              }
+              onChange={(e) => {
+                const v = e.target.value
+                onLabelChange(item.id, v === VALUE_LABEL_CUSTOM ? VALUE_LABEL_CUSTOM : v)
+              }}
+              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+            >
+              {VALUE_LABEL_OPTIONS.map((o) => (
+                <option key={o.value || 'none'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {(item.label === VALUE_LABEL_CUSTOM ||
+              (item.label && !VALUE_LABEL_OPTIONS.some((o) => o.value === item.label))) && (
+              <input
+                type="text"
+                value={item.label === VALUE_LABEL_CUSTOM ? '' : (item.label ?? '')}
+                onChange={(e) => onLabelChange(item.id, e.target.value)}
+                placeholder="예: 평균속도"
+                className="w-24 rounded border border-gray-300 px-2 py-1.5 text-xs"
+              />
+            )}
+          </div>
+        ) : (
+          <input
+            type="text"
+            value={item.label ?? ''}
+            onChange={(e) => onLabelChange(item.id, e.target.value)}
+            placeholder={`예: ${methodLabel} 인증`}
+            className={inputClass}
+          />
+        )}
+        <p className="mt-0.5 text-xs text-gray-400">비우면 &quot;{methodLabel}&quot;로 표시됩니다.</p>
       </div>
       {item.method_type === 'TEXT' && (
         <div>
@@ -167,9 +228,10 @@ function SortableVerificationItem({
         </div>
       )}
       {item.method_type === 'VALUE' && (
-        <div>
-          <label className="text-xs font-medium text-gray-500">단위 (선택 또는 직접 입력)</label>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+        <>
+          <div>
+            <label className="text-xs font-medium text-gray-500">단위 (선택 또는 직접 입력)</label>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
             <select
               value={
                 item.unit === VALUE_UNIT_CUSTOM ||
@@ -202,7 +264,8 @@ function SortableVerificationItem({
             )}
           </div>
         </div>
-      )}
+          </>
+        )}
       <div>
         <label className="text-xs font-medium text-gray-500">안내 문구</label>
         <textarea
@@ -284,6 +347,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
         method_type,
         instruction: '',
         input_style: defaultStyle,
+        label: '',
         unit: method_type === 'VALUE' ? '' : undefined,
       },
     ])
@@ -321,6 +385,11 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       prev.map((item) => (item.id === id ? { ...item, unit } : item))
     )
   }
+  const setVerificationLabel = (id: string, label: string) => {
+    setVerificationItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, label } : item))
+    )
+  }
 
   /** 기존 이벤트를 선택해 폼에 불러오기 (수정 후 새로 등록) */
   async function handleCopyFromExisting() {
@@ -353,6 +422,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           method_type: m.method_type,
           instruction: m.instruction ?? '',
           input_style: m.input_style ?? (m.method_type === 'VALUE' ? 'SHORT' : 'LONG'),
+          label: m.label ?? '',
           unit: m.method_type === 'VALUE' ? (m.unit ?? '') : undefined,
         }))
       )
@@ -630,6 +700,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
                     onRemove={removeVerificationItem}
                     onInstructionChange={setVerificationInstruction}
                     onInputStyleChange={setVerificationInputStyle}
+                    onLabelChange={setVerificationLabel}
                     onUnitChange={setVerificationUnit}
                     inputClass={inputClass}
                   />

@@ -16,7 +16,7 @@ export function MauDonutChart({ mau, total }: { mau: number; total: number }) {
     <div className="flex flex-col gap-2">
       <div className="flex h-[90px] w-full items-center justify-center">
         <ResponsiveContainer width="100%" height={90}>
-          <PieChart margin={0}>
+          <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
             <Pie
               data={data}
               cx="50%"
@@ -33,9 +33,9 @@ export function MauDonutChart({ mau, total }: { mau: number; total: number }) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number, name: string) => [
-                `${value}명 (${total ? ((value / total) * 100).toFixed(1) : 0}%)`,
-                name,
+              formatter={(value: number | undefined, name?: string) => [
+                `${value ?? 0}명 (${total ? (((value ?? 0) / total) * 100).toFixed(1) : 0}%)`,
+                name ?? '',
               ]}
               contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
             />

@@ -20,12 +20,12 @@ export async function loginAction() {
   })
 
   if (error) {
-    return { error: error.message }
+    redirect(`/login?error=${encodeURIComponent(error.message)}`)
   }
 
   if (data.url) {
     redirect(data.url)
   }
 
-  return { error: '로그인 URL을 생성할 수 없습니다.' }
+  redirect('/login?error=' + encodeURIComponent('로그인 URL을 생성할 수 없습니다.'))
 }

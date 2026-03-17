@@ -34,14 +34,7 @@ export async function Header() {
           <div className="flex items-center gap-2">
             <div className="mr-2 hidden flex-col items-end md:flex">
               <span className="text-xs text-gray-400">환영합니다</span>
-              <span className="text-sm font-bold text-gray-800">
-                {displayName}
-                {user?.dept_name && (
-                  <span className="ml-1 font-normal text-gray-500">
-                    ({user.dept_name})
-                  </span>
-                )}
-              </span>
+              <span className="text-sm font-bold text-gray-800">{displayName}</span>
             </div>
             <LevelBadge level={level} size="sm" totalDonated={user?.total_donated_amount} />
             {user?.is_admin && (

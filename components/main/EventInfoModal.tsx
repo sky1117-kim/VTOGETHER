@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import DOMPurify from 'isomorphic-dompurify'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
+import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/events'
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: '인증가능',
@@ -36,6 +37,8 @@ interface EventInfoModalProps {
     type: string
     rounds?: { round_number: number; status: string }[]
     hasPendingReward?: boolean
+    frequency_limit?: string | null
+    alwaysParticipation?: { allowed: boolean; reason?: string }
   } | null
   isOpen: boolean
   onClose: () => void
@@ -70,8 +73,22 @@ export function EventInfoModal({
   if (!isOpen) return null
 
   // 상세 소개문구: RichTextEditor(TipTap)는 HTML로 저장하므로, 태그가 있으면 HTML로 렌더 (에디터와 동일하게)
-  const raw = event?.description?.trim() || '참여하고 포인트를 획득하세요.'
+  let raw = event?.description?.trim() || '참여하고 포인트를 획득하세요.'
   const isHtml = /<[a-z][^>]*>/i.test(raw)
+
+  // TipTap 직렬화 시 에디터와 모달 표시가 달라지는 띄어쓰기 문제 수정
+  if (isHtml) {
+    // 1) 인라인 태그 내부 끝 공백: <span>평균페이스 </span> → <span>평균페이스</span>
+    raw = raw.replace(
+      /<(span|strong|em|b|i|u)([^>]*)>([^<]*?)\s+<\/\1>/g,
+      (_, tag, attrs, content) => `<${tag}${attrs}>${content.trimEnd()}</${tag}>`
+    )
+    // 2) 인라인 태그 뒤 공백+한글: </span> 가 → </span>가 (조사 붙여쓰기)
+    raw = raw.replace(
+      /(<\/(?:span|strong|em|b|i|u)[^>]*>)\s+([가-힣])/g,
+      '$1$2'
+    )
+  }
   const description = raw
 
   const modal = (
@@ -158,6 +175,23 @@ export function EventInfoModal({
                       {r.round_number}구간 {STATUS_LABEL[r.status] ?? r.status}
                     </span>
                   ))}
+                </div>
+              </>
+            )}
+            {event?.type === 'ALWAYS' && event.frequency_limit && (
+              <>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  참여 빈도
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                    {FREQUENCY_TAG_LABEL[event.frequency_limit] ?? `${event.frequency_limit} 가능`}
+                  </span>
+                  {event.alwaysParticipation && !event.alwaysParticipation.allowed && (
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
+                      {ALREADY_SUBMITTED_TAG_LABEL[event.frequency_limit] ?? '이미 제출함'}
+                    </span>
+                  )}
                 </div>
               </>
             )}

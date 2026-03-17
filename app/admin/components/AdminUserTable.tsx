@@ -9,10 +9,28 @@ import { Search, Users } from 'lucide-react'
 interface AdminUserTableProps {
   users: UserRow[]
   currentUserId: string
+  /** true일 때 "최근 접속" 컬럼 표시 */
+  showLastActiveAt?: boolean
+}
+
+/** last_active_at을 "n분 전", "n시간 전" 등으로 표시 */
+function formatLastActive(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffMins < 1) return '방금 전'
+  if (diffMins < 60) return `${diffMins}분 전`
+  if (diffHours < 24) return `${diffHours}시간 전`
+  if (diffDays < 7) return `${diffDays}일 전`
+  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 /** 관리자 계정 테이블: 이름/이메일 검색, 부서 필터 */
-export function AdminUserTable({ users, currentUserId }: AdminUserTableProps) {
+export function AdminUserTable({ users, currentUserId, showLastActiveAt }: AdminUserTableProps) {
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState<string>('')
 
@@ -78,6 +96,9 @@ export function AdminUserTable({ users, currentUserId }: AdminUserTableProps) {
             <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-6 py-3 font-medium">이름 / 이메일</th>
+                {showLastActiveAt && (
+                  <th className="px-6 py-3 font-medium">최근 접속</th>
+                )}
                 <th className="px-6 py-3 font-medium">부서</th>
                 <th className="px-6 py-3 font-medium">관리자</th>
                 <th className="px-6 py-3 font-medium text-right">보유 P</th>
@@ -95,6 +116,11 @@ export function AdminUserTable({ users, currentUserId }: AdminUserTableProps) {
                     <span className="font-medium text-gray-900">{u.name || '—'}</span>
                     <span className="block text-xs text-gray-500">{u.email}</span>
                   </td>
+                  {showLastActiveAt && (
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {formatLastActive(u.last_active_at)}
+                    </td>
+                  )}
                   <td className="px-6 py-4">
                     <UserDeptEdit userId={u.user_id} initialDeptName={u.dept_name} />
                   </td>
