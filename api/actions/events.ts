@@ -119,7 +119,7 @@ export async function submitEventSubmission(
     for (const m of requiredMethods) {
       const val = verificationData[m.method_id]
       if (m.method_type === 'PHOTO') {
-        const urls = Array.isArray(val) ? val.filter((u): u is string => typeof u === 'string' && u.trim()) : []
+        const urls = Array.isArray(val) ? val.filter((u): u is string => typeof u === 'string' && !!u.trim()) : []
         if (urls.length < 2) {
           return { success: false, error: '사진을 2장 이상 제출해주세요.' }
         }
