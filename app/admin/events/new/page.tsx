@@ -13,21 +13,25 @@ export default async function AdminEventsNewPage() {
   const eventList = events ?? []
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="mx-auto max-w-3xl space-y-8 pb-12">
+      {/* 헤더: 명확한 시각적 계층 */}
+      <header>
         <Link
           href="/admin/events"
-          className="text-sm font-medium text-gray-500 transition hover:text-gray-700"
+          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-emerald-600"
         >
-          ← 이벤트 목록
+          <span aria-hidden>←</span>
+          이벤트 목록
         </Link>
-        <h2 className="mt-2 text-2xl font-bold text-gray-900">새 이벤트 등록</h2>
-        <p className="mt-1 text-gray-500">이벤트 & 챌린지 정보와 인증 방식을 설정합니다.</p>
-      </div>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+          새 이벤트 등록
+        </h1>
+        <p className="mt-1.5 text-base text-gray-600">
+          이벤트 & 챌린지 정보와 인증 방식을 설정합니다.
+        </p>
+      </header>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <CreateEventForm createdBy={user.user_id} existingEvents={eventList} />
-      </div>
+      <CreateEventForm createdBy={user.user_id} existingEvents={eventList} />
     </div>
   )
 }

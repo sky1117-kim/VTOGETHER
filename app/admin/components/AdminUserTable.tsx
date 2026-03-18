@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import type { UserRow } from '@/api/actions/admin'
-import { UserDeptEdit } from './UserDeptEdit'
 import { AdminToggle } from './AdminToggle'
 import { Search, Users } from 'lucide-react'
 
@@ -92,18 +91,18 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-6 py-3 font-medium">이름 / 이메일</th>
                 {showLastActiveAt && (
-                  <th className="px-6 py-3 font-medium">최근 접속</th>
+                  <th className="whitespace-nowrap px-6 py-3 font-medium">최근 접속</th>
                 )}
-                <th className="px-6 py-3 font-medium">부서</th>
-                <th className="px-6 py-3 font-medium">관리자</th>
-                <th className="px-6 py-3 font-medium text-right">보유 P</th>
-                <th className="px-6 py-3 font-medium text-right">누적 기부</th>
-                <th className="px-6 py-3 font-medium">등급</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium">부서</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium">관리자</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium text-right">보유 P</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium text-right">누적 기부</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium">등급</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -117,29 +116,29 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
                     <span className="block text-xs text-gray-500">{u.email}</span>
                   </td>
                   {showLastActiveAt && (
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                       {formatLastActive(u.last_active_at)}
                     </td>
                   )}
-                  <td className="px-6 py-4">
-                    <UserDeptEdit userId={u.user_id} initialDeptName={u.dept_name} />
+                  <td className="whitespace-nowrap px-6 py-4 text-gray-600">
+                    {u.dept_name?.trim() || '미지정'}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="whitespace-nowrap px-6 py-4">
                     <AdminToggle
                       userId={u.user_id}
                       initial={!!u.is_admin}
                       isSelf={u.user_id === currentUserId}
                     />
                   </td>
-                  <td className="px-6 py-4 text-right font-bold text-gray-900">
+                  <td className="whitespace-nowrap px-6 py-4 text-right font-bold text-gray-900">
                     {u.current_points.toLocaleString()} P
                   </td>
-                  <td className="px-6 py-4 text-right text-gray-600">
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-gray-600">
                     {u.total_donated_amount.toLocaleString()} P
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="whitespace-nowrap px-6 py-4">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                      className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${
                         u.level === 'EARTH_HERO'
                           ? 'bg-purple-100 text-purple-700'
                           : u.level === 'GREEN_MASTER'

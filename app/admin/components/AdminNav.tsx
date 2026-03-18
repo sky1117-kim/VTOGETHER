@@ -12,12 +12,12 @@ import {
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/admin', label: '대시보드', icon: LayoutDashboard },
-  { href: '/admin/events', label: '이벤트', icon: Gift },
+  { href: '/admin', label: '대시보드', icon: LayoutDashboard, showBadge: false },
+  { href: '/admin/events', label: '이벤트', icon: Gift, showBadge: false },
   { href: '/admin/verifications', label: '인증 심사', icon: ClipboardCheck, showBadge: true },
-  { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송', icon: Package },
-  { href: '/admin/donation-targets', label: '기부처', icon: Heart },
-  { href: '/admin/recent-users', label: '최근 접속 사용자', icon: Users },
+  { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송', icon: Package, showBadge: false },
+  { href: '/admin/donation-targets', label: '기부처', icon: Heart, showBadge: false },
+  { href: '/admin/recent-users', label: '최근 접속 사용자', icon: Users, showBadge: false },
 ] as const
 
 interface AdminNavProps {

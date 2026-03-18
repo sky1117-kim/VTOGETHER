@@ -35,7 +35,7 @@ export function AdminToggle({ userId, initial, isSelf }: AdminToggleProps) {
 
   return (
     <div className="flex flex-col gap-0.5">
-      <label className="flex cursor-pointer items-center gap-2">
+      <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap">
         <input
           type="checkbox"
           checked={checked}

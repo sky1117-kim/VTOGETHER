@@ -33,11 +33,12 @@ import {
 } from '@/constants/events'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
 
+// 입력 필드: 부드러운 테두리, 포커스 시 primary 강조
 const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500'
+  'mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-gray-900 transition-colors placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20'
 const inputNumberClass =
-  'mt-1 w-32 rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500'
-const labelClass = 'block text-sm font-bold text-gray-700'
+  'mt-1.5 w-32 rounded-lg border border-gray-200 bg-white px-3 py-2 text-gray-900 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20'
+const labelClass = 'block text-sm font-semibold text-gray-800'
 
 type VerificationMethodType = VerificationMethodInput['method_type']
 
@@ -151,7 +152,7 @@ function SortableVerificationItem({
     <li
       ref={setNodeRef}
       style={style}
-      className={`flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3 ${isDragging ? 'opacity-50 shadow-lg' : ''}`}
+      className={`flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm ${isDragging ? 'opacity-60 shadow-lg ring-2 ring-emerald-200' : ''}`}
     >
       <div className="flex items-center gap-2">
         <button
@@ -192,7 +193,7 @@ function SortableVerificationItem({
                 const v = e.target.value
                 onLabelChange(item.id, v === VALUE_LABEL_CUSTOM ? VALUE_LABEL_CUSTOM : v)
               }}
-              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+              className="w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
             >
               {VALUE_LABEL_OPTIONS.map((o) => (
                 <option key={o.value || 'none'} value={o.value}>
@@ -207,7 +208,7 @@ function SortableVerificationItem({
                 value={item.label === VALUE_LABEL_CUSTOM ? '' : (item.label ?? '')}
                 onChange={(e) => onLabelChange(item.id, e.target.value)}
                 placeholder="예: 평균속도"
-                className="w-24 rounded border border-gray-300 px-2 py-1.5 text-xs"
+                className="w-24 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
               />
             )}
           </div>
@@ -229,7 +230,7 @@ function SortableVerificationItem({
             <select
               value={item.input_style}
               onChange={(e) => onInputStyleChange(item.id, e.target.value as 'SHORT' | 'LONG' | 'CHOICE')}
-              className="mt-1 w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+              className="mt-1 w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
             >
               <option value="SHORT">단답</option>
               <option value="LONG">장문</option>
@@ -252,7 +253,7 @@ function SortableVerificationItem({
                         onOptionsChange(item.id, next)
                       }}
                       placeholder={`선택지 ${idx + 1}`}
-                      className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs"
+                      className="flex-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
                     />
                     <button
                       type="button"
@@ -261,7 +262,7 @@ function SortableVerificationItem({
                         if (next.length < 2) next.push('')
                         onOptionsChange(item.id, next)
                       }}
-                      className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                      className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                     >
                       삭제
                     </button>
@@ -270,7 +271,7 @@ function SortableVerificationItem({
                 <button
                   type="button"
                   onClick={() => onOptionsChange(item.id, [...(item.options ?? ['', '']), ''])}
-                  className="rounded border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-100"
                 >
                   + 선택지 추가
                 </button>
@@ -295,7 +296,7 @@ function SortableVerificationItem({
                 const v = e.target.value
                 onUnitChange(item.id, v === VALUE_UNIT_CUSTOM ? VALUE_UNIT_CUSTOM : v)
               }}
-              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+              className="w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
             >
               {VALUE_UNIT_OPTIONS.map((o) => (
                 <option key={o.value || 'none'} value={o.value}>
@@ -311,7 +312,7 @@ function SortableVerificationItem({
                 value={item.unit === VALUE_UNIT_CUSTOM ? '' : (item.unit ?? '')}
                 onChange={(e) => onUnitChange(item.id, e.target.value)}
                 placeholder="예: km/h, 마일"
-                className="w-24 rounded border border-gray-300 px-2 py-1.5 text-xs"
+                className="w-24 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
               />
             )}
           </div>
@@ -476,7 +477,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       setShortDescription(ev.short_description ?? '')
       setDescription(ev.description ?? '')
       setImageUrl(ev.image_url ?? '')
-      setCategory(ev.category === 'CULTURE' ? 'PEOPLE' : ev.category)
+      setCategory((ev as { category?: string }).category === 'CULTURE' ? 'PEOPLE' : ev.category)
       setType(ev.type)
       setFrequencyLimit(ev.frequency_limit ?? 'ONCE')
       setRewardPolicy(ev.reward_policy)
@@ -564,26 +565,28 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-8">
       {message && (
         <div
-          className={`rounded-lg px-4 py-2.5 text-sm ${
-            message.type === 'ok' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'
+          className={`rounded-xl px-4 py-3 text-sm font-medium ${
+            message.type === 'ok'
+              ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/60'
+              : 'bg-red-50 text-red-800 ring-1 ring-red-200/60'
           }`}
         >
           {message.text}
         </div>
       )}
 
+      {/* 기존 이벤트 복사: 컴팩트한 보조 액션 */}
       {existingEvents.length > 0 && (
-        <section className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4">
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-gray-500">기존 이벤트에서 복사</h3>
-          <p className="mb-3 text-xs text-gray-500">선택한 이벤트의 제목·소개·보상·인증 방식을 불러와 수정 후 새로 등록할 수 있습니다.</p>
-          <div className="flex flex-wrap items-center gap-2">
+        <section className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-gray-600">기존 이벤트에서 복사</span>
             <select
               value={copyEventId}
               onChange={(e) => setCopyEventId(e.target.value)}
-              className="min-w-[200px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              className="min-w-[220px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             >
               <option value="">이벤트 선택</option>
               {existingEvents.map((e) => (
@@ -596,7 +599,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
               type="button"
               onClick={handleCopyFromExisting}
               disabled={!copyEventId || copyLoading}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {copyLoading ? '불러오는 중…' : '불러오기'}
             </button>
@@ -604,10 +607,10 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
         </section>
       )}
 
-      {/* 기본 정보 + 이벤트 설정: 한 카드에 2열 */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-500">기본 정보 · 이벤트 설정</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
+      {/* 기본 정보 · 이벤트 설정 */}
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-5 text-base font-semibold text-gray-900">기본 정보 · 이벤트 설정</h2>
+        <div className="grid gap-6 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className={labelClass}>제목 *</label>
             <input
@@ -629,22 +632,22 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
               placeholder="예: 걷기 챌린지로 포인트를 받아보세요"
               maxLength={120}
             />
-            <p className="mt-1 text-xs text-gray-500">한 줄 요약. 카드와 목록에만 보입니다. (최대 120자)</p>
+            <p className="mt-1.5 text-xs text-gray-500">한 줄 요약. 카드와 목록에만 보입니다. (최대 120자)</p>
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>대표 이미지 (선택)</label>
-            <p className="mt-0.5 mb-1 text-xs text-gray-500">
+            <p className="mt-0.5 mb-1.5 text-xs text-gray-500">
               URL을 입력하거나 이미지 파일을 첨부하세요. 카드·목록에 표시됩니다.
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 type="url"
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
-                className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                className={`flex-1 min-w-[200px] ${inputClass}`}
                 placeholder="https://..."
               />
-              <label className="cursor-pointer rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100">
+              <label className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 hover:border-gray-300">
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
@@ -668,16 +671,18 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>전체 소개 (상세 보기)</label>
-            <p className="mt-0.5 mb-1 text-xs text-gray-500">
-              글자 선택 후 ⌘B(굵게)·⌘I(기울임) 또는 툴바 버튼 — 입력창에서 바로 반영됩니다
+            <p className="mt-0.5 mb-1.5 text-xs text-gray-500">
+              글자 선택 후 ⌘B(굵게)·⌘I(기울임) 또는 툴바 버튼으로 포맷을 적용할 수 있습니다.
             </p>
+            <div className="mt-1.5">
             <RichTextEditor
               value={description}
               onChange={setDescription}
               placeholder="이벤트 상세 안내 문구. 클릭 시 팝업에 포맷 적용되어 표시됩니다."
               aria-label="전체 소개"
             />
-            <p className="mt-1 text-xs text-gray-500">상세 보기 팝업에 표시되는 본문입니다.</p>
+            </div>
+            <p className="mt-1.5 text-xs text-gray-500">상세 보기 팝업에 표시되는 본문입니다.</p>
           </div>
           <div>
             <label className={labelClass}>카테고리</label>
@@ -718,12 +723,12 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
             </div>
           )}
           {type === 'SEASONAL' && (
-            <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
+            <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
               <span className="text-sm font-medium text-gray-600">구간 자동 생성</span>
               <select
                 value={roundYear}
                 onChange={(e) => setRoundYear(Number(e.target.value))}
-                className="w-24 rounded-lg border border-gray-300 px-2 py-2 text-sm"
+                className="w-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
                 {[0, 1, 2, 3, 4].map((i) => {
                   const y = now.getFullYear() + i
@@ -733,7 +738,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
               <select
                 value={roundMonth}
                 onChange={(e) => setRoundMonth(Number(e.target.value))}
-                className="w-20 rounded-lg border border-gray-300 px-2 py-2 text-sm"
+                className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                   <option key={m} value={m}>{m}월</option>
@@ -746,9 +751,9 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       </section>
 
       {/* 보상 */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-500">보상</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-5 text-base font-semibold text-gray-900">보상</h2>
+        <div className="grid gap-6 sm:grid-cols-2">
           <div>
             <label className={labelClass}>보상 정책</label>
             <select
@@ -781,7 +786,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
                       min={0}
                       value={selectedRewards.find((r) => r.kind === value)?.amount ?? ''}
                       onChange={(e) => setRewardAmount(value, e.target.value)}
-                      className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
+                      className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
                       placeholder={value === 'V_CREDIT' ? 'P' : '매수'}
                     />
                   )}
@@ -793,9 +798,9 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       </section>
 
       {/* 인증 방식 */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-gray-500">인증 방식 *</h3>
-        <p className="mb-3 text-xs text-gray-500">
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-2 text-base font-semibold text-gray-900">인증 방식 *</h2>
+        <p className="mb-4 text-sm text-gray-600">
           항목 추가 후 직원에게 보여줄 안내 문구를 입력하세요. 각 항목 왼쪽 아이콘을 드래그하여 순서를 변경할 수 있습니다.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -804,7 +809,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
               key={value}
               type="button"
               onClick={() => addVerificationItem(value)}
-              className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+              className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-100"
             >
               {label}
             </button>
@@ -837,17 +842,17 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
         )}
       </section>
 
-      <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-5">
+      <div className="flex flex-wrap items-center gap-3 border-t border-gray-200 pt-6">
         <button
           type="submit"
           disabled={pending}
-          className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
+          className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 btn-press"
         >
           {pending ? '등록 중…' : '이벤트 등록'}
         </button>
         <Link
           href="/admin/events"
-          className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 btn-press-link"
+          className="rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 hover:border-gray-300 btn-press-link"
         >
           취소
         </Link>

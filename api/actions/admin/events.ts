@@ -296,7 +296,7 @@ export async function createEvent(
         options:
           m.input_style === 'CHOICE' && Array.isArray(m.options)
             ? (() => {
-                const f = m.options!.filter((o): o is string => typeof o === 'string' && o.trim())
+                const f = m.options!.filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
                 return f.length > 0 ? f : null
               })()
             : null,

@@ -117,13 +117,13 @@ export function RichTextEditor({
   const currentBg = (editor.getAttributes('highlight').bgColor as string) || 'none'
 
   return (
-    <div className="rounded-lg border border-gray-300 overflow-hidden focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500">
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white transition-colors focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
+      <div className="flex flex-wrap items-center gap-1 border-b border-gray-100 bg-gray-50/80 px-3 py-2">
         <button
           type="button"
           title="굵게 (⌘B)"
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm font-bold text-gray-600 hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('bold') ? 'bg-gray-200 text-gray-900' : ''}`}
+          className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm font-bold text-gray-600 transition hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('bold') ? 'bg-gray-200 text-gray-900' : ''}`}
         >
           B
         </button>
@@ -131,7 +131,7 @@ export function RichTextEditor({
           type="button"
           title="기울임 (⌘I)"
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={`flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm italic text-gray-600 hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('italic') ? 'bg-gray-200 text-gray-900' : ''}`}
+          className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm italic text-gray-600 transition hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('italic') ? 'bg-gray-200 text-gray-900' : ''}`}
         >
           I
         </button>
@@ -139,7 +139,7 @@ export function RichTextEditor({
           type="button"
           title="불릿 목록"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={`flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm text-gray-600 hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('bulletList') ? 'bg-gray-200 text-gray-900' : ''}`}
+          className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm text-gray-600 transition hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('bulletList') ? 'bg-gray-200 text-gray-900' : ''}`}
         >
           •
         </button>
@@ -147,16 +147,16 @@ export function RichTextEditor({
           type="button"
           title="숫자 목록"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={`flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm text-gray-600 hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('orderedList') ? 'bg-gray-200 text-gray-900' : ''}`}
+          className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm text-gray-600 transition hover:bg-gray-200 hover:text-gray-900 ${editor.isActive('orderedList') ? 'bg-gray-200 text-gray-900' : ''}`}
         >
           1.
         </button>
-        <div className="relative ml-1 flex items-center gap-0.5">
+        <div className="relative ml-2 flex items-center gap-0.5 border-l border-gray-200 pl-2">
           <button
             type="button"
             title="폰트 크기 (글자 선택 후 적용)"
             onClick={() => { setFontSizeOpen((o) => !o); setColorOpen(false) }}
-            className="flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+            className="flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm font-medium text-gray-600 transition hover:bg-gray-200 hover:text-gray-900"
           >
             Aa
           </button>
@@ -191,7 +191,7 @@ export function RichTextEditor({
             type="button"
             title="글자 색상 (글자 선택 후 적용)"
             onClick={() => { setColorOpen((o) => !o); setFontSizeOpen(false); setHighlightOpen(false) }}
-            className="flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm text-gray-700 hover:bg-gray-200 hover:text-gray-900"
+            className="flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm text-gray-700 transition hover:bg-gray-200 hover:text-gray-900"
           >
             <span className="inline-block h-4 w-4 rounded border-2 border-gray-500 bg-gray-900" aria-hidden title="글자 색상" />
           </button>
@@ -259,7 +259,7 @@ export function RichTextEditor({
             type="button"
             title="배경색 (글자 선택 후 적용)"
             onClick={() => { setHighlightOpen((o) => !o); setColorOpen(false); setFontSizeOpen(false) }}
-            className="flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm text-gray-700 hover:bg-gray-200 hover:text-gray-900"
+            className="flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm text-gray-700 transition hover:bg-gray-200 hover:text-gray-900"
           >
             <span className="inline-block h-4 w-4 rounded border border-gray-400 bg-yellow-200" aria-hidden title="배경색" />
           </button>
@@ -318,7 +318,7 @@ export function RichTextEditor({
             </>
           )}
         </div>
-        <span className="ml-2 text-xs text-gray-400">⌘B 굵게 · ⌘I 기울임 · 크기·색상·배경은 글자 선택 후 적용</span>
+        <span className="ml-2 text-xs text-gray-400">⌘B 굵게 · ⌘I 기울임</span>
       </div>
       <div ref={editorRef} className={EDITOR_CLASS}>
         <EditorContent editor={editor} />

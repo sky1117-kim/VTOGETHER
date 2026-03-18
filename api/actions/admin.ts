@@ -180,27 +180,6 @@ export async function updateUserAdmin(
   }
 }
 
-/** 사용자 부서 수정 (관리자) — Google 로그인은 부서 정보를 주지 않아 수동 입력용 */
-export async function updateUserDept(
-  userId: string,
-  deptName: string | null
-): Promise<{ success: boolean; error: string | null }> {
-  try {
-    const supabase = createAdminClient()
-    const { error } = await supabase
-      .from('users')
-      .update({ dept_name: deptName?.trim() || null })
-      .eq('user_id', userId)
-    if (error) return { success: false, error: error.message }
-    revalidatePath('/admin')
-    revalidatePath('/')
-    revalidatePath('/my')
-    return { success: true, error: null }
-  } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : '부서 저장 실패' }
-  }
-}
-
 /** 네비게이션 배지용: 승인 대기 인증 건수만 조회 (가벼운 쿼리) */
 export async function getPendingVerificationCount(): Promise<number> {
   try {

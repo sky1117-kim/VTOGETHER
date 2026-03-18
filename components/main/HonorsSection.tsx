@@ -77,10 +77,12 @@ export function HonorsSection({ personalRank, teamRank, quarterLabel }: HonorsSe
                     : item.rank === 3
                       ? 'bg-orange-300 text-white'
                       : 'bg-gray-100 text-gray-500'
+              const level =
+                type === 'PERSONAL' && 'level' in item ? item.level : '-'
               const levelClass =
-                item.level === 'Green Master'
+                level === 'Green Master'
                   ? 'bg-green-100 text-green-700'
-                  : item.level === 'Earth Hero'
+                  : level === 'Earth Hero'
                     ? 'bg-purple-100 text-purple-700'
                     : 'bg-slate-100 text-slate-600'
               return (
@@ -105,11 +107,11 @@ export function HonorsSection({ personalRank, teamRank, quarterLabel }: HonorsSe
                       <span className="text-gray-600">
                         {item.donatedCount}명 / {item.totalCount}명
                       </span>
-                    ) : item.level !== '-' ? (
+                    ) : level !== '-' ? (
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${levelClass}`}
                       >
-                        {item.level}
+                        {level}
                       </span>
                     ) : (
                       '-'
