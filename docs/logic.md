@@ -35,28 +35,29 @@
 - **이벤트 운영 방식 (타입별)**:
   - **SEASONAL**: 구간별 기간·1회 참여. 상태는 LOCKED/OPEN/SUBMITTED/APPROVED/DONE/FAILED (자세한 조건은 `docs/plan-events-operations.md`).
   - **ALWAYS**: 기간 없음, 참여 빈도만 제한. `events.frequency_limit`(ONCE/DAILY/WEEKLY/MONTHLY)으로 일/주/월 1회 등 제어. 최근 제출일은 `event_submissions`에서 조회.
-  - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 **둘 다** V.Point 지급 (다른 이벤트와 동일하게, V.Point 있으면 승인 시점에 즉시 지급).
+  - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 **둘 다** V.Credit 지급 (다른 이벤트와 동일하게, V.Credit 있으면 승인 시점에 즉시 지급).
   - **칭찬 챌린지 적립 내역 구분**: 제출자(칭찬한 사람)는 "칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 X P 적립", 수신자(칭찬받은 사람)는 "칭찬을 받음: 동료가 나를 칭찬하여 X P 적립"으로 DB에 저장. UI에서는 **통일 형식**으로 표시: [이벤트명] 먼저, 그 다음 [상태] 배지. 상태는 승인완료/보상 선택 대기/보상 지급 완료. 칭찬 챌린지는 [내가 칭찬한 내역] / [내가 칭찬 받은 내역] 배지로 받음·보냄 구분.
   - **칭찬 챌린지 익명 옵션**: 제출 시 "익명으로 칭찬 보내기"를 선택할 수 있음. 선택 시 칭찬 수신자에게는 포인트 내역에 "익명의 동료가 나를 칭찬하여"로 표시되며, 관리자(/admin/verifications)는 제출자 이름을 그대로 확인 가능.
 - **이벤트 보상 (복수 선택)**:
-  - 보상 유형: **V.Point**, **굿즈**, **커피쿠폰**. 하나만 선택하거나 여러 개 선택 가능.
-  - `event_rewards` 테이블에 이벤트별로 저장. V.Point·커피쿠폰은 `amount` 필수, 굿즈는 금액 없음.
+  - 보상 유형: **V.Credit**, **굿즈**, **커피쿠폰**. 하나만 선택하거나 여러 개 선택 가능.
+  - `event_rewards` 테이블에 이벤트별로 저장. V.Credit·커피쿠폰은 `amount` 필수, 굿즈는 금액 없음.
 - **이벤트 카테고리별 매칭 정책**:
-  - **Culture 이벤트**: 사용자가 적립한 V.Point에 대해 **회사 매칭** 적용. (예: 사용자 1,000 P 적립 → 매칭금 1,000 P)
+  - **People 이벤트**: 사용자가 적립한 V.Credit에 대해 **회사 매칭** 적용. (예: 사용자 1,000 P 적립 → 매칭금 1,000 P)
   - **V.Together 이벤트**: 매칭 없음.
-  - **전체 모인금액** = V.Together 적립 + Culture 적립 + Culture 매칭금액
-  - 관리자 대시보드 `/admin`의 **이벤트 적립 현황** 섹션에서 Culture/V.Together별 V.Point, 매칭금, 전체 모인금액을 확인 가능.
+  - **전체 모인금액** = V.Together 적립 + People 적립 + People 매칭금액
+  - 관리자 대시보드 `/admin`의 **이벤트 적립 현황** 섹션에서 People/V.Together별 V.Credit, 매칭금, 전체 모인금액을 확인 가능.
 
 ## Soft Delete (020 마이그레이션)
 - 모든 테이블에 `deleted_at` 컬럼 추가. 데이터 삭제 시 실제 DELETE 대신 `deleted_at = NOW()`로 플래그 처리.
 - 조회 시 `deleted_at IS NULL`인 행만 노출. 이벤트·구간·제출·기부·포인트 거래 등 모두 적용.
-  - **승인 시 V.Point 즉시 지급**: 보상이 **단일** V.Point일 때만 승인 시점에 즉시 지급. "보상 선택" 없이 지급됨.
-  - **보상 선택 (CHOICE)**: 이벤트에 보상이 **2종 이상**(V.Point + 커피쿠폰 등)이거나 `reward_type='CHOICE'`일 때, 승인 시 `reward_received=false`로 저장. V.Point가 포함되어 있어도 **즉시 지급하지 않고** 사용자 선택 대기. 사용자가 메인 "보상받기" 클릭 → EventVerifyModal에서 받을 보상(V.Point/커피쿠폰/굿즈) 선택 → `claimRewardChoice` 호출로 지급 완료.
+  - **승인 시 V.Credit 즉시 지급**: 보상이 **단일** V.Credit일 때만 승인 시점에 즉시 지급. "보상 선택" 없이 지급됨.
+  - **보상 선택 (CHOICE)**: 이벤트에 보상이 **2종 이상**(V.Credit + 커피쿠폰 등)이거나 `reward_type='CHOICE'`일 때, 승인 시 `reward_received=false`로 저장. V.Credit가 포함되어 있어도 **즉시 지급하지 않고** 사용자 선택 대기. 사용자가 메인 "보상받기" 클릭 → EventVerifyModal에서 받을 보상(V.Credit/커피쿠폰/굿즈) 선택 → `claimRewardChoice` 호출로 지급 완료.
 - **인증 방식**:
   - 사진 / 텍스트 / 숫자 / 동료 선택. 항목을 여러 개 추가 가능 (예: 텍스트 2개, 사진+텍스트, 동료 선택+텍스트 등).
   - **제목(label)**: 모든 인증 방식에 공통. 관리자가 이벤트 등록 시 "제목 (심사 시 표시)"를 입력. 인증 심사·상세 보기에서 "(제목) - 제출답변" 형태로 표시. 비우면 방식명(사진/텍스트/숫자/동료 선택)으로 fallback.
   - `event_verification_methods.instruction`: 직원에게 보여줄 안내 문구 (예: "이런 이런 사진을 제출하세요", "이런 숫자를 기재하세요").
-  - `event_verification_methods.input_style`: 단답(SHORT)=한 줄 입력, 장문(LONG)=여러 줄 입력. **텍스트(TEXT) 항목에만** 선택 가능 (마이그레이션 014).
+  - `event_verification_methods.input_style`: 단답(SHORT)=한 줄 입력, 장문(LONG)=여러 줄 입력, 객관식(CHOICE)=관리자가 정한 선택지 중 하나 선택. **텍스트(TEXT) 항목에만** 선택 가능 (마이그레이션 014, 031).
+  - **객관식(CHOICE) 인증**: 관리자가 선택지를 2개 이상 입력. 참여자는 그 중 하나를 선택. `event_verification_methods.options` JSONB에 선택지 문자열 배열 저장.
   - **숫자(VALUE) 인증**: 숫자만 입력 가능 (단답/장문 옵션 없음). 제목(label)은 거리/속도/시간 등 항목명 선택 또는 직접 입력. `event_verification_methods.unit`: 단위 (예: km/h, km). 심사 화면에서 "거리: 34 km"처럼 표시.
   - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. **2장 이상 필수** 제출. `verification_data`에 URL 배열로 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
 
@@ -72,9 +73,11 @@
 - 기간제·상시 모두 제출 가능한 경우에는 "인증하기"만 노출합니다.
 - 보상받기와 인증하기는 조건에 따라 **동시에** 나올 수 있습니다 (예: 1구간 보상대기 + 2구간 인증가능).
 
-## Phase 3: V.Honors 랭킹
+## Phase 3: V.Honors 랭킹 (명예의 전당)
 
 - **표시**: 메인 페이지에만 **TOP 10** 개인 랭킹·팀 랭킹. 전체 보기 링크 및 전용 페이지 없음.
+- **분기별 리셋**: 명예의 전당 랭킹은 **분기(Q1~Q4) 기준**으로 리셋됨. `donations` 테이블의 `created_at`으로 현재 분기 기부액만 집계하여 순위 산정.
+- **누적 기부액 유지**: `users.total_donated_amount`는 계속 누적되며, **본인(마이페이지·대시보드)** 과 **관리자(사용자 목록)** 에서 확인 가능. ESG Level 산정·등급 배지도 누적 기준.
 
 ## MAU (월간 활성 사용자)
 

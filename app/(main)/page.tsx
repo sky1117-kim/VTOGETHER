@@ -1,7 +1,11 @@
 import { getCurrentUser } from '@/api/actions/auth'
 import { getTotalDonationStats, getDonationTargets } from '@/api/queries/donation'
 import { getSiteContent } from '@/api/queries/siteContent'
-import { getPersonalRanking, getTeamRanking } from '@/api/queries/ranking'
+import {
+  getPersonalRankingQuarterly,
+  getTeamRankingQuarterly,
+  getCurrentQuarterBounds,
+} from '@/api/queries/ranking'
 import { getEventsWithRoundsForPublic } from '@/api/queries/events'
 import { getNotificationsForBell } from '@/api/queries/user'
 import { DashboardSection } from '@/components/main/DashboardSection'
@@ -20,8 +24,8 @@ export default async function HomePage({ searchParams }: PageProps) {
   let stats = { totalTarget: 40000000, totalCurrent: 0, completedCount: 0, progress: 0 }
   let targets: Awaited<ReturnType<typeof getDonationTargets>> = []
   let siteContent: Awaited<ReturnType<typeof getSiteContent>> = {}
-  let personalRank: Awaited<ReturnType<typeof getPersonalRanking>> = []
-  let teamRank: Awaited<ReturnType<typeof getTeamRanking>> = []
+  let personalRank: Awaited<ReturnType<typeof getPersonalRankingQuarterly>> = []
+  let teamRank: Awaited<ReturnType<typeof getTeamRankingQuarterly>> = []
   let events: Awaited<ReturnType<typeof getEventsWithRoundsForPublic>> = []
 
   try {
@@ -29,8 +33,8 @@ export default async function HomePage({ searchParams }: PageProps) {
       getTotalDonationStats(),
       getDonationTargets(),
       getSiteContent(),
-      getPersonalRanking(10),
-      getTeamRanking(10),
+      getPersonalRankingQuarterly(10),
+      getTeamRankingQuarterly(10),
       getEventsWithRoundsForPublic(user?.id ?? null),
     ])
     stats = statsRes
@@ -94,7 +98,11 @@ export default async function HomePage({ searchParams }: PageProps) {
         <SalaryDonationSection />
       </div>
       <div className="animate-fade-up mt-8">
-        <HonorsSection personalRank={personalRank} teamRank={teamRank} />
+        <HonorsSection
+          personalRank={personalRank}
+          teamRank={teamRank}
+          quarterLabel={getCurrentQuarterBounds().label}
+        />
       </div>
     </div>
   )

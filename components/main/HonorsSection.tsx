@@ -6,19 +6,28 @@ import type { PersonalRankItem, TeamRankItem } from '@/api/queries/ranking'
 interface HonorsSectionProps {
   personalRank: PersonalRankItem[]
   teamRank: TeamRankItem[]
+  /** 분기 라벨 (예: 2025 Q1) — 분기별로 리셋되는 랭킹임을 표시 */
+  quarterLabel?: string
 }
 
-export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
+export function HonorsSection({ personalRank, teamRank, quarterLabel }: HonorsSectionProps) {
   const [type, setType] = useState<'PERSONAL' | 'TEAM'>('PERSONAL')
   const data = type === 'PERSONAL' ? personalRank : teamRank
 
   return (
     <section id="honors">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <h2 className="section-title flex items-center gap-3 text-gray-900">
-          <span className="h-8 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
-          V.Honors (명예의 전당)
-        </h2>
+        <div className="flex flex-col gap-1">
+          <h2 className="section-title flex items-center gap-3 text-gray-900">
+            <span className="h-8 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
+            V.Honors (명예의 전당)
+          </h2>
+          {quarterLabel && (
+            <p className="text-sm text-gray-500">
+              분기별 랭킹 · {quarterLabel} 기준
+            </p>
+          )}
+        </div>
         <div className="flex rounded-xl bg-white/60 p-1 shadow-soft backdrop-blur-sm">
           <button
             type="button"
@@ -50,8 +59,12 @@ export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
             <tr>
               <th className="w-16 px-6 py-4 text-center">순위</th>
               <th className="px-6 py-4">이름 / 소속</th>
-              <th className="px-6 py-4 text-center">등급</th>
-              <th className="px-6 py-4 text-right">누적 기부액</th>
+              {type === 'TEAM' ? (
+                <th className="px-6 py-4 text-center">기부 인원</th>
+              ) : (
+                <th className="px-6 py-4 text-center">등급</th>
+              )}
+              <th className="px-6 py-4 text-right">분기 기부액</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm">
@@ -88,7 +101,11 @@ export function HonorsSection({ personalRank, teamRank }: HonorsSectionProps) {
                     )}
                   </td>
                   <td className="px-6 py-4 text-center">
-                    {item.level !== '-' ? (
+                    {type === 'TEAM' && 'donatedCount' in item && 'totalCount' in item ? (
+                      <span className="text-gray-600">
+                        {item.donatedCount}명 / {item.totalCount}명
+                      </span>
+                    ) : item.level !== '-' ? (
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${levelClass}`}
                       >
