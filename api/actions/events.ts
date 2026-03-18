@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getEventForParticipation } from '@/api/queries/events'
 
 const REWARD_KIND_LABEL: Record<string, string> = {
-  V_POINT: 'V.Point',
+  V_CREDIT: 'V.Credit',
   COFFEE_COUPON: '커피 쿠폰',
   GOODS: '굿즈',
 }
@@ -38,6 +38,33 @@ export async function uploadEventVerificationPhoto(
   }
 }
 
+/** 이벤트 대표 이미지 업로드 → Storage에 저장 후 공개 URL 반환. bucket 'event-verification' 내 representative/ 경로 사용 */
+export async function uploadEventRepresentativeImage(
+  formData: FormData
+): Promise<{ url: string | null; error: string | null }> {
+  const file = formData.get('file') as File | null
+  if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
+  const maxSize = 5 * 1024 * 1024
+  if (file.size > maxSize) return { url: null, error: '파일은 5MB 이하여야 합니다.' }
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  if (!allowed.includes(file.type)) return { url: null, error: '이미지 파일만 업로드할 수 있습니다.' }
+
+  try {
+    const supabase = createAdminClient()
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `representative/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { data, error } = await supabase.storage.from('event-verification').upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+    if (error) return { url: null, error: error.message }
+    const { data: urlData } = supabase.storage.from('event-verification').getPublicUrl(data.path)
+    return { url: urlData.publicUrl, error: null }
+  } catch (e) {
+    return { url: null, error: e instanceof Error ? e.message : '업로드 실패' }
+  }
+}
+
 /** 모달용: 이벤트 + 인증 방식 + 구간(현재 로그인 사용자 기준 상태 포함). 인증 방식이 비어 있으면 admin으로 한 번 더 조회 */
 export async function getEventForParticipationAction(eventId: string) {
   const supabase = await createClient()
@@ -47,7 +74,7 @@ export async function getEventForParticipationAction(eventId: string) {
     const admin = createAdminClient()
     const { data: methods } = await admin
       .from('event_verification_methods')
-      .select('method_id, method_type, instruction, label, placeholder, input_style')
+      .select('method_id, method_type, instruction, label, placeholder, input_style, unit, options')
       .eq('event_id', eventId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true })
@@ -149,7 +176,7 @@ export async function submitEventSubmission(
   }
 }
 
-type RewardKindChoice = 'V_POINT' | 'COFFEE_COUPON' | 'GOODS'
+type RewardKindChoice = 'V_CREDIT' | 'COFFEE_COUPON' | 'GOODS'
 
 /**
  * 승인 후 보상 선택(CHOICE/복수 보상): 사용자가 보상 종류를 골라 포인트 지급 또는 쿠폰/굿즈 선택
@@ -188,7 +215,7 @@ export async function claimRewardChoice(
 
     let rewardAmount = 0
     let roundNumber: number | null = null
-    if (rewardKind === 'V_POINT' && option.amount != null) {
+    if (rewardKind === 'V_CREDIT' && option.amount != null) {
       rewardAmount = Number(option.amount)
       if (sub.round_id) {
         const { data: round } = await admin.from('event_rounds').select('reward_amount, round_number').eq('round_id', sub.round_id).is('deleted_at', null).single()
@@ -197,7 +224,7 @@ export async function claimRewardChoice(
       }
     }
 
-    if (rewardKind === 'V_POINT' && rewardAmount > 0) {
+    if (rewardKind === 'V_CREDIT' && rewardAmount > 0) {
       const userIdsToCredit = [sub.user_id]
       if (event?.reward_policy === 'BOTH' && sub.peer_user_id) userIdsToCredit.push(sub.peer_user_id)
       const eventTitle = event?.title ?? '이벤트'
@@ -245,7 +272,7 @@ export async function claimRewardChoice(
       .update({
         reward_received: true,
         reward_type: rewardKind,
-        reward_amount: rewardKind === 'V_POINT' ? rewardAmount : null,
+        reward_amount: rewardKind === 'V_CREDIT' ? rewardAmount : null,
       })
       .eq('submission_id', submissionId)
 

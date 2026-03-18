@@ -53,7 +53,7 @@ export function DonationSection({
         <div>
           <h2 className="section-title flex items-center gap-3 text-gray-900">
             <span className="h-8 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
-            상시 기부 (V.Point)
+            상시 기부 (V.Credit)
           </h2>
           <p className="mt-1 text-gray-500">
             기부처별 목표 <strong className="text-green-700">1,000만원</strong> 달성 시

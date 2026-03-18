@@ -64,7 +64,7 @@ interface DashboardSectionProps {
 const defaultHero = {
   seasonBadge: '2026 Season 1',
   title: '나의 활동이\n세상의 기회가 되도록',
-  subtitle: '획득한 V.Point로 기부하고\n나의 ESG Level을 올려보세요!',
+  subtitle: '획득한 V.Credit로 기부하고\n나의 ESG Level을 올려보세요!',
 }
 
 /** DB/API에서 오는 값이 다를 수 있어서, 표시용 level을 세 가지 중 하나로 보정 */

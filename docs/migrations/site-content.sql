@@ -10,7 +10,7 @@ INSERT INTO site_content (key, value)
 VALUES
   ('hero_season_badge', '2026 Season 1'),
   ('hero_title', '나의 활동이' || E'\n' || '세상의 기회가 되도록'),
-  ('hero_subtitle', '획득한 V.Point로 기부하고' || E'\n' || '나의 ESG Level을 올려보세요!')
+  ('hero_subtitle', '획득한 V.Credit로 기부하고' || E'\n' || '나의 ESG Level을 올려보세요!')
 ON CONFLICT (key) DO NOTHING;
 
 ALTER TABLE site_content ENABLE ROW LEVEL SECURITY;

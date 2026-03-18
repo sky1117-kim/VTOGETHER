@@ -113,7 +113,7 @@ export function EventInfoModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-                {event?.category === 'CULTURE' ? 'Culture' : 'V.Together'}
+                {(event?.category === 'PEOPLE' || event?.category === 'CULTURE') ? 'People' : 'V.Together'}
               </span>
               <h3 className="mt-2 text-xl font-bold text-gray-900">{event?.title ?? '—'}</h3>
             </div>

@@ -22,7 +22,7 @@ export default async function DonationPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
             <span className="text-green-600">🤝</span>
-            상시 기부 (V.Point)
+            상시 기부 (V.Credit)
           </h1>
           <p className="mt-1 text-gray-500">
             기부처별 목표 <strong className="text-green-700">1,000만원</strong> 달성 시 해당 모금은 마감됩니다.

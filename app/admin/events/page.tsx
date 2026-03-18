@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { getEventsForAdmin } from '@/api/actions/admin/events'
 import { EventRowActions } from './EventRowActions'
+import { AdminPageHeader } from '../components/AdminPageHeader'
 
 const CATEGORY_LABEL: Record<string, string> = {
   V_TOGETHER: 'V.Together',
-  CULTURE: 'Culture',
+  PEOPLE: 'People',
+  CULTURE: 'People', // 레거시: 마이그레이션 029 전 데이터
 }
 const TYPE_LABEL: Record<string, string> = {
   ALWAYS: '상시',
@@ -22,32 +24,33 @@ export default async function AdminEventsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">이벤트 & 챌린지 관리</h2>
-          <p className="mt-1 text-gray-500">이벤트를 등록하고 관리합니다.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/verifications"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            인증 심사
-          </Link>
-          <Link
-            href="/admin/reward-fulfillment"
-            className="rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-50"
-          >
-            쿠폰/굿즈 발송
-          </Link>
-          <Link
-            href="/admin/events/new"
-            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 btn-press"
-          >
-            + 새 이벤트 등록
-          </Link>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="이벤트 & 챌린지 관리"
+        description="이벤트를 등록하고 관리합니다."
+        breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '이벤트' }]}
+        actions={
+          <>
+            <Link
+              href="/admin/verifications"
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              인증 심사
+            </Link>
+            <Link
+              href="/admin/reward-fulfillment"
+              className="rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-50"
+            >
+              쿠폰/굿즈 발송
+            </Link>
+            <Link
+              href="/admin/events/new"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 btn-press"
+            >
+              + 새 이벤트 등록
+            </Link>
+          </>
+        }
+      />
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -113,7 +116,7 @@ export default async function AdminEventsPage() {
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {e.reward_type == null
                       ? '복수 보상'
-                      : e.reward_type === 'POINTS' && e.reward_amount != null
+                      : (e.reward_type === 'V_CREDIT' || e.reward_type === 'POINTS') && e.reward_amount != null
                         ? `${e.reward_amount}P`
                         : e.reward_type}
                   </td>
@@ -143,11 +146,6 @@ export default async function AdminEventsPage() {
         </div>
       )}
 
-      <p className="text-sm text-gray-500">
-        <Link href="/admin" className="font-medium text-green-600 hover:text-green-700">
-          ← 관리자 대시보드
-        </Link>
-      </p>
     </div>
   )
 }

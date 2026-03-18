@@ -119,7 +119,7 @@ CREATE POLICY "Admins can update submissions"
 ### 8. **데이터 검증**
 
 **추가 필요**:
-- `reward_type='POINTS'`일 때 `reward_amount` 필수
+- `reward_type='V_CREDIT'`일 때 `reward_amount` 필수
 - `reward_type='COUPON'`일 때 `reward_amount` NULL 가능
 - `reward_policy='BOTH'`일 때 `peer_user_id` 필수 (칭찬 챌린지)
 - `type='SEASONAL'`일 때 최소 1개 Round 필수

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { AdminPageHeader } from '../components/AdminPageHeader'
 import {
   getNonPointRewardFulfillmentList,
   getEventsForRewardFulfillment,
@@ -23,34 +24,33 @@ export default async function AdminRewardFulfillmentPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">쿠폰 / 굿즈 발송 대상</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            보상 선택에서 커피 쿠폰·굿즈를 고른 참여자 목록입니다. 발송 완료 시 체크해 두세요.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/events"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            이벤트 관리
-          </Link>
-          <Link
-            href="/admin/verifications"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            인증 심사
-          </Link>
-          <Link
-            href="/admin"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            대시보드로
-          </Link>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="쿠폰 / 굿즈 발송 대상"
+        description="보상 선택에서 커피 쿠폰·굿즈를 고른 참여자 목록입니다. 발송 완료 시 체크해 두세요."
+        breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '쿠폰/굿즈 발송' }]}
+        actions={
+          <>
+            <Link
+              href="/admin/events"
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              이벤트 관리
+            </Link>
+            <Link
+              href="/admin/verifications"
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              인증 심사
+            </Link>
+            <Link
+              href="/admin"
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              대시보드로
+            </Link>
+          </>
+        }
+      />
 
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>

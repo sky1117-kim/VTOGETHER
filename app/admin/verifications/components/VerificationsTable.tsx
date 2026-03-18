@@ -38,7 +38,8 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
   const [rejectTarget, setRejectTarget] = useState<{ ids: string[]; isBulk: boolean } | null>(null)
   const [filterEventId, setFilterEventId] = useState<string>('')
   const [filterRoundId, setFilterRoundId] = useState<string>('')
-  const [filterStatus, setFilterStatus] = useState<string>('')
+  const [filterStatus, setFilterStatus] = useState<string>('PENDING') // 기본: 승인대기만 보기 (자주 쓰는 작업)
+  const [searchQuery, setSearchQuery] = useState<string>('')
 
   const eventOptions = useMemo(() => {
     const seen = new Map<string, string>()
@@ -67,8 +68,18 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
     if (filterEventId) list = list.filter((r) => r.event_id === filterEventId)
     if (filterRoundId) list = list.filter((r) => r.round_id === filterRoundId)
     if (filterStatus) list = list.filter((r) => r.status === filterStatus)
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      list = list.filter(
+        (r) =>
+          (r.user_name ?? '').toLowerCase().includes(q) ||
+          (r.user_email ?? '').toLowerCase().includes(q) ||
+          (r.peer_name ?? '').toLowerCase().includes(q) ||
+          (r.user_id ?? '').toLowerCase().includes(q)
+      )
+    }
     return list
-  }, [rows, filterEventId, filterRoundId, filterStatus])
+  }, [rows, filterEventId, filterRoundId, filterStatus, searchQuery])
 
   /** 이벤트 필터 적용 + 해당 이벤트에 사진 인증 방식이 있으면 카드형 표시 */
   const useCardLayout = useMemo(() => {
@@ -176,10 +187,17 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
         </p>
       )}
 
-      {/* 필터: 가독성 개선 */}
+      {/* 필터 + 검색 */}
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
         <span className="text-sm font-bold text-gray-700">필터</span>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-1 flex-wrap items-center gap-3">
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="참여자·수신자 검색..."
+            className="min-w-[140px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20"
+          />
           <select
             value={filterEventId}
             onChange={(e) => setFilterEventId(e.target.value)}

@@ -45,7 +45,7 @@ const ROUND_STATUS_LABEL: Record<string, string> = {
   FAILED: '마감',
 }
 const REWARD_KIND_LABEL: Record<string, string> = {
-  V_POINT: 'V.Point',
+  V_CREDIT: 'V.Credit',
   COFFEE_COUPON: '커피 쿠폰',
   GOODS: '굿즈',
 }
@@ -84,7 +84,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [choicePending, setChoicePending] = useState(false)
   /** 보상 선택 후 확인 대기 (이걸로 하시겠어요?) */
-  const [confirmingReward, setConfirmingReward] = useState<'V_POINT' | 'COFFEE_COUPON' | 'GOODS' | null>(null)
+  const [confirmingReward, setConfirmingReward] = useState<'V_CREDIT' | 'COFFEE_COUPON' | 'GOODS' | null>(null)
 
   // 모달/이벤트 변경 시 최신 값 유지 (늦게 도착한 응답 무시용)
   const latestRef = useRef({ isOpen, eventId })
@@ -212,7 +212,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     setTimeout(() => onClose(), 1500)
   }
 
-  const handleRewardChoice = async (rewardKind: 'V_POINT' | 'COFFEE_COUPON' | 'GOODS') => {
+  const handleRewardChoice = async (rewardKind: 'V_CREDIT' | 'COFFEE_COUPON' | 'GOODS') => {
     if (!data?.pendingChoiceSubmission) return
     setChoicePending(true)
     setError(null)
@@ -330,7 +330,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       className="rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-green-400 hover:bg-green-50 disabled:opacity-50"
                     >
                       {REWARD_KIND_LABEL[opt.reward_kind] ?? opt.reward_kind}
-                      {opt.reward_kind === 'V_POINT' && opt.amount != null && (
+                      {opt.reward_kind === 'V_CREDIT' && opt.amount != null && (
                         <span className="ml-2 text-green-600"> {opt.amount} P</span>
                       )}
                       {opt.reward_kind === 'COFFEE_COUPON' && opt.amount != null && (
@@ -355,8 +355,8 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                 <div className="rounded-xl border-2 border-green-200 bg-green-50/50 px-4 py-3">
                   <p className="text-sm font-medium text-gray-800">
                     {REWARD_KIND_LABEL[confirmingReward] ?? confirmingReward}
-                    {confirmingReward === 'V_POINT' && (() => {
-                      const opt = data.rewardOptions.find((o) => o.reward_kind === 'V_POINT')
+                    {confirmingReward === 'V_CREDIT' && (() => {
+                      const opt = data.rewardOptions.find((o) => o.reward_kind === 'V_CREDIT')
                       return opt?.amount != null ? ` ${opt.amount} P` : ''
                     })()}
                     {confirmingReward === 'COFFEE_COUPON' && (() => {
@@ -650,7 +650,9 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       )
                     }
                     const raw = formData[m.method_id] ?? ''
-                      return (
+                    const isChoice = m.input_style === 'CHOICE'
+                    const choiceOptions = (m.options ?? []).filter((o) => typeof o === 'string' && o.trim())
+                    return (
                       <div
                         key={m.method_id}
                         className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
@@ -658,7 +660,28 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         <label className="mb-2 block text-sm font-bold text-gray-800">
                           {(m.label?.trim() || m.instruction?.trim() || m.placeholder?.trim()) ?? '입력하세요'}
                         </label>
-                        {isShort ? (
+                        {isChoice ? (
+                          <div className="space-y-2">
+                            {choiceOptions.map((opt) => (
+                              <label
+                                key={opt}
+                                className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 transition hover:border-green-300 hover:bg-green-50/30 has-[:checked]:border-green-500 has-[:checked]:bg-green-50/50"
+                              >
+                                <input
+                                  type="radio"
+                                  name={m.method_id}
+                                  value={opt}
+                                  checked={raw === opt}
+                                  onChange={() =>
+                                    setFormData((prev) => ({ ...prev, [m.method_id]: opt }))
+                                  }
+                                  className="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500"
+                                />
+                                <span className="text-sm font-medium text-gray-800">{opt}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : isShort ? (
                           <input
                             type="text"
                             value={raw}

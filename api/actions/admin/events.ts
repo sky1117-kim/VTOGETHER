@@ -9,11 +9,11 @@ export type EventRow = {
   title: string
   description: string | null
   short_description: string | null
-  category: 'V_TOGETHER' | 'CULTURE'
+  category: 'V_TOGETHER' | 'PEOPLE'
   type: 'ALWAYS' | 'SEASONAL'
   reward_policy: 'SENDER_ONLY' | 'BOTH'
   /** 레거시 단일 보상. null이면 event_rewards 사용(복수 보상) */
-  reward_type: 'POINTS' | 'COUPON' | 'CHOICE' | null
+  reward_type: 'V_CREDIT' | 'COUPON' | 'CHOICE' | null
   reward_amount: number | null
   image_url: string | null
   status: 'ACTIVE' | 'PAUSED' | 'ENDED'
@@ -56,7 +56,7 @@ export type EventRoundRow = {
 export type EventRewardRow = {
   reward_id: string
   event_id: string
-  reward_kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'
+  reward_kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'
   amount: number | null
   display_order: number
 }
@@ -135,13 +135,14 @@ export type EventCopySource = {
     EventRow,
     'title' | 'short_description' | 'description' | 'category' | 'type' | 'reward_policy' | 'image_url' | 'frequency_limit'
   >
-  rewards: { reward_kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: number | null }[]
+  rewards: { reward_kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: number | null }[]
   verification_methods: {
     method_type: VerificationMethodInput['method_type']
     instruction: string | null
-    input_style: 'SHORT' | 'LONG' | null
+    input_style: 'SHORT' | 'LONG' | 'CHOICE' | null
     label: string | null
     unit: string | null
+    options: string[] | null
   }[]
 }
 
@@ -169,16 +170,17 @@ export async function getEventForCopy(eventId: string): Promise<{
     const rewards = (rewardsData ?? []) as EventCopySource['rewards']
     const { data: methodsData } = await supabase
       .from('event_verification_methods')
-      .select('method_type, instruction, input_style, label, unit')
+      .select('method_type, instruction, input_style, label, unit, options')
       .eq('event_id', eventId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true })
     const verification_methods = (methodsData ?? []).map((m) => ({
       method_type: m.method_type as EventCopySource['verification_methods'][0]['method_type'],
       instruction: m.instruction ?? null,
-      input_style: (m.input_style === 'SHORT' || m.input_style === 'LONG' ? m.input_style : null) as 'SHORT' | 'LONG' | null,
+      input_style: (m.input_style === 'SHORT' || m.input_style === 'LONG' || m.input_style === 'CHOICE' ? m.input_style : null) as 'SHORT' | 'LONG' | 'CHOICE' | null,
       label: m.label ?? null,
       unit: m.unit ?? null,
+      options: Array.isArray(m.options) ? m.options : (m.options ? [String(m.options)] : null),
     }))
     return {
       data: {
@@ -200,15 +202,17 @@ export type VerificationMethodInput = {
   placeholder?: string | null
   /** 직원에게 보여줄 인증 안내 (예: 이런 이런 사진을 제출하세요) */
   instruction?: string | null
-  /** 단답(SHORT)=한 줄, 장문(LONG)=여러 줄. TEXT용 (VALUE는 숫자만 입력) */
-  input_style?: 'SHORT' | 'LONG' | null
+  /** 단답(SHORT)=한 줄, 장문(LONG)=여러 줄, 객관식(CHOICE)=정해진 선택지 중 선택. TEXT용 */
+  input_style?: 'SHORT' | 'LONG' | 'CHOICE' | null
+  /** 객관식(CHOICE)일 때만. 관리자가 정한 선택지 배열 */
+  options?: string[] | null
   /** 숫자(VALUE)용. 단위 (예: km/h, km). 선택 또는 직접 입력 */
   unit?: string | null
 }
 
-/** 보상 1건. 복수 선택 가능. V_POINT/COFFEE_COUPON은 amount 필수, GOODS는 없음 */
+/** 보상 1건. 복수 선택 가능. V_CREDIT/COFFEE_COUPON은 amount 필수, GOODS는 없음 */
 export type EventRewardInput = {
-  reward_kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'
+  reward_kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'
   amount?: number | null
 }
 
@@ -216,10 +220,10 @@ export type CreateEventInput = {
   title: string
   description?: string | null
   short_description?: string | null
-  category: 'V_TOGETHER' | 'CULTURE'
+  category: 'V_TOGETHER' | 'PEOPLE'
   type: 'ALWAYS' | 'SEASONAL'
   reward_policy: 'SENDER_ONLY' | 'BOTH'
-  /** 복수 보상 (V.Point, 굿즈, 커피쿠폰). 1개 이상 필수 */
+  /** 복수 보상 (V.Credit, 굿즈, 커피쿠폰). 1개 이상 필수 */
   rewards: EventRewardInput[]
   image_url?: string | null
   status?: 'ACTIVE' | 'PAUSED' | 'ENDED'
@@ -236,8 +240,8 @@ export async function createEvent(
   if (!title?.trim()) return { eventId: null, error: '제목을 입력하세요.' }
   if (!rewards?.length) return { eventId: null, error: '보상을 1개 이상 선택하세요.' }
   for (const r of rewards) {
-    if ((r.reward_kind === 'V_POINT' || r.reward_kind === 'COFFEE_COUPON') && (r.amount == null || Number(r.amount) < 0))
-      return { eventId: null, error: 'V.Point·커피쿠폰은 금액(수량)을 입력하세요.' }
+    if ((r.reward_kind === 'V_CREDIT' || r.reward_kind === 'COFFEE_COUPON') && (r.amount == null || Number(r.amount) < 0))
+      return { eventId: null, error: 'V.Credit·커피쿠폰은 금액(수량)을 입력하세요.' }
   }
   if (!verification_methods?.length) return { eventId: null, error: '인증 방식을 1개 이상 추가하세요.' }
 
@@ -289,6 +293,13 @@ export async function createEvent(
         placeholder: m.placeholder?.trim() || null,
         instruction: m.instruction?.trim() || null,
         input_style: m.input_style ?? null,
+        options:
+          m.input_style === 'CHOICE' && Array.isArray(m.options)
+            ? (() => {
+                const f = m.options!.filter((o): o is string => typeof o === 'string' && o.trim())
+                return f.length > 0 ? f : null
+              })()
+            : null,
         unit: m.method_type === 'VALUE' ? (m.unit?.trim() || null) : null,
       })
       if (methodError) {
@@ -344,7 +355,7 @@ export async function updateEventSafeFields(
   }
 }
 
-/** 보상 금액 수정 1건 (V_POINT, COFFEE_COUPON만. GOODS는 금액 없음) */
+/** 보상 금액 수정 1건 (V_CREDIT, COFFEE_COUPON만. GOODS는 금액 없음) */
 export type UpdateEventRewardAmountInput = { reward_id: string; amount: number }
 
 /** 관리자: 이벤트 보상 금액만 수정 (이미 지급된 건 기존 금액 유지, 이후 인증 통과분부터 새 금액 적용) */
@@ -532,7 +543,7 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
     const methods = (methodsRes.data ?? []) as { method_id: string; method_type: string }[]
 
     const STATUS_LABEL: Record<string, string> = { PENDING: '승인대기', APPROVED: '승인', REJECTED: '반려' }
-    const REWARD_LABEL: Record<string, string> = { POINTS: 'V.Point', COFFEE_COUPON: '커피쿠폰', GOODS: '굿즈', COUPON: '쿠폰' }
+    const REWARD_LABEL: Record<string, string> = { V_CREDIT: 'V.Credit', POINTS: 'V.Credit', COFFEE_COUPON: '커피쿠폰', GOODS: '굿즈', COUPON: '쿠폰' }
 
     const data: EventSubmissionExportRow[] = submissions.map((s) => {
       const round = s.round_id ? roundMap.get(s.round_id) : null

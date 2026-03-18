@@ -152,10 +152,10 @@ export interface Database {
           title: string
           description: string | null
           short_description: string | null
-          category: 'V_TOGETHER' | 'CULTURE'
+          category: 'V_TOGETHER' | 'PEOPLE'
           type: 'ALWAYS' | 'SEASONAL'
           reward_policy: 'SENDER_ONLY' | 'BOTH'
-          reward_type: 'POINTS' | 'COUPON' | 'CHOICE'
+          reward_type: 'V_CREDIT' | 'COUPON' | 'CHOICE'
           reward_amount: number | null
           image_url: string | null
           status: 'ACTIVE' | 'PAUSED' | 'ENDED'
@@ -169,10 +169,10 @@ export interface Database {
           title: string
           description?: string | null
           short_description?: string | null
-          category: 'V_TOGETHER' | 'CULTURE'
+          category: 'V_TOGETHER' | 'PEOPLE'
           type: 'ALWAYS' | 'SEASONAL'
           reward_policy: 'SENDER_ONLY' | 'BOTH'
-          reward_type: 'POINTS' | 'COUPON' | 'CHOICE'
+          reward_type: 'V_CREDIT' | 'COUPON' | 'CHOICE'
           reward_amount?: number | null
           image_url?: string | null
           status?: 'ACTIVE' | 'PAUSED' | 'ENDED'
@@ -185,10 +185,10 @@ export interface Database {
           title?: string
           description?: string | null
           short_description?: string | null
-          category?: 'V_TOGETHER' | 'CULTURE'
+          category?: 'V_TOGETHER' | 'PEOPLE'
           type?: 'ALWAYS' | 'SEASONAL'
           reward_policy?: 'SENDER_ONLY' | 'BOTH'
-          reward_type?: 'POINTS' | 'COUPON' | 'CHOICE'
+          reward_type?: 'V_CREDIT' | 'COUPON' | 'CHOICE'
           reward_amount?: number | null
           image_url?: string | null
           status?: 'ACTIVE' | 'PAUSED' | 'ENDED'

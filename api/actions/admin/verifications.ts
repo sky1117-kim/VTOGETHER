@@ -201,20 +201,20 @@ export async function approveSubmission(submissionId: string): Promise<{
       roundNumber = round?.round_number ?? null
     }
 
-    // V.Point 금액 산정: 레거시(event.reward_type) 또는 event_rewards의 V_POINT 합계. 구간제면 해당 구간 reward_amount 우선.
+    // V.Credit 금액 산정: 레거시(event.reward_type) 또는 event_rewards의 V_CREDIT 합계. 구간제면 해당 구간 reward_amount 우선.
     let rewardAmount = 0
     if (event.reward_type != null && event.reward_type !== 'CHOICE') {
       rewardAmount = Number(event.reward_amount ?? 0)
       if (roundRewardAmount != null) rewardAmount = Number(roundRewardAmount)
     }
     if (rewardAmount === 0) {
-      const pointRewards = rewards.filter((r) => r.reward_kind === 'V_POINT' && r.amount != null)
+      const pointRewards = rewards.filter((r) => r.reward_kind === 'V_CREDIT' && r.amount != null)
       rewardAmount = pointRewards.reduce((sum, r) => sum + Number(r.amount ?? 0), 0)
       if (roundRewardAmount != null && rewardAmount === 0) rewardAmount = Number(roundRewardAmount)
     }
 
     // 복수 보상/CHOICE: 사용자가 선택하므로 승인 시점에 지급하지 않음
-    // 단일 보상만: V.Point 즉시 지급 또는 쿠폰/굿즈 수령 처리
+    // 단일 보상만: V.Credit 즉시 지급 또는 쿠폰/굿즈 수령 처리
     const isPoints = rewardAmount > 0
     // 단일 비포인트 보상(쿠폰/굿즈 1종): 승인 시 바로 수령 처리하여 관리자 발송 대상에 올림
     const singleNonPointReward = !isChoiceEvent && !isPoints && rewards.length === 1 ? rewards[0]!.reward_kind : null
@@ -272,7 +272,7 @@ export async function approveSubmission(submissionId: string): Promise<{
     const finalRewardReceived = isChoiceEvent ? false : (isPoints || !!singleNonPointReward)
     const finalRewardType = (isChoiceEvent && !isPoints)
       ? null
-      : (isPoints ? 'POINTS' : (singleNonPointReward ?? event.reward_type ?? null))
+      : (isPoints ? 'V_CREDIT' : (singleNonPointReward ?? event.reward_type ?? null))
     const finalRewardAmount = (isChoiceEvent && !isPoints) ? null : (isPoints ? rewardAmount : null)
 
     const { error: updateSubErr } = await supabase

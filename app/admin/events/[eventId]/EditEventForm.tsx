@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateEventSafeFields, updateEventRewardAmounts } from '@/api/actions/admin/events'
+import { uploadEventRepresentativeImage } from '@/api/actions/events'
 import type { EventRow, EventRewardRow } from '@/api/actions/admin/events'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
 
@@ -18,7 +19,7 @@ const STATUS_OPTIONS: { value: EventRow['status']; label: string }[] = [
 ]
 
 const REWARD_KIND_LABEL: Record<EventRewardRow['reward_kind'], string> = {
-  V_POINT: 'V.Point (P)',
+  V_CREDIT: 'V.Credit (P)',
   COFFEE_COUPON: '커피 쿠폰 (매수)',
   GOODS: '굿즈',
 }
@@ -27,7 +28,7 @@ const REWARD_KIND_LABEL: Record<EventRewardRow['reward_kind'], string> = {
 interface EditEventFormProps {
   eventId: string
   event: Pick<EventRow, 'title' | 'description' | 'short_description' | 'image_url' | 'status'>
-  /** 이벤트 보상 목록. V.Point·커피쿠폰 금액 수정 가능 (이미 지급된 건 기존 금액, 이후부터 새 금액 적용) */
+  /** 이벤트 보상 목록. V.Credit·커피쿠폰 금액 수정 가능 (이미 지급된 건 기존 금액, 이후부터 새 금액 적용) */
   rewards?: EventRewardRow[]
 }
 
@@ -40,9 +41,28 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
   const [description, setDescription] = useState(event.description ?? '')
   const [shortDescription, setShortDescription] = useState(event.short_description ?? '')
   const [imageUrl, setImageUrl] = useState(event.image_url ?? '')
+  const [imageUploading, setImageUploading] = useState(false)
   const [status, setStatus] = useState<EventRow['status']>(event.status)
 
-  const amountRewards = rewards.filter((r) => r.reward_kind === 'V_POINT' || r.reward_kind === 'COFFEE_COUPON')
+  /** 대표 이미지 파일 업로드 후 URL 설정 */
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageUploading(true)
+    setMessage(null)
+    const fd = new FormData()
+    fd.set('file', file)
+    const result = await uploadEventRepresentativeImage(fd)
+    setImageUploading(false)
+    e.target.value = ''
+    if (result.error) {
+      setMessage({ type: 'error', text: result.error })
+      return
+    }
+    if (result.url) setImageUrl(result.url)
+  }
+
+  const amountRewards = rewards.filter((r) => r.reward_kind === 'V_CREDIT' || r.reward_kind === 'COFFEE_COUPON')
   const [rewardAmounts, setRewardAmounts] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {}
     for (const r of amountRewards) {
@@ -143,16 +163,31 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
 
       <div>
         <label htmlFor="edit-image-url" className={labelClass}>
-          대표 이미지 URL (선택)
+          대표 이미지 (선택)
         </label>
-        <input
-          id="edit-image-url"
-          type="url"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          className={inputClass}
-          placeholder="https://..."
-        />
+        <p className="mt-0.5 mb-1 text-xs text-gray-500">
+          URL을 입력하거나 이미지 파일을 첨부하세요.
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <input
+            id="edit-image-url"
+            type="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
+            placeholder="https://..."
+          />
+          <label className="cursor-pointer rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleImageUpload}
+              disabled={imageUploading}
+              className="sr-only"
+            />
+            {imageUploading ? '업로드 중…' : '이미지 첨부'}
+          </label>
+        </div>
         {imageUrl.trim() && (
           <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
             <img
@@ -185,7 +220,7 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
 
       {amountRewards.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-          <p className="mb-3 text-sm font-bold text-gray-700">보상 금액 (V.Point · 커피 쿠폰)</p>
+          <p className="mb-3 text-sm font-bold text-gray-700">보상 금액 (V.Credit · 커피 쿠폰)</p>
           <p className="mb-3 text-xs text-gray-500">
             이미 지급된 보상은 기존 금액 그대로이며, 이후 인증 통과분부터 새 금액이 적용됩니다.
           </p>

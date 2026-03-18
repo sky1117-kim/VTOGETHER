@@ -15,10 +15,10 @@ CREATE TABLE campaigns (
   campaign_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   description TEXT,
-  category TEXT NOT NULL CHECK (category IN ('V_TOGETHER', 'CULTURE')),
+  category TEXT NOT NULL CHECK (category IN ('V_TOGETHER', 'PEOPLE')),
   type TEXT NOT NULL CHECK (type IN ('ALWAYS', 'SEASONAL')),
   reward_policy TEXT NOT NULL CHECK (reward_policy IN ('SENDER_ONLY', 'BOTH')),
-  reward_type TEXT NOT NULL CHECK (reward_type IN ('POINTS', 'COUPON', 'CHOICE')),
+  reward_type TEXT NOT NULL CHECK (reward_type IN ('V_CREDIT', 'COUPON', 'CHOICE')),
   reward_amount INTEGER, -- 포인트 보상 금액 (쿠폰일 경우 NULL)
   image_url TEXT,
   status TEXT DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'PAUSED', 'ENDED')),
@@ -86,7 +86,7 @@ CREATE TABLE campaign_submissions (
 - `/admin/verifications` - 인증 심사 센터 (대량 승인/반려)
 
 ### 3.2 사용자 페이지
-- `/campaigns` - 챌린지 목록 (필터: 전체/V.Together/Culture)
+- `/campaigns` - 챌린지 목록 (필터: 전체/V.Together/People)
 - `/campaigns/[id]` - 챌린지 상세 및 참여 모달
 
 ## 4. 주요 기능 구현 계획

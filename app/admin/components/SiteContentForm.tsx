@@ -10,7 +10,7 @@ interface SiteContentFormProps {
 const KEYS: { key: SiteContentKey; label: string; placeholder: string }[] = [
   { key: 'hero_season_badge', label: '시즌 뱃지', placeholder: '예: 2026 Season 1' },
   { key: 'hero_title', label: '메인 타이틀 (줄바꿈: \\n)', placeholder: '나의 활동이\\n세상의 기회가 되도록' },
-  { key: 'hero_subtitle', label: '부제목 (줄바꿈: \\n)', placeholder: '획득한 V.Point로 기부하고\\n나의 ESG Level을 올려보세요!' },
+  { key: 'hero_subtitle', label: '부제목 (줄바꿈: \\n)', placeholder: '획득한 V.Credit로 기부하고\\n나의 ESG Level을 올려보세요!' },
 ]
 
 export function SiteContentForm({ initial }: SiteContentFormProps) {

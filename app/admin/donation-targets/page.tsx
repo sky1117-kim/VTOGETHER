@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
 import { formatPoints } from '@/lib/formatPoints'
+import { TARGET_DISPLAY_NAMES } from '@/constants/donationTargets'
+import { AdminPageHeader } from '../components/AdminPageHeader'
 import { TargetAmountEdit } from './components/TargetAmountEdit'
 import { OfflineDonationForm } from './components/OfflineDonationForm'
 
@@ -10,20 +12,19 @@ export default async function AdminDonationTargetsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">기부처 관리</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            목표 금액 수정 및 오프라인 성금 합산을 할 수 있습니다.
-          </p>
-        </div>
-        <Link
-          href="/admin"
-          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-        >
-          대시보드로
-        </Link>
-      </div>
+      <AdminPageHeader
+        title="기부처 관리"
+        description="목표 금액 수정 및 오프라인 성금 합산을 할 수 있습니다."
+        breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '기부처' }]}
+        actions={
+          <Link
+            href="/admin"
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            대시보드로
+          </Link>
+        }
+      />
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -32,8 +33,15 @@ export default async function AdminDonationTargetsPage() {
       )}
 
       {list.length === 0 && !error && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-500">
-          등록된 기부처가 없습니다.
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-12 text-center">
+          <p className="text-base font-medium text-gray-600">등록된 기부처가 없습니다.</p>
+          <p className="mt-1 text-sm text-gray-500">시드 데이터 또는 마이그레이션을 확인해 주세요.</p>
+          <Link
+            href="/admin"
+            className="mt-4 inline-block text-sm font-semibold text-green-600 hover:text-green-700"
+          >
+            대시보드로 돌아가기 →
+          </Link>
         </div>
       )}
 
@@ -57,7 +65,9 @@ export default async function AdminDonationTargetsPage() {
                   const progress = t.target_amount > 0 ? (t.current_amount / t.target_amount) * 100 : 0
                   return (
                     <tr key={t.target_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 font-medium text-gray-900">{t.name}</td>
+                      <td className="px-4 py-4 font-medium text-gray-900">
+                        {TARGET_DISPLAY_NAMES[t.name] ?? t.name}
+                      </td>
                       <td className="px-4 py-4 text-right tabular-nums text-gray-700">
                         {formatPoints(t.target_amount)}
                       </td>

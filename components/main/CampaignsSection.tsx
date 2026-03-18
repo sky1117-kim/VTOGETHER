@@ -6,14 +6,14 @@ import { EventVerifyModal } from './EventVerifyModal'
 import { EventInfoModal } from './EventInfoModal'
 import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/events'
 
-type Tab = 'ALL' | 'V.Together' | 'Culture'
+type Tab = 'ALL' | 'V.Together' | 'People'
 
 /** DB에서 내려오는 이벤트 (getEventsWithRoundsForPublic) */
 export type PublicEvent = {
   event_id: string
   title: string
   description: string | null
-  category: 'V_TOGETHER' | 'CULTURE'
+  category: 'V_TOGETHER' | 'PEOPLE'
   type: string
   image_url?: string | null
   rounds_count?: number
@@ -23,12 +23,13 @@ export type PublicEvent = {
 
 const CATEGORY_DISPLAY: Record<string, Tab> = {
   V_TOGETHER: 'V.Together',
-  CULTURE: 'Culture',
+  PEOPLE: 'People',
+  CULTURE: 'People', // 레거시: 마이그레이션 029 전 데이터
 }
 
 const CATEGORY_ICON: Record<string, string> = {
   V_TOGETHER: '🚶',
-  CULTURE: '💬',
+  PEOPLE: '💬',
 }
 
 const FADE_DURATION_MS = 220
@@ -109,7 +110,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           <p className="mt-1 text-gray-500">참여하고 포인트를 획득하세요.</p>
         </div>
         <div className="flex flex-wrap gap-2 rounded-xl bg-white/60 p-1.5 shadow-soft backdrop-blur-sm">
-          {(['ALL', 'V.Together', 'Culture'] as const).map((tab) => (
+          {(['ALL', 'V.Together', 'People'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleFilterChange(tab)}
@@ -159,7 +160,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                     <h3 className="text-lg font-bold leading-tight">{c.title}</h3>
                     <span
                       className={`shrink-0 rounded px-1.5 text-[10px] font-bold ${
-                        c.category === 'Culture'
+                        c.category === 'People'
                           ? 'bg-purple-100 text-purple-600'
                           : 'bg-green-100 text-green-600'
                       }`}

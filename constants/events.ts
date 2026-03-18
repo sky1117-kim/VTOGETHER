@@ -2,7 +2,7 @@
 
 export const EVENT_CATEGORIES = [
   { value: 'V_TOGETHER' as const, label: 'V.Together' },
-  { value: 'CULTURE' as const, label: 'Culture' },
+  { value: 'PEOPLE' as const, label: 'People' },
 ] as const
 
 export const EVENT_TYPES = [
@@ -38,9 +38,9 @@ export const REWARD_POLICIES = [
   { value: 'BOTH' as const, label: '참여자 + 수신자 지급 (칭찬 챌린지)' },
 ] as const
 
-/** 보상 유형: 하나만 선택 가능 또는 복수 선택. 굿즈는 금액 없음, V.Point·커피쿠폰은 금액 필수 */
+/** 보상 유형: 하나만 선택 가능 또는 복수 선택. 굿즈는 금액 없음, V.Credit·커피쿠폰은 금액 필수 */
 export const REWARD_KINDS = [
-  { value: 'V_POINT' as const, label: 'V.Point', needsAmount: true },
+  { value: 'V_CREDIT' as const, label: 'V.Credit', needsAmount: true },
   { value: 'GOODS' as const, label: '굿즈', needsAmount: false },
   { value: 'COFFEE_COUPON' as const, label: '커피쿠폰', needsAmount: true },
 ] as const

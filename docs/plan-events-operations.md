@@ -71,10 +71,10 @@ function getRoundStatus(
 
 - 이벤트/구간의 `reward_type = 'CHOICE'`인 경우:
   - 상태가 **APPROVED**일 때 [보상 선택] 버튼 노출.
-  - 사용자가 **POINT** vs **COUPON** 중 택 1 → 선택한 값으로 `event_submissions.reward_type`, `reward_amount`(포인트일 때) 업데이트 후 지급 처리.
+  - 사용자가 **V.Credit** vs **COUPON** 중 택 1 → 선택한 값으로 `event_submissions.reward_type`, `reward_amount`(V.Credit일 때) 업데이트 후 지급 처리.
   - 지급 완료 후 `reward_received = true` → 상태 **DONE**.
 
-- 단일 보상(POINTS/COUPON)이면 [보상 받기] 한 번에 지급 후 `reward_received = true`.
+- 단일 보상(V_CREDIT/COUPON)이면 [보상 받기] 한 번에 지급 후 `reward_received = true`.
 
 ---
 

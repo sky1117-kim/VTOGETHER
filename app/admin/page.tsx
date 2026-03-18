@@ -9,6 +9,7 @@ import { GrantPointsForm } from './components/GrantPointsForm'
 import { SiteContentForm } from './components/SiteContentForm'
 import { ResetTestDataButton } from './components/ResetTestDataButton'
 import { AdminUserTable } from './components/AdminUserTable'
+import { AdminSection } from './components/AdminSection'
 import { DonationByTargetPie } from './components/DonationByTargetPie'
 import { UserLevelPie } from './components/UserLevelPie'
 import { DonationPeriodPie } from './components/DonationPeriodPie'
@@ -153,25 +154,25 @@ export default async function AdminPage() {
         </Link>
       </section>
 
-      {/* 이벤트 적립 현황: Culture 매칭 / V.Together (매칭 없음) */}
+      {/* 이벤트 적립 현황: People 매칭 / V.Together (매칭 없음) */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-800">이벤트 적립 현황</h3>
         <p className="mb-4 text-xs text-gray-500">
-          Culture 이벤트 적립분은 회사 매칭 대상, V.Together는 매칭 없음
+          People 이벤트 적립분은 회사 매칭 대상, V.Together는 매칭 없음
         </p>
         {eventEarnedStats.error ? (
           <p className="text-sm text-red-500">{eventEarnedStats.error}</p>
         ) : (
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">Culture V.Point</dt>
+              <dt className="text-xs font-medium text-gray-500">People V.Credit</dt>
               <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
-                {formatPoints(eventEarnedStats.cultureEarned)}
+                {formatPoints(eventEarnedStats.peopleEarned)}
               </dd>
               <p className="mt-0.5 text-xs text-gray-500">매칭 대상</p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">V.Together V.Point</dt>
+              <dt className="text-xs font-medium text-gray-500">V.Together V.Credit</dt>
               <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
                 {formatPoints(eventEarnedStats.vTogetherEarned)}
               </dd>
@@ -182,10 +183,10 @@ export default async function AdminPage() {
               <dd className="mt-1 text-xl font-bold tabular-nums text-amber-800">
                 {formatPoints(eventEarnedStats.matchingAmount)}
               </dd>
-              <p className="mt-0.5 text-xs text-amber-600">Culture 적립분과 동일</p>
+              <p className="mt-0.5 text-xs text-amber-600">People 적립분과 동일</p>
             </div>
             <div className="rounded-lg border border-green-100 bg-green-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">전체 V.Point 적립</dt>
+              <dt className="text-xs font-medium text-gray-500">전체 V.Credit 적립</dt>
               <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
                 {formatPoints(eventEarnedStats.totalEarned)}
               </dd>
@@ -196,7 +197,7 @@ export default async function AdminPage() {
               <dd className="mt-1 text-2xl font-bold tabular-nums text-green-800">
                 {formatPoints(eventEarnedStats.totalCollected)}
               </dd>
-              <p className="mt-0.5 text-xs text-green-600">V.Together + Culture + 매칭금</p>
+              <p className="mt-0.5 text-xs text-green-600">V.Together + People + 매칭금</p>
             </div>
           </dl>
         )}
@@ -395,7 +396,15 @@ export default async function AdminPage() {
       {/* 바로가기 */}
       <section>
         <h2 className="mb-4 text-base font-bold text-gray-900">바로가기</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <a
+            href="#admin-settings"
+            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+          >
+            <span className="text-lg font-bold text-gray-900">설정 · 운영</span>
+            <span className="mt-1 text-sm text-gray-500">메인 문구, 포인트 지급, 관리자 설정</span>
+            <span className="mt-3 text-sm font-medium text-green-600">열기 →</span>
+          </a>
           <Link
             href="/admin/events"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
@@ -423,49 +432,54 @@ export default async function AdminPage() {
         </div>
       </section>
 
-      {/* 설정·운영 */}
-      <section className="space-y-6">
-        <h2 className="text-base font-bold text-gray-900">설정 · 운영</h2>
-
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-2 font-bold text-gray-900">메인 화면 문구</h3>
-          <p className="mb-4 text-sm text-gray-500">
-            히어로 영역 시즌 뱃지·타이틀·부제목. 줄바꿈은 <code className="rounded bg-gray-100 px-1">\n</code> 입력.
-          </p>
-          <SiteContentForm initial={siteContent} />
-        </div>
-
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 font-bold text-gray-900">포인트 지급</h3>
-          {usersError && <p className="mb-4 text-sm text-red-600">{usersError}</p>}
-          <GrantPointsForm users={userList} />
-          {userList.length === 0 && (
-            <p className="mt-3 text-sm text-amber-700">
-              사용자 목록이 비어 있으면 메인에서 <strong>로그인</strong> 한 번 해 주세요.
+      {/* 설정·운영: 접기/펼치기로 화면 정리 */}
+      <AdminSection
+        id="admin-settings"
+        title="설정 · 운영"
+        description="메인 문구, 포인트 지급, 관리자 설정, 테스트 데이터"
+        defaultOpen={false}
+      >
+        <div className="space-y-6">
+          <div>
+            <h3 className="mb-2 font-bold text-gray-900">메인 화면 문구</h3>
+            <p className="mb-4 text-sm text-gray-500">
+              히어로 영역 시즌 뱃지·타이틀·부제목. 줄바꿈은 <code className="rounded bg-gray-100 px-1">\n</code> 입력.
             </p>
-          )}
-        </div>
+            <SiteContentForm initial={siteContent} />
+          </div>
 
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-            <h3 className="font-bold text-gray-900">관리자 계정</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              체크를 켜면 해당 사용자가 관리자 페이지 접근·이벤트 관리가 가능합니다.
+          <div className="border-t border-gray-100 pt-6">
+            <h3 className="mb-4 font-bold text-gray-900">포인트 지급</h3>
+            {usersError && <p className="mb-4 text-sm text-red-600">{usersError}</p>}
+            <GrantPointsForm users={userList} />
+            {userList.length === 0 && (
+              <p className="mt-3 text-sm text-amber-700">
+                사용자 목록이 비어 있으면 메인에서 <strong>로그인</strong> 한 번 해 주세요.
+              </p>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-gray-200">
+            <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+              <h3 className="font-bold text-gray-900">관리자 계정</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                체크를 켜면 해당 사용자가 관리자 페이지 접근·이벤트 관리가 가능합니다.
+              </p>
+            </div>
+            <div className="p-4 sm:p-6">
+              <AdminUserTable users={userList} currentUserId={currentUserId} />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-6">
+            <h3 className="mb-2 font-bold text-gray-900">테스트 데이터 초기화</h3>
+            <p className="mb-4 text-sm text-gray-600">
+              포인트·기부 내역 초기화 후 테스트용 데이터로 채웁니다.
             </p>
-          </div>
-          <div className="p-4 sm:p-6">
-            <AdminUserTable users={userList} currentUserId={currentUserId} />
+            <ResetTestDataButton />
           </div>
         </div>
-
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 shadow-sm">
-          <h3 className="mb-2 font-bold text-gray-900">테스트 데이터 초기화</h3>
-          <p className="mb-4 text-sm text-gray-600">
-            포인트·기부 내역 초기화 후 테스트용 데이터로 채웁니다.
-          </p>
-          <ResetTestDataButton />
-        </div>
-      </section>
+      </AdminSection>
     </div>
   )
 }

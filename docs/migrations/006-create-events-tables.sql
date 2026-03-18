@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS events (
   category TEXT NOT NULL CHECK (category IN ('V_TOGETHER', 'CULTURE')),
   type TEXT NOT NULL CHECK (type IN ('ALWAYS', 'SEASONAL')),
   reward_policy TEXT NOT NULL CHECK (reward_policy IN ('SENDER_ONLY', 'BOTH')),
-  reward_type TEXT NOT NULL CHECK (reward_type IN ('POINTS', 'COUPON', 'CHOICE')),
+  reward_type TEXT NOT NULL CHECK (reward_type IN ('V_CREDIT', 'COUPON', 'CHOICE')),
   reward_amount INTEGER, -- 포인트 보상 금액 (쿠폰일 경우 NULL)
   image_url TEXT,
   status TEXT DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'PAUSED', 'ENDED')),

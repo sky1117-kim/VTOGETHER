@@ -17,6 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { createEvent, createRoundsForMonth, getEventForCopy } from '@/api/actions/admin/events'
+import { uploadEventRepresentativeImage } from '@/api/actions/events'
 import type { VerificationMethodInput, EventRewardInput, EventRow } from '@/api/actions/admin/events'
 import {
   EVENT_CATEGORIES,
@@ -40,7 +41,7 @@ const labelClass = 'block text-sm font-bold text-gray-700'
 
 type VerificationMethodType = VerificationMethodInput['method_type']
 
-/** 인증 항목 1개 (타입 + 제목 + 직원 안내문 + 단답/장문 또는 단위) */
+/** 인증 항목 1개 (타입 + 제목 + 직원 안내문 + 단답/장문/객관식 또는 단위) */
 interface VerificationItem {
   id: string
   method_type: VerificationMethodType
@@ -48,7 +49,9 @@ interface VerificationItem {
   label?: string
   instruction: string
   /** TEXT용. VALUE는 숫자만 입력되므로 사용 안 함 */
-  input_style: 'SHORT' | 'LONG'
+  input_style: 'SHORT' | 'LONG' | 'CHOICE'
+  /** 객관식(CHOICE)일 때만. 관리자가 정한 선택지 배열 */
+  options?: string[]
   /** VALUE용. 단위 (예: km/h, km). 선택 또는 직접 입력 */
   unit?: string
 }
@@ -58,11 +61,12 @@ function buildPayload(
     title: string
     shortDescription: string
     description: string
-    category: 'V_TOGETHER' | 'CULTURE'
+    imageUrl: string
+    category: 'V_TOGETHER' | 'PEOPLE'
     type: 'ALWAYS' | 'SEASONAL'
     frequencyLimit: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
     rewardPolicy: 'SENDER_ONLY' | 'BOTH'
-    selectedRewards: { kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+    selectedRewards: { kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
     verificationItems: VerificationItem[]
   },
   createdBy: string
@@ -76,6 +80,7 @@ function buildPayload(
     is_required: true,
     instruction: item.instruction.trim() || null,
     input_style: item.method_type === 'PHOTO' ? null : item.method_type === 'VALUE' ? null : item.method_type === 'PEER_SELECT' ? null : item.input_style,
+    options: item.input_style === 'CHOICE' && Array.isArray(item.options) ? item.options.filter(Boolean) : null,
     // 제목(label): 모든 방식 공통. VALUE는 항목명(거리/속도 등), 그 외는 사용자 입력 제목. 심사 시 "(제목) - 제출답변" 표시
     label:
       item.method_type === 'VALUE'
@@ -94,6 +99,7 @@ function buildPayload(
     title: state.title.trim(),
     short_description: state.shortDescription.trim() || null,
     description: state.description.trim() || null,
+    image_url: state.imageUrl.trim() || null,
     category: state.category,
     type: state.type,
     reward_policy: state.rewardPolicy,
@@ -112,15 +118,17 @@ function SortableVerificationItem({
   onInputStyleChange,
   onLabelChange,
   onUnitChange,
+  onOptionsChange,
   inputClass,
 }: {
   item: VerificationItem
   index?: number
   onRemove: (id: string) => void
   onInstructionChange: (id: string, instruction: string) => void
-  onInputStyleChange: (id: string, input_style: 'SHORT' | 'LONG') => void
+  onInputStyleChange: (id: string, input_style: 'SHORT' | 'LONG' | 'CHOICE') => void
   onLabelChange: (id: string, label: string) => void
   onUnitChange: (id: string, unit: string) => void
+  onOptionsChange: (id: string, options: string[]) => void
   inputClass: string
 }) {
   const {
@@ -215,17 +223,61 @@ function SortableVerificationItem({
         <p className="mt-0.5 text-xs text-gray-400">비우면 &quot;{methodLabel}&quot;로 표시됩니다.</p>
       </div>
       {item.method_type === 'TEXT' && (
-        <div>
-          <label className="text-xs font-medium text-gray-500">입력 형태</label>
-          <select
-            value={item.input_style}
-            onChange={(e) => onInputStyleChange(item.id, e.target.value as 'SHORT' | 'LONG')}
-            className="mt-1 w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
-          >
-            <option value="SHORT">단답</option>
-            <option value="LONG">장문</option>
-          </select>
-        </div>
+        <>
+          <div>
+            <label className="text-xs font-medium text-gray-500">입력 형태</label>
+            <select
+              value={item.input_style}
+              onChange={(e) => onInputStyleChange(item.id, e.target.value as 'SHORT' | 'LONG' | 'CHOICE')}
+              className="mt-1 w-28 rounded border border-gray-300 px-2 py-1.5 text-xs"
+            >
+              <option value="SHORT">단답</option>
+              <option value="LONG">장문</option>
+              <option value="CHOICE">객관식</option>
+            </select>
+          </div>
+          {item.input_style === 'CHOICE' && (
+            <div>
+              <label className="text-xs font-medium text-gray-500">선택지 (참여자가 고를 수 있는 옵션)</label>
+              <p className="mt-0.5 mb-1 text-xs text-gray-400">+ 버튼으로 선택지를 추가하세요. 최소 2개 이상 필요합니다.</p>
+              <div className="mt-1 space-y-2">
+                {(item.options ?? ['', '']).map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={opt}
+                      onChange={(e) => {
+                        const next = [...(item.options ?? ['', ''])]
+                        next[idx] = e.target.value
+                        onOptionsChange(item.id, next)
+                      }}
+                      placeholder={`선택지 ${idx + 1}`}
+                      className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = (item.options ?? ['', '']).filter((_, i) => i !== idx)
+                        if (next.length < 2) next.push('')
+                        onOptionsChange(item.id, next)
+                      }}
+                      className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => onOptionsChange(item.id, [...(item.options ?? ['', '']), ''])}
+                  className="rounded border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  + 선택지 추가
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
       {item.method_type === 'VALUE' && (
         <>
@@ -282,16 +334,22 @@ function SortableVerificationItem({
 
 function validateForm(state: {
   title: string
-  selectedRewards: { kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+  selectedRewards: { kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
   verificationItems: VerificationItem[]
 }): string | null {
   if (!state.title.trim()) return '제목을 입력하세요.'
   if (state.selectedRewards.length === 0) return '보상을 1개 이상 선택하세요.'
   for (const r of state.selectedRewards) {
     if (r.kind !== 'GOODS' && (!r.amount.trim() || parseInt(r.amount, 10) < 0))
-      return 'V.Point·커피쿠폰은 금액(수량)을 입력하세요.'
+      return 'V.Credit·커피쿠폰은 금액(수량)을 입력하세요.'
   }
   if (state.verificationItems.length === 0) return '인증 방식을 1개 이상 추가하세요.'
+  for (const item of state.verificationItems) {
+    if (item.method_type === 'TEXT' && item.input_style === 'CHOICE') {
+      const validOpts = (item.options ?? []).filter((o) => o.trim())
+      if (validOpts.length < 2) return '객관식 인증은 선택지를 2개 이상 입력해야 합니다.'
+    }
+  }
   return null
 }
 
@@ -311,19 +369,21 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
   const [title, setTitle] = useState('')
   const [shortDescription, setShortDescription] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState<'V_TOGETHER' | 'CULTURE'>('V_TOGETHER')
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageUploading, setImageUploading] = useState(false)
+  const [category, setCategory] = useState<'V_TOGETHER' | 'PEOPLE'>('V_TOGETHER')
   const [type, setType] = useState<'ALWAYS' | 'SEASONAL'>('ALWAYS')
   const [frequencyLimit, setFrequencyLimit] = useState<'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'>('ONCE')
   const [rewardPolicy, setRewardPolicy] = useState<'SENDER_ONLY' | 'BOTH'>('SENDER_ONLY')
   const [selectedRewards, setSelectedRewards] = useState<
-    { kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+    { kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
   >([])
   const [verificationItems, setVerificationItems] = useState<VerificationItem[]>([])
   const now = new Date()
   const [roundYear, setRoundYear] = useState(now.getFullYear())
   const [roundMonth, setRoundMonth] = useState(now.getMonth() + 1)
 
-  const toggleReward = (kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON') => {
+  const toggleReward = (kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON') => {
     setSelectedRewards((prev) => {
       const exists = prev.some((r) => r.kind === kind)
       if (exists) return prev.filter((r) => r.kind !== kind)
@@ -332,7 +392,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
     })
   }
 
-  const setRewardAmount = (kind: 'V_POINT' | 'GOODS' | 'COFFEE_COUPON', value: string) => {
+  const setRewardAmount = (kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON', value: string) => {
     setSelectedRewards((prev) =>
       prev.map((r) => (r.kind === kind ? { ...r, amount: value } : r))
     )
@@ -375,9 +435,18 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       prev.map((item) => (item.id === id ? { ...item, instruction } : item))
     )
   }
-  const setVerificationInputStyle = (id: string, input_style: 'SHORT' | 'LONG') => {
+  const setVerificationInputStyle = (id: string, input_style: 'SHORT' | 'LONG' | 'CHOICE') => {
     setVerificationItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, input_style } : item))
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, input_style, options: input_style === 'CHOICE' ? ['', ''] : undefined }
+          : item
+      )
+    )
+  }
+  const setVerificationOptions = (id: string, options: string[]) => {
+    setVerificationItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, options } : item))
     )
   }
   const setVerificationUnit = (id: string, unit: string) => {
@@ -406,7 +475,8 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       setTitle(ev.title.trim() ? `${ev.title} (복사)` : '')
       setShortDescription(ev.short_description ?? '')
       setDescription(ev.description ?? '')
-      setCategory(ev.category)
+      setImageUrl(ev.image_url ?? '')
+      setCategory(ev.category === 'CULTURE' ? 'PEOPLE' : ev.category)
       setType(ev.type)
       setFrequencyLimit(ev.frequency_limit ?? 'ONCE')
       setRewardPolicy(ev.reward_policy)
@@ -421,9 +491,10 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           id: crypto.randomUUID(),
           method_type: m.method_type,
           instruction: m.instruction ?? '',
-          input_style: m.input_style ?? (m.method_type === 'VALUE' ? 'SHORT' : 'LONG'),
+          input_style: (m.input_style === 'CHOICE' ? 'CHOICE' : m.input_style) ?? (m.method_type === 'VALUE' ? 'SHORT' : 'LONG'),
           label: m.label ?? '',
           unit: m.method_type === 'VALUE' ? (m.unit ?? '') : undefined,
+          options: m.input_style === 'CHOICE' && Array.isArray(m.options) ? m.options : undefined,
         }))
       )
       setMessage({ type: 'ok', text: '기존 이벤트 내용을 불러왔습니다. 필요하면 수정 후 등록하세요.' })
@@ -436,12 +507,31 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
     title,
     shortDescription,
     description,
+    imageUrl,
     category,
     type,
     frequencyLimit,
     rewardPolicy,
     selectedRewards,
     verificationItems,
+  }
+
+  /** 대표 이미지 파일 업로드 후 URL 설정 */
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageUploading(true)
+    setMessage(null)
+    const fd = new FormData()
+    fd.set('file', file)
+    const result = await uploadEventRepresentativeImage(fd)
+    setImageUploading(false)
+    e.target.value = ''
+    if (result.error) {
+      setMessage({ type: 'error', text: result.error })
+      return
+    }
+    if (result.url) setImageUrl(result.url)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -542,6 +632,41 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
             <p className="mt-1 text-xs text-gray-500">한 줄 요약. 카드와 목록에만 보입니다. (최대 120자)</p>
           </div>
           <div className="sm:col-span-2">
+            <label className={labelClass}>대표 이미지 (선택)</label>
+            <p className="mt-0.5 mb-1 text-xs text-gray-500">
+              URL을 입력하거나 이미지 파일을 첨부하세요. 카드·목록에 표시됩니다.
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                placeholder="https://..."
+              />
+              <label className="cursor-pointer rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleImageUpload}
+                  disabled={imageUploading}
+                  className="sr-only"
+                />
+                {imageUploading ? '업로드 중…' : '이미지 첨부'}
+              </label>
+            </div>
+            {imageUrl.trim() && (
+              <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                <img
+                  src={imageUrl}
+                  alt="대표 이미지 미리보기"
+                  className="max-h-40 w-full object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              </div>
+            )}
+          </div>
+          <div className="sm:col-span-2">
             <label className={labelClass}>전체 소개 (상세 보기)</label>
             <p className="mt-0.5 mb-1 text-xs text-gray-500">
               글자 선택 후 ⌘B(굵게)·⌘I(기울임) 또는 툴바 버튼 — 입력창에서 바로 반영됩니다
@@ -558,7 +683,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
             <label className={labelClass}>카테고리</label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as 'V_TOGETHER' | 'CULTURE')}
+              onChange={(e) => setCategory(e.target.value as 'V_TOGETHER' | 'PEOPLE')}
               className={inputClass}
             >
               {EVENT_CATEGORIES.map(({ value, label }) => (
@@ -657,7 +782,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
                       value={selectedRewards.find((r) => r.kind === value)?.amount ?? ''}
                       onChange={(e) => setRewardAmount(value, e.target.value)}
                       className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
-                      placeholder={value === 'V_POINT' ? 'P' : '매수'}
+                      placeholder={value === 'V_CREDIT' ? 'P' : '매수'}
                     />
                   )}
                 </div>
@@ -702,6 +827,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
                     onInputStyleChange={setVerificationInputStyle}
                     onLabelChange={setVerificationLabel}
                     onUnitChange={setVerificationUnit}
+                    onOptionsChange={setVerificationOptions}
                     inputClass={inputClass}
                   />
                 ))}

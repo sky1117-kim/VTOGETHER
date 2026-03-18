@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/api/actions/auth'
+import { getPendingVerificationCount } from '@/api/actions/admin'
 import { AdminNav } from './components/AdminNav'
 
 export default async function AdminLayout({
@@ -8,7 +9,10 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const user = await getCurrentUser()
+  const [user, pendingCount] = await Promise.all([
+    getCurrentUser(),
+    getPendingVerificationCount(),
+  ])
   if (!user) {
     redirect('/login')
   }
@@ -42,7 +46,7 @@ export default async function AdminLayout({
         {/* 사이드바: 데스크톱에서만 표시 */}
         <aside className="hidden w-56 shrink-0 flex-col gap-4 lg:flex lg:py-6">
           <div className="sticky top-[3.5rem] flex flex-col gap-4">
-            <AdminNav />
+            <AdminNav pendingCount={pendingCount} />
             <div className="border-t border-gray-200 pt-4">
               <Link
                 href="/"
@@ -58,7 +62,7 @@ export default async function AdminLayout({
         <div className="min-w-0 flex-1 flex flex-col">
           {/* 모바일: 상단 가로 네비 */}
           <div className="border-b border-gray-200/80 bg-white/95 px-4 py-3 shadow-soft backdrop-blur-sm lg:hidden">
-            <AdminNav orientation="horizontal" />
+            <AdminNav orientation="horizontal" pendingCount={pendingCount} />
           </div>
           <main className="px-4 py-6 sm:px-6 lg:px-0 lg:py-8">
             {children}

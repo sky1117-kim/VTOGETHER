@@ -6,7 +6,7 @@ export type PublicEventRow = {
   description: string | null
   short_description: string | null
   image_url: string | null
-  category: 'V_TOGETHER' | 'CULTURE'
+  category: 'V_TOGETHER' | 'PEOPLE'
   type: 'ALWAYS' | 'SEASONAL'
   [key: string]: unknown
 }
@@ -179,7 +179,9 @@ export type VerificationMethodRow = {
   instruction: string | null
   label: string | null
   placeholder: string | null
-  input_style?: 'SHORT' | 'LONG' | null
+  input_style?: 'SHORT' | 'LONG' | 'CHOICE' | null
+  /** 객관식(CHOICE)일 때만. 참여자가 선택할 수 있는 옵션 배열 */
+  options?: string[] | null
   /** 숫자(VALUE)용. 단위 (예: km/h, km) */
   unit?: string | null
 }
@@ -195,7 +197,7 @@ export type RoundForParticipation = {
 
 /** 보상 선택용 옵션 (CHOICE/복수 보상) */
 export type RewardOptionRow = {
-  reward_kind: 'V_POINT' | 'COFFEE_COUPON' | 'GOODS'
+  reward_kind: 'V_CREDIT' | 'COFFEE_COUPON' | 'GOODS'
   amount: number | null
 }
 
@@ -243,7 +245,7 @@ export async function getEventForParticipation(
 
   const { data: methods } = await supabase
     .from('event_verification_methods')
-    .select('method_id, method_type, instruction, label, placeholder, input_style, unit')
+    .select('method_id, method_type, instruction, label, placeholder, input_style, unit, options')
     .eq('event_id', eventId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })

@@ -201,6 +201,22 @@ export async function updateUserDept(
   }
 }
 
+/** 네비게이션 배지용: 승인 대기 인증 건수만 조회 (가벼운 쿼리) */
+export async function getPendingVerificationCount(): Promise<number> {
+  try {
+    const supabase = createAdminClient()
+    const { count, error } = await supabase
+      .from('event_submissions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'PENDING')
+      .is('deleted_at', null)
+    if (error) return 0
+    return count ?? 0
+  } catch {
+    return 0
+  }
+}
+
 /** 관리자 대시보드용 지표: 전사 기부 통계 + 진행 중 이벤트 수 + 승인 대기 건수 + MAU */
 export async function getAdminDashboardStats(): Promise<{
   totalCurrent: number
@@ -309,16 +325,16 @@ export async function getDonationAmountsByPeriod(): Promise<{
   }
 }
 
-/** 이벤트 적립 현황: Culture/V.Together별 V.Point, 매칭금 (Culture만 매칭 대상) */
+/** 이벤트 적립 현황: People/V.Together별 V.Credit, 매칭금 (People만 매칭 대상) */
 export async function getEventEarnedStats(): Promise<{
-  cultureEarned: number
+  peopleEarned: number
   vTogetherEarned: number
   matchingAmount: number
   totalEarned: number
   totalCollected: number
   error: string | null
 }> {
-  const empty = { cultureEarned: 0, vTogetherEarned: 0, matchingAmount: 0, totalEarned: 0, totalCollected: 0, error: null as string | null }
+  const empty = { peopleEarned: 0, vTogetherEarned: 0, matchingAmount: 0, totalEarned: 0, totalCollected: 0, error: null as string | null }
   try {
     const supabase = createAdminClient()
     const { data: txRows, error: txErr } = await supabase
@@ -346,23 +362,23 @@ export async function getEventEarnedStats(): Promise<{
       .is('deleted_at', null)
     const eventToCategory = new Map((evRows ?? []).map((e) => [(e as { event_id: string }).event_id, (e as { category: string }).category]))
 
-    let cultureEarned = 0
+    let peopleEarned = 0
     let vTogetherEarned = 0
     for (const t of txs) {
       const subId = (t as { related_id: string }).related_id
       const amount = Number((t as { amount: number }).amount) || 0
       const eventId = subId ? subToEvent.get(subId) : null
       const category = eventId ? eventToCategory.get(eventId) : null
-      if (category === 'CULTURE') cultureEarned += amount
+      if (category === 'PEOPLE') peopleEarned += amount
       else if (category === 'V_TOGETHER') vTogetherEarned += amount
     }
-    const matchingAmount = cultureEarned
-    const totalCollected = vTogetherEarned + cultureEarned + matchingAmount
+    const matchingAmount = peopleEarned
+    const totalCollected = vTogetherEarned + peopleEarned + matchingAmount
     return {
-      cultureEarned,
+      peopleEarned,
       vTogetherEarned,
       matchingAmount,
-      totalEarned: cultureEarned + vTogetherEarned,
+      totalEarned: peopleEarned + vTogetherEarned,
       totalCollected,
       error: null,
     }
@@ -569,7 +585,7 @@ export async function resetAndSeedTestData(): Promise<{ success: boolean; error:
       [
         { key: 'hero_season_badge', value: '2026 Season 1' },
         { key: 'hero_title', value: '나의 활동이\n세상의 기회가 되도록' },
-        { key: 'hero_subtitle', value: '획득한 V.Point로 기부하고\n나의 ESG Level을 올려보세요!' },
+        { key: 'hero_subtitle', value: '획득한 V.Credit로 기부하고\n나의 ESG Level을 올려보세요!' },
       ],
       { onConflict: 'key' }
     )
