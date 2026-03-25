@@ -136,7 +136,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
         )}
       </div>
       <div>
-        <label className="mb-1 block text-sm font-bold text-gray-700">지급 포인트 (P)</label>
+        <label className="mb-1 block text-sm font-bold text-gray-700">지급 V.Credit (P)</label>
         <div className="flex flex-wrap gap-2">
           {[1000, 5000, 10000, 30000, 50000].map((n) => (
             <button
@@ -188,7 +188,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
           disabled={pending}
           className="flex-1 rounded-xl bg-green-600 px-4 py-3 font-bold text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
         >
-          {pending ? '처리 중…' : '포인트 지급'}
+          {pending ? '처리 중…' : 'V.Credit 지급'}
         </button>
         <button
           type="button"

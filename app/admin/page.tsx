@@ -5,7 +5,6 @@ import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDo
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
 import { formatPoints } from '@/lib/formatPoints'
 import { TARGET_DISPLAY_NAMES } from '@/constants/donationTargets'
-import { GrantPointsForm } from './components/GrantPointsForm'
 import { SiteContentForm } from './components/SiteContentForm'
 import { ResetTestDataButton } from './components/ResetTestDataButton'
 import { AdminUserTable } from './components/AdminUserTable'
@@ -396,13 +395,13 @@ export default async function AdminPage() {
       {/* 바로가기 */}
       <section>
         <h2 className="mb-4 text-base font-bold text-gray-900">바로가기</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <a
             href="#admin-settings"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
             <span className="text-lg font-bold text-gray-900">설정 · 운영</span>
-            <span className="mt-1 text-sm text-gray-500">메인 문구, 포인트 지급, 관리자 설정</span>
+            <span className="mt-1 text-sm text-gray-500">메인 문구, 수동 지급 안내, 관리자 설정</span>
             <span className="mt-3 text-sm font-medium text-green-600">열기 →</span>
           </a>
           <Link
@@ -429,6 +428,14 @@ export default async function AdminPage() {
             <span className="mt-1 text-sm text-gray-500">목표 수정, 오프라인 성금 합산</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>
+          <Link
+            href="/admin/point-grant"
+            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+          >
+            <span className="text-lg font-bold text-gray-900">V.Credit 수동 지급</span>
+            <span className="mt-1 text-sm text-gray-500">직원에게 P 직접 적립 (보정·특별 보상)</span>
+            <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
+          </Link>
         </div>
       </section>
 
@@ -449,14 +456,16 @@ export default async function AdminPage() {
           </div>
 
           <div className="border-t border-gray-100 pt-6">
-            <h3 className="mb-4 font-bold text-gray-900">포인트 지급</h3>
-            {usersError && <p className="mb-4 text-sm text-red-600">{usersError}</p>}
-            <GrantPointsForm users={userList} />
-            {userList.length === 0 && (
-              <p className="mt-3 text-sm text-amber-700">
-                사용자 목록이 비어 있으면 메인에서 <strong>로그인</strong> 한 번 해 주세요.
-              </p>
-            )}
+            <h3 className="mb-2 font-bold text-gray-900">V.Credit 수동 지급</h3>
+            <p className="mb-4 text-sm text-gray-500">
+              직원에게 P를 직접 넣을 때는 전용 페이지에서 이름·이메일로 검색 후 지급합니다. 포인트 내역에 사유가 남습니다.
+            </p>
+            <Link
+              href="/admin/point-grant"
+              className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+            >
+              수동 지급 페이지 열기
+            </Link>
           </div>
 
           <div className="overflow-hidden rounded-xl border border-gray-200">

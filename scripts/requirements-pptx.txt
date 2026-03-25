@@ -1,0 +1,3 @@
+# PPT 생성 스크립트 전용 (일회성)
+# 사용: pip install -r scripts/requirements-pptx.txt
+python-pptx==0.6.23

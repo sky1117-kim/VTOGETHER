@@ -57,3 +57,7 @@ next-env.d.ts
 
 # supabase
 supabase/.temp/
+
+# 과제/보고서 자료(저장소에 올리지 않음)
+docs/V.Together_과제결과보고서.pptx
+docs/~$*.pptx

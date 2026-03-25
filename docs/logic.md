@@ -17,6 +17,7 @@
 ## Phase 2: 이벤트 & 챌린지
 
 - **관리자 권한**: `users.is_admin = true` 인 사용자만 `/admin` 접근 및 이벤트 등록·인증 심사 가능.
+- **V.Credit 수동 지급**: `/admin/point-grant`에서 관리자가 특정 사용자에게 정수 P만큼 적립. `users.current_points` 증가 + `point_transactions`에 `type=EARNED`, `related_type=ADMIN_GRANT`, `description`=사유(없으면「관리자 지급」). **관리자 세션 검증** 후에만 서버 액션 실행.
 - **Footer 관리자 링크**: 메인/기부/마이 페이지 하단 Footer의 "관리자" 링크는 **관리자(`is_admin = true`)일 때만** 표시됩니다. 일반 사용자에게는 노출되지 않습니다.
 - **최초 관리자 설정**: 한 명은 Supabase Table Editor에서 `users` 테이블 → 해당 행의 `is_admin`을 **true**로 수동 설정. 그 다음 로그인하여 `/admin` → **관리자 계정 설정** 섹션에서 다른 사용자에게도 관리자 체크를 줄 수 있음 (웹에서 설정).
 - **이벤트 구간(기간제)**: 참여 기간과 인증 마감이 다름. 1구간 1~10일(인증 15일), 2구간 11~20일(인증 25일), 3구간 21~말일(인증 익월 5일). 자세한 규칙·상태 판단은 `docs/plan-rounds-logic.md` 참고. `event_rounds.submission_deadline` 컬럼 사용 (마이그레이션 013). 해당 월 3구간 자동 생성은 `createRoundsForMonth(eventId, year, month)` 서버 액션 또는 `lib/rounds.ts`의 `getThreeRoundsForMonth(year, month)` 활용.

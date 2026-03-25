@@ -15,7 +15,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ## 주요 기능 / 페이지
 
 - **메인**: `/` — 대시보드, 기부, 이벤트 & 챌린지, 명예의 전당(분기별 TOP 10)
-- **관리자**: `/admin` — 대시보드(전사 기부·목표 달성률·승인 대기·**MAU**·**이벤트 적립 현황** People/V.Together/매칭금), 포인트 지급(퀵 버튼), 메인 문구 편집, 사용자·관리자 설정. 네비에 승인 대기 배지, 설정 섹션 접기/펼치기 지원
+- **관리자**: `/admin` — 대시보드(전사 기부·목표 달성률·승인 대기·**MAU**·**이벤트 적립 현황** People/V.Together/매칭금), 메인 문구 편집, 사용자·관리자 설정. 네비에 승인 대기 배지, 설정 섹션 접기/펼치기 지원
+- **V.Credit 수동 지급**: `/admin/point-grant` — 이벤트 외 보정·특별 보상 등 직원에게 P 직접 적립(사유 기록, `point_transactions` ADMIN_GRANT)
 - **이벤트 관리**: `/admin/events` — 목록, `/admin/events/new` — 등록 (보상: V.Credit/굿즈/커피쿠폰 복수 선택, 인증: 사진·텍스트·숫자·동료선택+텍스트 + 직원 안내문)
 - **인증 심사**: `/admin/verifications` — 이벤트 참여 인증 승인/반려, 일괄 처리
 - **기부처 관리**: `/admin/donation-targets` — 목표 수정, 오프라인 성금 합산

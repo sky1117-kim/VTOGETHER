@@ -104,6 +104,23 @@ export async function grantPoints(
     return { success: false, error: '1 이상의 정수만 입력해주세요.' }
   }
   try {
+    // 호출자가 관리자인지 확인 (서비스 롤 클라이언트만으로는 누구나 액션을 못 막으므로 필수)
+    const supabaseAuth = await createClient()
+    const {
+      data: { user: caller },
+    } = await supabaseAuth.auth.getUser()
+    if (!caller) return { success: false, error: '로그인이 필요합니다.' }
+    const adminCheck = createAdminClient()
+    const { data: me, error: meErr } = await adminCheck
+      .from('users')
+      .select('is_admin')
+      .eq('user_id', caller.id)
+      .is('deleted_at', null)
+      .single()
+    if (meErr || !me?.is_admin) {
+      return { success: false, error: '관리자만 V.Credit을 수동 지급할 수 있습니다.' }
+    }
+
     const supabase = createAdminClient()
     const { data: user, error: fetchError } = await supabase
       .from('users')
