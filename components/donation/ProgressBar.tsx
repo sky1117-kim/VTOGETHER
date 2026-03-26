@@ -19,7 +19,7 @@ export function ProgressBar({ totalTarget, totalCurrent, completedCount }: Progr
               {totalCurrent.toLocaleString()}
             </h3>
             <span className="text-sm text-gray-400">
-              / {totalTarget.toLocaleString()} P
+              / {totalTarget.toLocaleString()} C
             </span>
           </div>
         </div>

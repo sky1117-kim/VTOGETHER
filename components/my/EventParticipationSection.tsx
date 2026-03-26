@@ -22,16 +22,22 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
 
   if (submissions.length === 0) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-3 text-lg font-bold text-gray-900">이벤트 참여 내역</h2>
+      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
+        <h2 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">EVENT</span>
+          이벤트 참여 내역
+        </h2>
         <p className="text-sm text-gray-500">아직 참여한 이벤트 인증이 없습니다.</p>
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h2 className="mb-3 text-lg font-bold text-gray-900">이벤트 참여 내역</h2>
+    <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
+      <h2 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
+        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">EVENT</span>
+        이벤트 참여 내역
+      </h2>
       <p className="mb-4 text-sm text-gray-500">
         인증 제출 상태와 반려 사유를 확인할 수 있습니다.
       </p>

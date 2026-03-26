@@ -117,7 +117,7 @@ export default async function AdminEventsPage() {
                     {e.reward_type == null
                       ? '복수 보상'
                       : (e.reward_type === 'V_CREDIT' || (e as { reward_type?: string }).reward_type === 'POINTS') && e.reward_amount != null
-                        ? `${e.reward_amount}P`
+                        ? `${e.reward_amount}C`
                         : e.reward_type}
                   </td>
                   <td className="px-4 py-3">

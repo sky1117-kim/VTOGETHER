@@ -42,7 +42,7 @@ export function DonationByTargetPie({ data }: { data: DonationByTargetItem[] }) 
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number | undefined) => [`${(value ?? 0).toLocaleString()} P`, '기부액']}
+                formatter={(value: number | undefined) => [`${(value ?? 0).toLocaleString()} C`, '기부액']}
                 contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
               />
             </PieChart>
@@ -68,7 +68,7 @@ export function DonationByTargetPie({ data }: { data: DonationByTargetItem[] }) 
           <div key={`${d.name}-${i}`} className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-2 text-gray-600">
             <span className="min-w-0 truncate text-xs">{d.name}</span>
             <span className="whitespace-nowrap text-right text-xs font-medium tabular-nums text-gray-900">
-              {d.value.toLocaleString()} P
+              {d.value.toLocaleString()} C
             </span>
           </div>
         ))}

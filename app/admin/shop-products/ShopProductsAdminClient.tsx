@@ -324,7 +324,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                   <p className="mt-1 font-semibold text-purple-700">{p.price_medal.toLocaleString()}</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 px-2 py-1.5 text-right">
-                  <p className="text-gray-500">지급(P)</p>
+                  <p className="text-gray-500">지급(C)</p>
                   <p className="mt-1 font-semibold text-emerald-700">{(p.credit_amount ?? 0).toLocaleString()}</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 px-2 py-1.5 text-right">
@@ -359,7 +359,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
               <th className="px-4 py-3">상품명</th>
               <th className="px-4 py-3">유형</th>
               <th className="px-4 py-3 text-right">가격(M)</th>
-              <th className="px-4 py-3 text-right">지급(P)</th>
+              <th className="px-4 py-3 text-right">지급(C)</th>
               <th className="px-4 py-3 text-right">재고</th>
               <th className="px-4 py-3">이미지</th>
               <th className="px-4 py-3">상태</th>

@@ -332,14 +332,27 @@ export async function getDonationAmountsByPeriod(): Promise<{
 
 /** 이벤트 적립 현황: People/Culture별 적립, 매칭금 (Medal->Credit 전환분 기부만 매칭 대상) */
 export async function getEventEarnedStats(): Promise<{
-  peopleEarned: number
-  cultureEarned: number
+  peopleCreditEarned: number
+  peopleMedalEarned: number
+  cultureCreditEarned: number
+  cultureMedalEarned: number
   matchingAmount: number
-  totalEarned: number
+  totalCreditEarned: number
+  totalMedalEarned: number
   totalCollected: number
   error: string | null
 }> {
-  const empty = { peopleEarned: 0, cultureEarned: 0, matchingAmount: 0, totalEarned: 0, totalCollected: 0, error: null as string | null }
+  const empty = {
+    peopleCreditEarned: 0,
+    peopleMedalEarned: 0,
+    cultureCreditEarned: 0,
+    cultureMedalEarned: 0,
+    matchingAmount: 0,
+    totalCreditEarned: 0,
+    totalMedalEarned: 0,
+    totalCollected: 0,
+    error: null as string | null,
+  }
   try {
     const supabase = createAdminClient()
     const { data: txRows, error: txErr } = await supabase
@@ -367,16 +380,24 @@ export async function getEventEarnedStats(): Promise<{
       .is('deleted_at', null)
     const eventToCategory = new Map((evRows ?? []).map((e) => [(e as { event_id: string }).event_id, (e as { category: string }).category]))
 
-    let peopleEarned = 0
-    let cultureEarned = 0
+    let peopleCreditEarned = 0
+    let peopleMedalEarned = 0
+    let cultureCreditEarned = 0
+    let cultureMedalEarned = 0
     for (const t of txs) {
-      if ((t as { currency_type?: string }).currency_type === 'V_MEDAL') continue
       const subId = (t as { related_id: string }).related_id
       const amount = Number((t as { amount: number }).amount) || 0
+      const currencyType = (t as { currency_type?: string }).currency_type
       const eventId = subId ? subToEvent.get(subId) : null
       const category = eventId ? eventToCategory.get(eventId) : null
-      if (category === 'PEOPLE') peopleEarned += amount
-      else if (category === 'CULTURE' || category === 'V_TOGETHER') cultureEarned += amount
+      const isMedal = currencyType === 'V_MEDAL'
+      if (category === 'PEOPLE') {
+        if (isMedal) peopleMedalEarned += amount
+        else peopleCreditEarned += amount
+      } else if (category === 'CULTURE' || category === 'V_TOGETHER') {
+        if (isMedal) cultureMedalEarned += amount
+        else cultureCreditEarned += amount
+      }
     }
 
     const { data: allocRows } = await supabase
@@ -392,12 +413,17 @@ export async function getEventEarnedStats(): Promise<{
       const source = lotSourceMap.get(row.lot_id)
       return source === 'MEDAL_EXCHANGE' ? sum + Number(row.allocated_amount ?? 0) : sum
     }, 0)
-    const totalCollected = cultureEarned + peopleEarned + matchingAmount
+    const totalCreditEarned = peopleCreditEarned + cultureCreditEarned
+    const totalMedalEarned = peopleMedalEarned + cultureMedalEarned
+    const totalCollected = totalCreditEarned + matchingAmount
     return {
-      peopleEarned,
-      cultureEarned,
+      peopleCreditEarned,
+      peopleMedalEarned,
+      cultureCreditEarned,
+      cultureMedalEarned,
       matchingAmount,
-      totalEarned: peopleEarned + cultureEarned,
+      totalCreditEarned,
+      totalMedalEarned,
       totalCollected,
       error: null,
     }

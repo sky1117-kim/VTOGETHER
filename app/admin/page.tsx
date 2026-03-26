@@ -14,6 +14,18 @@ import { UserLevelPie } from './components/UserLevelPie'
 import { DonationPeriodPie } from './components/DonationPeriodPie'
 import { MauDonutChart } from './components/MauDonutChart'
 
+function formatMedals(n: number): string {
+  if (n >= 100_000_000) {
+    const eok = n / 100_000_000
+    return (eok % 1 === 0 ? eok.toFixed(0) : eok.toFixed(1)) + '억 M'
+  }
+  if (n >= 10_000) {
+    const man = n / 10_000
+    return (man % 1 === 0 ? man.toFixed(0) : man.toFixed(1)) + '만 M'
+  }
+  return n.toLocaleString() + ' M'
+}
+
 export default async function AdminPage() {
   const user = await getCurrentUser()
   const { data: users, error: usersError } = await getUsersForAdmin()
@@ -157,46 +169,47 @@ export default async function AdminPage() {
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-800">이벤트 적립 현황</h3>
         <p className="mb-4 text-xs text-gray-500">
-          People은 V.Medal 적립, Culture는 V.Credit 적립. 매칭은 Medal 전환 Credit 기부분만 반영
+          People은 V.Medal, Culture는 V.Credit 기준으로 집계합니다. 매칭금은 Medal 전환 Credit 기부분만 반영합니다.
         </p>
         {eventEarnedStats.error ? (
           <p className="text-sm text-red-500">{eventEarnedStats.error}</p>
         ) : (
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">People V.Credit</dt>
+              <dt className="text-xs font-medium text-gray-500">People V.Medal</dt>
               <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
-                {formatPoints(eventEarnedStats.peopleEarned)}
+                {formatMedals(eventEarnedStats.peopleMedalEarned)}
               </dd>
-              <p className="mt-0.5 text-xs text-gray-500">매칭 대상</p>
+              <p className="mt-0.5 text-xs text-gray-500">People 이벤트 기본 보상</p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
               <dt className="text-xs font-medium text-gray-500">Culture V.Credit</dt>
               <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
-                {formatPoints(eventEarnedStats.cultureEarned)}
+                {formatPoints(eventEarnedStats.cultureCreditEarned)}
               </dd>
-              <p className="mt-0.5 text-xs text-gray-500">매칭 없음</p>
+              <p className="mt-0.5 text-xs text-gray-500">Culture 이벤트 기본 보상</p>
             </div>
             <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-4">
               <dt className="text-xs font-medium text-amber-700">매칭금</dt>
               <dd className="mt-1 text-xl font-bold tabular-nums text-amber-800">
                 {formatPoints(eventEarnedStats.matchingAmount)}
               </dd>
-              <p className="mt-0.5 text-xs text-amber-600">People 적립분과 동일</p>
+              <p className="mt-0.5 text-xs text-amber-600">Medal 전환 기부분과 동일</p>
             </div>
             <div className="rounded-lg border border-green-100 bg-green-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">전체 V.Credit 적립</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
-                {formatPoints(eventEarnedStats.totalEarned)}
+              <dt className="text-xs font-medium text-gray-500">전체 사용자 적립</dt>
+              <dd className="mt-1 space-y-0.5 text-sm font-bold tabular-nums text-gray-900">
+                <p>{formatPoints(eventEarnedStats.totalCreditEarned)}</p>
+                <p>{formatMedals(eventEarnedStats.totalMedalEarned)}</p>
               </dd>
-              <p className="mt-0.5 text-xs text-gray-500">사용자 적립분</p>
+              <p className="mt-0.5 text-xs text-gray-500">V.Credit + V.Medal</p>
             </div>
             <div className="rounded-lg border-2 border-green-200 bg-green-50 p-4 sm:col-span-2">
               <dt className="text-xs font-bold text-green-700">전체 모인금액</dt>
               <dd className="mt-1 text-2xl font-bold tabular-nums text-green-800">
                 {formatPoints(eventEarnedStats.totalCollected)}
               </dd>
-              <p className="mt-0.5 text-xs text-green-600">Culture + People + 매칭금</p>
+              <p className="mt-0.5 text-xs text-green-600">이벤트 Credit + 매칭금 (기부 가능 재원)</p>
             </div>
           </dl>
         )}
@@ -433,7 +446,7 @@ export default async function AdminPage() {
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
             <span className="text-lg font-bold text-gray-900">V.Credit 수동 지급</span>
-            <span className="mt-1 text-sm text-gray-500">직원에게 P 직접 적립 (보정·특별 보상)</span>
+            <span className="mt-1 text-sm text-gray-500">직원에게 C 직접 적립 (보정·특별 보상)</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>
         </div>
@@ -458,7 +471,7 @@ export default async function AdminPage() {
           <div className="border-t border-gray-100 pt-6">
             <h3 className="mb-2 font-bold text-gray-900">V.Credit 수동 지급</h3>
             <p className="mb-4 text-sm text-gray-500">
-              직원에게 P를 직접 넣을 때는 전용 페이지에서 이름·이메일로 검색 후 지급합니다. 포인트 내역에 사유가 남습니다.
+              직원에게 C를 직접 넣을 때는 전용 페이지에서 이름·이메일로 검색 후 지급합니다. 포인트 내역에 사유가 남습니다.
             </p>
             <Link
               href="/admin/point-grant"

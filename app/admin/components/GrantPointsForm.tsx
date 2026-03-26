@@ -52,12 +52,12 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
       setMessage({ type: 'error', text: result.error })
       return
     }
-    setMessage({ type: 'ok', text: `${selectedUser.name || selectedUser.email}에게 ${num.toLocaleString()}P 지급 완료되었습니다.` })
+    setMessage({ type: 'ok', text: `${selectedUser.name || selectedUser.email}에게 ${num.toLocaleString()}C 지급 완료되었습니다.` })
     setAmount('1000')
     setReason('')
   }
 
-  /** 테스트용: 선택한 사용자에게 5만 P 한 번에 지급 */
+  /** 테스트용: 선택한 사용자에게 5만 C 한 번에 지급 */
   async function handleGrant50k() {
     setMessage(null)
     if (!selectedUser) {
@@ -71,7 +71,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
       setMessage({ type: 'error', text: result.error })
       return
     }
-    setMessage({ type: 'ok', text: '50,000P 지급 완료. 메인에서 기부 테스트해보세요.' })
+    setMessage({ type: 'ok', text: '50,000C 지급 완료. 메인에서 기부 테스트해보세요.' })
   }
 
   if (users.length === 0) {
@@ -121,7 +121,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
                       }`}
                     >
                       <span className="font-medium">{u.name || '—'}</span>
-                      <span className="text-xs text-gray-500">{u.email} · {u.current_points.toLocaleString()}P 보유</span>
+                      <span className="text-xs text-gray-500">{u.email} · {u.current_points.toLocaleString()}C 보유</span>
                     </button>
                   </li>
                 ))
@@ -136,7 +136,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
         )}
       </div>
       <div>
-        <label className="mb-1 block text-sm font-bold text-gray-700">지급 V.Credit (P)</label>
+        <label className="mb-1 block text-sm font-bold text-gray-700">지급 V.Credit (C)</label>
         <div className="flex flex-wrap gap-2">
           {[1000, 5000, 10000, 30000, 50000].map((n) => (
             <button
@@ -149,7 +149,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
                   : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
-              {n.toLocaleString()}P
+              {n.toLocaleString()}C
             </button>
           ))}
         </div>
@@ -196,7 +196,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
           disabled={pending}
           className="shrink-0 rounded-xl border-2 border-green-600 bg-white px-4 py-3 font-bold text-green-600 transition hover:bg-green-50 disabled:opacity-50 btn-press"
         >
-          테스트용 5만 P
+          테스트용 5만 C
         </button>
       </div>
     </form>

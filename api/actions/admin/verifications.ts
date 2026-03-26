@@ -259,7 +259,7 @@ export async function approveSubmission(submissionId: string): Promise<{
         const anonymousFromRecipient = sub.is_anonymous && isRecipient
         const roundDesc = roundNumber != null ? `${roundNumber}구간 승인되어` : '승인되어'
         // 칭찬 챌린지(BOTH): 제출자 vs 수신자 구분. 수신자에게 익명 선택 시 "익명의 동료가 나를 칭찬하여"
-        const unitLabel = primaryCurrency === 'V_MEDAL' ? 'M' : 'P'
+        const unitLabel = primaryCurrency === 'V_MEDAL' ? 'M' : 'C'
         const description =
           event.reward_policy === 'BOTH' && sub.peer_user_id
             ? isRecipient

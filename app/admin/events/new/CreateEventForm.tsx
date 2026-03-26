@@ -755,7 +755,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
               value={rewardAmount}
               onChange={(e) => setRewardAmount(e.target.value)}
               className={inputClass}
-              placeholder={category === 'PEOPLE' ? 'M 수량' : 'P 수량'}
+              placeholder={category === 'PEOPLE' ? 'M 수량' : 'C 수량'}
             />
           </div>
         </div>

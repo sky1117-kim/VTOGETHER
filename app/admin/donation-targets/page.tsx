@@ -72,7 +72,7 @@ export default async function AdminDonationTargetsPage() {
                         {formatPoints(t.target_amount)}
                       </td>
                       <td className="px-4 py-4 text-right tabular-nums font-medium text-gray-900">
-                        {t.current_amount.toLocaleString()} P
+                        {t.current_amount.toLocaleString()} C
                       </td>
                       <td className="px-4 py-4 text-right tabular-nums text-gray-600">
                         {progress.toFixed(1)}%

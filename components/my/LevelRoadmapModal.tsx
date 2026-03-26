@@ -110,7 +110,7 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
               </div>
               <h2 className="relative z-10 text-center text-2xl font-bold">{current.label}</h2>
               <p className={`relative z-10 text-center text-base font-bold sm:text-lg ${level === 'ECO_KEEPER' ? 'text-slate-200' : 'text-green-100'}`}>
-                누적 기부: <span className="text-xl font-bold text-white sm:text-2xl">{totalDonated.toLocaleString()}</span> P
+                누적 기부: <span className="text-xl font-bold text-white sm:text-2xl">{totalDonated.toLocaleString()}</span> C
               </p>
             </div>
 
@@ -133,7 +133,7 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                       <span className={`font-bold ${LEVEL_COLORS[level].text}`}>
                         {levelThresholds[nextLevel].label}
                       </span>
-                      {' '}까지 {(levelThresholds[nextLevel].min - totalDonated).toLocaleString()}P 남음
+                      {' '}까지 {(levelThresholds[nextLevel].min - totalDonated).toLocaleString()}C 남음
                     </>
                   ) : (
                     <span className={`font-bold ${LEVEL_COLORS[level].text}`}>최고 레벨 달성!</span>
@@ -173,7 +173,7 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                           {t.label}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {t.min.toLocaleString()} ~ {t.max === Infinity ? '∞' : t.max.toLocaleString()} P
+                          {t.min.toLocaleString()} ~ {t.max === Infinity ? '∞' : t.max.toLocaleString()} C
                         </p>
                       </div>
                       {isCurrent && (

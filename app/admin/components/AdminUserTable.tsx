@@ -100,7 +100,7 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
                 )}
                 <th className="whitespace-nowrap px-6 py-3 font-medium">부서</th>
                 <th className="whitespace-nowrap px-6 py-3 font-medium">관리자</th>
-                <th className="whitespace-nowrap px-6 py-3 font-medium text-right">보유 P</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium text-right">보유 C</th>
                 <th className="whitespace-nowrap px-6 py-3 font-medium text-right">누적 기부</th>
                 <th className="whitespace-nowrap px-6 py-3 font-medium">등급</th>
               </tr>
@@ -131,10 +131,10 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
                     />
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right font-bold text-gray-900">
-                    {u.current_points.toLocaleString()} P
+                    {u.current_points.toLocaleString()} C
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-gray-600">
-                    {u.total_donated_amount.toLocaleString()} P
+                    {u.total_donated_amount.toLocaleString()} C
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <span

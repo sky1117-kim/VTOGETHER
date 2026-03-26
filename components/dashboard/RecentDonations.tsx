@@ -61,7 +61,7 @@ export function RecentDonations({ donations }: RecentDonationsProps) {
               </p>
             </div>
             <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-              -{donation.amount.toLocaleString()} P
+              -{donation.amount.toLocaleString()} C
             </p>
           </div>
         ))}

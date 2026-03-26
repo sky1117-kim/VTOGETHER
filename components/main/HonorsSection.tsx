@@ -118,7 +118,7 @@ export function HonorsSection({ personalRank, teamRank, quarterLabel }: HonorsSe
                     )}
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-gray-800">
-                    {item.score.toLocaleString()} P
+                    {item.score.toLocaleString()} C
                   </td>
                 </tr>
               )

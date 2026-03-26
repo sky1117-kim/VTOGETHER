@@ -3,7 +3,7 @@ import { getUsersForAdmin } from '@/api/actions/admin'
 import { GrantPointsForm } from '../components/GrantPointsForm'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 
-/** 관리자 전용: 이벤트 외에 직원에게 V.Credit(P)을 수동으로 넣는 화면 */
+/** 관리자 전용: 이벤트 외에 직원에게 V.Credit(C)을 수동으로 넣는 화면 */
 export default async function AdminPointGrantPage() {
   const { data: users, error: usersError } = await getUsersForAdmin()
   const userList = users ?? []
@@ -12,7 +12,7 @@ export default async function AdminPointGrantPage() {
     <div className="space-y-8">
       <AdminPageHeader
         title="V.Credit 수동 지급"
-        description="이벤트 심사와 별개로, 보정·특별 보상 등 필요 시 직원 계정에 P를 직접 적립합니다. 내역은 포인트 거래에「관리자 지급」또는 입력한 사유로 남습니다."
+        description="이벤트 심사와 별개로, 보정·특별 보상 등 필요 시 직원 계정에 C를 직접 적립합니다. 내역은 포인트 거래에「관리자 지급」또는 입력한 사유로 남습니다."
         breadcrumbs={[
           { label: '관리자', href: '/admin' },
           { label: 'V.Credit 수동 지급' },

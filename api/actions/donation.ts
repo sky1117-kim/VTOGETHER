@@ -179,7 +179,7 @@ export async function donatePoints(targetId: string, amount: number) {
         currency_type: 'V_CREDIT',
         related_id: donation.donation_id,
         related_type: 'DONATION',
-        description: `${target.name}에 ${amount.toLocaleString()}P 기부`,
+        description: `${target.name}에 ${amount.toLocaleString()}C 기부`,
         user_email: userData.email ?? null,
         user_name: userData.name ?? null,
         donation_target_name: target.name,

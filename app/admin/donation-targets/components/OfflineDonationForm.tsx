@@ -28,7 +28,7 @@ export function OfflineDonationForm({ targetId, targetName }: OfflineDonationFor
       setMessage({ type: 'error', text: result.error })
       return
     }
-    setMessage({ type: 'ok', text: `${num.toLocaleString()}P 오프라인 합산 반영되었습니다.` })
+    setMessage({ type: 'ok', text: `${num.toLocaleString()}C 오프라인 합산 반영되었습니다.` })
     setAmount('')
   }
 

@@ -46,6 +46,7 @@ function getNextLevelProgress(level: Level, totalDonated: number) {
 interface DashboardSectionProps {
   displayName: string
   currentPoints: number
+  currentMedals: number
   totalDonated: number
   /** DB에서 오는 값이 다를 수 있어 내부에서 ECO_KEEPER 등 세 가지로 보정함 */
   level?: string | null
@@ -77,6 +78,7 @@ function normalizeLevel(level: string | null | undefined): Level {
 export function DashboardSection({
   displayName,
   currentPoints,
+  currentMedals,
   totalDonated,
   level: levelProp,
   email = null,
@@ -167,29 +169,38 @@ export function DashboardSection({
           </div>
         </div>
 
-        {/* Available Points */}
+        {/* 보유 재화 */}
         <div className="border-t border-gray-100 px-4 py-2">
           <div className="rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
-                  Available Points
-                </p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xl font-bold text-gray-900 sm:text-2xl">
-                    {currentPoints.toLocaleString()}
-                  </span>
-                  <span className="text-sm font-semibold text-green-600">P</span>
-                </div>
+            <div className="flex items-end gap-3">
+              <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold text-gray-500">
+                보유 V.Credit
+              </p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-bold text-gray-900 sm:text-2xl">
+                  {currentPoints.toLocaleString()}
+                </span>
+                <span className="text-sm font-semibold text-emerald-600">C</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/my"
-                  className="rounded-md border border-green-300 px-2.5 py-1 text-xs font-semibold text-green-600 transition hover:bg-green-50 hover:text-green-700"
-                >
-                  내역
-                </Link>
               </div>
+              <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold text-gray-500">
+                보유 V.Medal
+              </p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-bold text-gray-900 sm:text-2xl">
+                  {currentMedals.toLocaleString()}
+                </span>
+                <span className="text-sm font-semibold text-violet-600">M</span>
+              </div>
+              </div>
+              <Link
+                href="/my"
+                className="mb-0.5 shrink-0 rounded-md border border-green-300 px-2.5 py-1 text-xs font-semibold text-green-600 transition hover:bg-green-50 hover:text-green-700"
+              >
+                내역
+              </Link>
             </div>
           </div>
         </div>
@@ -243,7 +254,7 @@ export function DashboardSection({
                         {nextProgress.nextLabel}
                       </span>
                     </div>
-                    <span className="font-medium text-gray-500">{nextProgress.remaining.toLocaleString()}P 남음</span>
+                    <span className="font-medium text-gray-500">{nextProgress.remaining.toLocaleString()}C 남음</span>
                   </div>
                   <div className="h-2.5 overflow-hidden rounded-full bg-gray-300">
                     {nextProgress.percent > 0 && (
@@ -258,8 +269,8 @@ export function DashboardSection({
                     )}
                   </div>
                   <div className="flex justify-between text-[10px] text-gray-500">
-                    <span>{totalDonated.toLocaleString()}P</span>
-                    <span>{nextProgress.nextMin.toLocaleString()}P</span>
+                    <span>{totalDonated.toLocaleString()}C</span>
+                    <span>{nextProgress.nextMin.toLocaleString()}C</span>
                   </div>
                 </div>
               ) : (
@@ -276,7 +287,7 @@ export function DashboardSection({
                     />
                   </div>
                   <div className="text-[10px] text-gray-500">
-                    누적 기부 <span className="font-semibold text-gray-700">{totalDonated.toLocaleString()}P</span>
+                    누적 기부 <span className="font-semibold text-gray-700">{totalDonated.toLocaleString()}C</span>
                   </div>
                 </div>
               )}

@@ -220,7 +220,7 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
                                 {earned.text}
                               </p>
                               <span className="shrink-0 text-base font-bold text-green-600">
-                                +{n.amount.toLocaleString()} P
+                                +{n.amount.toLocaleString()} {n.currency_type === 'V_MEDAL' ? 'M' : 'C'}
                               </span>
                             </div>
                             {earned.badge && (

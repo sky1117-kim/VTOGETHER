@@ -47,6 +47,7 @@ export async function getUserDonations(userId: string, limit = 10) {
 export type PointNotificationRow = {
   transaction_id: string
   amount: number
+  currency_type: 'V_CREDIT' | 'V_MEDAL'
   description: string | null
   created_at: string
 }
@@ -66,7 +67,7 @@ export async function getRecentPointNotifications(
 
   const { data, error } = await supabase
     .from('point_transactions')
-    .select('transaction_id, amount, description, created_at')
+    .select('transaction_id, amount, currency_type, description, created_at')
     .eq('user_id', userId)
     .eq('type', 'EARNED')
     .is('deleted_at', null)

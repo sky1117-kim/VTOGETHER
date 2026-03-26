@@ -260,7 +260,7 @@ export async function claimRewardChoice(
         }
         const isRecipient = uid === sub.peer_user_id
         const anonymousFromRecipient = sub.is_anonymous && isRecipient
-        const unitLabel = rewardKind === 'V_MEDAL' ? 'M' : 'P'
+        const unitLabel = rewardKind === 'V_MEDAL' ? 'M' : 'C'
         const description =
           event?.reward_policy === 'BOTH' && sub.peer_user_id
             ? isRecipient

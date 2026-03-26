@@ -17,16 +17,22 @@ export function ReceivedComplimentsSection({ compliments }: ReceivedComplimentsS
 
   if (compliments.length === 0) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-3 text-lg font-bold text-gray-900">받은 칭찬</h2>
+      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
+        <h2 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">PRAISE</span>
+          받은 칭찬
+        </h2>
         <p className="text-sm text-gray-500">아직 받은 칭찬이 없습니다.</p>
       </div>
     )
   }
 
   return (
-    <div id="received-compliments" className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm scroll-mt-4">
-      <h2 className="mb-3 text-lg font-bold text-gray-900">받은 칭찬</h2>
+    <div id="received-compliments" className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm scroll-mt-4">
+      <h2 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
+        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">PRAISE</span>
+        받은 칭찬
+      </h2>
       <p className="mb-4 text-sm text-gray-500">
         칭찬 챌린지로 동료가 보내준 칭찬 내용을 확인할 수 있습니다. (포인트 내역의 &apos;내가 칭찬 받은 내역&apos;과 연결됩니다)
       </p>
@@ -37,7 +43,7 @@ export function ReceivedComplimentsSection({ compliments }: ReceivedComplimentsS
             className="rounded-xl border border-gray-100 bg-gray-50/50 p-4"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                 {c.event_title}
               </span>
               <span className="text-xs text-gray-500">

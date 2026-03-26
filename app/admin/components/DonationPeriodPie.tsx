@@ -7,8 +7,8 @@ type PeriodData = { today: number; thisWeek: number; thisMonth: number }
 const PERIOD_COLORS = ['#10b981', '#0ea5e9', '#64748b']
 
 function formatPts(n: number) {
-  if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '만 P'
-  return n.toLocaleString() + ' P'
+  if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '만 C'
+  return n.toLocaleString() + ' C'
 }
 
 /** 기간별 기부 — 도넛만 표시, 범례 없음 (아래 목록이 대체) */
@@ -52,7 +52,7 @@ export function DonationPeriodPie({ data }: { data: PeriodData }) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number | undefined) => [((value ?? 0).toLocaleString()) + ' P', '기부액']}
+                formatter={(value: number | undefined) => [((value ?? 0).toLocaleString()) + ' C', '기부액']}
                 contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
               />
             </PieChart>

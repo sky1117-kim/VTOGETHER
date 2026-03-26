@@ -60,7 +60,7 @@ export function getEarnedDisplay(
     return { badge: COMPLIMENT_BADGE_LABEL.gave, text: COMPLIMENT_EVENT_LABEL, variant: 'gave' }
   }
 
-  // 일반 이벤트: "이벤트명 N구간 승인되어 10,000 P 적립" → 이벤트명 N구간 · 보상 지급 완료
+  // 일반 이벤트: "이벤트명 N구간 승인되어 10,000 C 적립" → 이벤트명 N구간 · 보상 지급 완료
   const generalMatch = d.match(/^(.+?)\s+승인되어\s+.+적립$/)
   if (generalMatch) {
     let text = generalMatch[1]!.trim()

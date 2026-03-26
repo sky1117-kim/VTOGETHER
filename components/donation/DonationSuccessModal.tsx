@@ -88,7 +88,7 @@ export function DonationSuccessModal({
           {name}에
         </p>
         <p className="mb-4 text-center text-gray-900">
-          <span className="font-bold">{amount.toLocaleString()} P</span>
+          <span className="font-bold">{amount.toLocaleString()} C</span>
           를 전달했습니다.
         </p>
 

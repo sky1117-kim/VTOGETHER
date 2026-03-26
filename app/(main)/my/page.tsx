@@ -28,17 +28,18 @@ export default async function MyPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 pb-12 pt-6 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
+      <div className="mb-8 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-white p-5 shadow-sm">
+        <h1 className="inline-flex items-center gap-2 text-3xl font-extrabold tracking-tight text-gray-900">
+          <span className="inline-block h-7 w-1.5 rounded-full bg-emerald-500" />
           마이페이지
         </h1>
-        <p className="mt-1 text-gray-500">
+        <p className="mt-2 text-sm font-medium text-gray-600">
           내 ESG 활동 현황을 확인하세요
         </p>
       </div>
 
       <div className="space-y-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-xl font-bold text-gray-900">
@@ -66,11 +67,12 @@ export default async function MyPage() {
 
         <PointDisplay
           currentPoints={user?.current_points ?? 0}
+          currentMedals={user?.current_medals ?? 0}
           totalDonated={user?.total_donated_amount ?? 0}
         />
 
-        <EventParticipationSection submissions={eventSubmissions} />
         <PointHistorySection transactions={transactions} />
+        <EventParticipationSection submissions={eventSubmissions} />
         <ReceivedComplimentsSection compliments={receivedCompliments} />
       </div>
     </div>

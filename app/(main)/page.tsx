@@ -49,6 +49,7 @@ export default async function HomePage({ searchParams }: PageProps) {
 
   const displayName = user ? user.name || user.email : '게스트'
   const currentPoints = user?.current_points ?? 0
+  const currentMedals = user?.current_medals ?? 0
   const totalDonated = user?.total_donated_amount ?? 0
   const level = user?.level ?? 'ECO_KEEPER'
 
@@ -72,6 +73,7 @@ export default async function HomePage({ searchParams }: PageProps) {
         <DashboardSection
           displayName={displayName}
           currentPoints={currentPoints}
+          currentMedals={currentMedals}
           totalDonated={totalDonated}
           level={level}
           email={user?.email}

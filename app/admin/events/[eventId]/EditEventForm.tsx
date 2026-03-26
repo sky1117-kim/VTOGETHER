@@ -19,7 +19,7 @@ const STATUS_OPTIONS: { value: EventRow['status']; label: string }[] = [
 ]
 
 const REWARD_KIND_LABEL: Record<EventRewardRow['reward_kind'], string> = {
-  V_CREDIT: 'V.Credit (P)',
+  V_CREDIT: 'V.Credit (C)',
   V_MEDAL: 'V.Medal (M)',
   COFFEE_COUPON: '커피 쿠폰 (매수)',
   GOODS: '굿즈',

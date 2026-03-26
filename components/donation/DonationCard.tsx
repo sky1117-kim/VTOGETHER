@@ -57,7 +57,7 @@ export function DonationCard({ target, userPoints }: DonationCardProps) {
         <div className="mt-auto">
           <div className="mb-1 flex justify-between text-xs">
             <span className="font-bold text-gray-700">
-              {target.current_amount.toLocaleString()} P
+              {target.current_amount.toLocaleString()} C
             </span>
             <span className="text-gray-400">{Math.round(progress)}%</span>
           </div>

@@ -119,7 +119,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
     if (result.error) setMessage({ type: 'error', text: result.error })
     else {
       const text = result.pointsGranted != null && result.pointsGranted > 0
-        ? `승인되었습니다. 포인트 ${result.pointsGranted.toLocaleString()} P 지급 완료.`
+        ? `승인되었습니다. 포인트 ${result.pointsGranted.toLocaleString()} C 지급 완료.`
         : '승인되었습니다.'
       setMessage({ type: 'ok', text })
       router.refresh()
@@ -171,7 +171,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
     else {
       const base = `${result.processed}건 승인되었습니다.`
       const text = result.pointsGranted != null && result.pointsGranted > 0
-        ? `${base} 포인트 ${result.pointsGranted.toLocaleString()} P 지급 완료.`
+        ? `${base} 포인트 ${result.pointsGranted.toLocaleString()} C 지급 완료.`
         : base
       setMessage({ type: 'ok', text })
       setSelected(new Set())

@@ -74,7 +74,7 @@ export function DonationSection({
                 {totalCurrent.toLocaleString()}
               </span>
               <span className="text-lg text-gray-500 sm:text-xl md:text-2xl">
-                / {totalTarget.toLocaleString()} P
+                / {totalTarget.toLocaleString()} C
               </span>
             </div>
           </div>
@@ -150,7 +150,7 @@ export function DonationSection({
                 <div className="mt-auto">
                   <div className="mb-1 flex justify-between text-xs">
                     <span className="font-bold text-gray-700">
-                      {target.current_amount.toLocaleString()} P
+                      {target.current_amount.toLocaleString()} C
                     </span>
                     <span className="text-gray-400">{Math.round(percent)}%</span>
                   </div>

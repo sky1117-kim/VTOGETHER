@@ -64,7 +64,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
     e.preventDefault()
     setError(null)
     if (amount < DONATION_STEP) {
-      setError(`${DONATION_STEP.toLocaleString()} P 이상 선택해주세요`)
+      setError(`${DONATION_STEP.toLocaleString()} C 이상 선택해주세요`)
       return
     }
     if (amount > userPoints) {
@@ -164,7 +164,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
-                  금액 선택 (1,000 P 단위)
+                  금액 선택 (1,000 C 단위)
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {QUICK_ADD.map((value) => (
@@ -182,17 +182,17 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
                     onClick={setFullAmount}
                     className="col-span-3 rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-green-300 hover:bg-green-50 hover:text-green-700"
                   >
-                    전액 ({userPoints.toLocaleString()} P)
+                    전액 ({userPoints.toLocaleString()} C)
                   </button>
                 </div>
                 <div className="mt-3 flex items-baseline justify-between rounded-xl bg-gray-50 px-4 py-3">
                   <span className="text-sm text-gray-500">선택 금액</span>
                   <span className="text-xl font-bold text-gray-900">
-                    {displayAmount || '0'} <span className="text-sm font-normal text-gray-500">P</span>
+                    {displayAmount || '0'} <span className="text-sm font-normal text-gray-500">C</span>
                   </span>
                 </div>
                 <p className="mt-1.5 text-xs text-gray-400">
-                  보유: {userPoints.toLocaleString()} P
+                  보유: {userPoints.toLocaleString()} C
                 </p>
               </div>
 
