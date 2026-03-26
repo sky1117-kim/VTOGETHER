@@ -20,9 +20,7 @@ function setLastReadAt(userId: string, iso: string) {
 }
 
 function getNotificationDate(n: NotificationItem): string {
-  return n.type === 'PENDING_REWARD' || n.type === 'PENDING_RECIPIENT_REWARD'
-    ? n.reviewed_at
-    : n.created_at
+  return n.created_at
 }
 
 interface PointNotificationBellProps {
@@ -149,64 +147,6 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
                 ) : (
                   <ul className="divide-y divide-gray-100">
                     {notifications.map((n) => {
-                      if (n.type === 'PENDING_REWARD') {
-                        const roundText = n.round_number != null ? ` ${n.round_number}구간` : ''
-                        const fullTitle = n.event_title + roundText
-                        const title = fullTitle.length > 24 ? fullTitle.slice(0, 24) + '…' : fullTitle
-                        return (
-                          <li key={`pending-${n.submission_id}`}>
-                            <Link
-                              href="/#events"
-                              onClick={() => setIsOpen(false)}
-                              className="block px-4 py-4 transition hover:bg-amber-50"
-                            >
-                              <span className="mb-1.5 block w-fit rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                                보상 선택 대기
-                              </span>
-                              <p className="truncate text-base font-medium text-gray-800 leading-snug">
-                                {title}
-                              </p>
-                              <p className="mt-1 text-sm text-gray-500">
-                                {new Date(n.reviewed_at).toLocaleDateString('ko-KR', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </p>
-                            </Link>
-                          </li>
-                        )
-                      }
-                      if (n.type === 'PENDING_RECIPIENT_REWARD') {
-                        const roundText = n.round_number != null ? ` ${n.round_number}구간` : ''
-                        const fullTitle = n.event_title + roundText
-                        const title = fullTitle.length > 24 ? fullTitle.slice(0, 24) + '…' : fullTitle
-                        return (
-                          <li key={`recipient-${n.submission_id}`}>
-                            <Link
-                              href="/my#point-history"
-                              onClick={() => setIsOpen(false)}
-                              className="block px-4 py-4 transition hover:bg-violet-50"
-                            >
-                              <span className="mb-1.5 block w-fit rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-800">
-                                칭찬 승인됨
-                              </span>
-                              <p className="truncate text-base font-medium text-gray-800 leading-snug">
-                                {title} · 보상 선택 시 지급
-                              </p>
-                              <p className="mt-1 text-sm text-gray-500">
-                                {new Date(n.reviewed_at).toLocaleDateString('ko-KR', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </p>
-                            </Link>
-                          </li>
-                        )
-                      }
                       const earned = getEarnedDisplay(n.description, { maxTextLength: 24 })
                       return (
                         <li key={n.transaction_id}>
