@@ -175,6 +175,8 @@ body {
 .rte-content span[data-bg-color="green"] { background-color: #bbf7d0; }
 .rte-content span[data-bg-color="blue"] { background-color: #bae6fd; }
 .rte-content span[data-bg-color="pink"] { background-color: #fbcfe8; }
+/* TipTap 빈 문단(<p></p>)이 높이 0으로 무너지지 않도록 보이지 않는 문자 삽입 */
+.rte-content p:empty::after { content: '\200b'; }
 
 /* V.Together custom styles */
 .animate-fade-up {

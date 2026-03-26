@@ -75,7 +75,9 @@ export function EventInfoModal({
   let raw = event?.description?.trim() || '참여하고 포인트를 획득하세요.'
   const isHtml = /<[a-z][^>]*>/i.test(raw)
 
-  const description = raw
+  // TipTap 에디터에서 Enter로 만든 빈 문단(<p></p>)은 getHTML() 시 <br>이 빠져 높이가 0으로 무너짐
+  // 에디터와 동일한 줄간격을 유지하기 위해 빈 문단에 <br>을 삽입
+  const description = isHtml ? raw.replace(/<p><\/p>/g, '<p><br></p>') : raw
 
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden p-4 sm:p-6" role="dialog" aria-modal="true">
