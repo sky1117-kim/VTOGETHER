@@ -2,7 +2,7 @@
 
 import { loginAction } from './actions'
 
-export default function LoginForm({ error }: { error?: string }) {
+export default function LoginForm({ error, next }: { error?: string; next?: string }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 selection:bg-green-100 selection:text-green-900 relative overflow-hidden bg-slate-100">
@@ -93,6 +93,7 @@ export default function LoginForm({ error }: { error?: string }) {
 
             {/* Google 로그인 버튼 */}
             <form action={loginAction}>
+              {next && <input type="hidden" name="next" value={next} />}
               <button
                 type="submit"
                 className="btn-google w-full flex items-center justify-center gap-3 bg-white border border-slate-200 text-slate-700 font-bold text-[15px] py-3.5 px-4 rounded-xl relative group transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:shadow-none"

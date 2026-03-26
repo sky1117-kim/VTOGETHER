@@ -35,16 +35,20 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // 로그인 없이 메인 화면 먼저 보여주기 (나중에 인증 적용 시 아래 주석 해제)
-  // if (
-  //   !user &&
-  //   !request.nextUrl.pathname.startsWith('/login') &&
-  //   !request.nextUrl.pathname.startsWith('/auth')
-  // ) {
-  //   const url = request.nextUrl.clone()
-  //   url.pathname = '/login'
-  //   return NextResponse.redirect(url)
-  // }
+  // 비로그인 사용자는 /login으로 리다이렉트 (로그인·OAuth 콜백 경로는 제외)
+  if (
+    !user &&
+    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/auth')
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    // 로그인 후 원래 페이지로 돌아갈 수 있도록 현재 경로를 next 파라미터로 전달
+    if (request.nextUrl.pathname !== '/') {
+      url.searchParams.set('next', request.nextUrl.pathname)
+    }
+    return NextResponse.redirect(url)
+  }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
   // creating a new response object with NextResponse.next() make sure to:
