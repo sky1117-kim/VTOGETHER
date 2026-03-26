@@ -4,12 +4,34 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getThreeRoundsForMonth } from '@/lib/rounds'
 
+/** 이벤트 상세 소개문구를 HTML로 정규화 (레거시 plain text/markdown 호환) */
+function normalizeEventDescriptionToHtml(input?: string | null): string | null {
+  const raw = input?.trim()
+  if (!raw) return null
+  // 이미 HTML 태그가 있으면 그대로 사용
+  if (/<[a-z][^>]*>/i.test(raw)) return raw
+
+  // plain text/markdown 형태는 문단/줄바꿈을 HTML로 변환
+  const escapeHtml = (s: string) =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  return raw
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
+    .join('')
+}
+
 export type EventRow = {
   event_id: string
   title: string
   description: string | null
   short_description: string | null
-  category: 'V_TOGETHER' | 'PEOPLE'
+  category: 'CULTURE' | 'PEOPLE'
   type: 'ALWAYS' | 'SEASONAL'
   reward_policy: 'SENDER_ONLY' | 'BOTH'
   /** 레거시 단일 보상. null이면 event_rewards 사용(복수 보상) */
@@ -56,7 +78,7 @@ export type EventRoundRow = {
 export type EventRewardRow = {
   reward_id: string
   event_id: string
-  reward_kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'
+  reward_kind: 'V_CREDIT' | 'V_MEDAL' | 'GOODS' | 'COFFEE_COUPON'
   amount: number | null
   display_order: number
 }
@@ -135,7 +157,7 @@ export type EventCopySource = {
     EventRow,
     'title' | 'short_description' | 'description' | 'category' | 'type' | 'reward_policy' | 'image_url' | 'frequency_limit'
   >
-  rewards: { reward_kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: number | null }[]
+  rewards: { reward_kind: 'V_CREDIT' | 'V_MEDAL' | 'GOODS' | 'COFFEE_COUPON'; amount: number | null }[]
   verification_methods: {
     method_type: VerificationMethodInput['method_type']
     instruction: string | null
@@ -212,7 +234,7 @@ export type VerificationMethodInput = {
 
 /** 보상 1건. 복수 선택 가능. V_CREDIT/COFFEE_COUPON은 amount 필수, GOODS는 없음 */
 export type EventRewardInput = {
-  reward_kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'
+  reward_kind: 'V_CREDIT' | 'V_MEDAL' | 'GOODS' | 'COFFEE_COUPON'
   amount?: number | null
 }
 
@@ -220,7 +242,7 @@ export type CreateEventInput = {
   title: string
   description?: string | null
   short_description?: string | null
-  category: 'V_TOGETHER' | 'PEOPLE'
+  category: 'CULTURE' | 'PEOPLE'
   type: 'ALWAYS' | 'SEASONAL'
   reward_policy: 'SENDER_ONLY' | 'BOTH'
   /** 복수 보상 (V.Credit, 굿즈, 커피쿠폰). 1개 이상 필수 */
@@ -240,8 +262,8 @@ export async function createEvent(
   if (!title?.trim()) return { eventId: null, error: '제목을 입력하세요.' }
   if (!rewards?.length) return { eventId: null, error: '보상을 1개 이상 선택하세요.' }
   for (const r of rewards) {
-    if ((r.reward_kind === 'V_CREDIT' || r.reward_kind === 'COFFEE_COUPON') && (r.amount == null || Number(r.amount) < 0))
-      return { eventId: null, error: 'V.Credit·커피쿠폰은 금액(수량)을 입력하세요.' }
+    if ((r.reward_kind === 'V_CREDIT' || r.reward_kind === 'V_MEDAL' || r.reward_kind === 'COFFEE_COUPON') && (r.amount == null || Number(r.amount) < 0))
+      return { eventId: null, error: 'V.Credit·V.Medal·커피쿠폰은 금액(수량)을 입력하세요.' }
   }
   if (!verification_methods?.length) return { eventId: null, error: '인증 방식을 1개 이상 추가하세요.' }
 
@@ -252,7 +274,7 @@ export async function createEvent(
       .from('events')
       .insert({
         title: title.trim(),
-        description: input.description?.trim() || null,
+        description: normalizeEventDescriptionToHtml(input.description),
         short_description: input.short_description?.trim() || null,
         category,
         type,
@@ -273,10 +295,15 @@ export async function createEvent(
 
     for (let i = 0; i < rewards.length; i++) {
       const r = rewards[i]
-      const amount = r.reward_kind === 'GOODS' ? null : Math.max(0, Number(r.amount) ?? 0)
+      // People 이벤트는 Medal, Culture 이벤트는 Credit으로 고정
+      const normalizedKind =
+        r.reward_kind === 'V_CREDIT' || r.reward_kind === 'V_MEDAL'
+          ? (category === 'PEOPLE' ? 'V_MEDAL' : 'V_CREDIT')
+          : r.reward_kind
+      const amount = normalizedKind === 'GOODS' ? null : Math.max(0, Number(r.amount) ?? 0)
       const { error: rewardError } = await supabase.from('event_rewards').insert({
         event_id: event.event_id,
-        reward_kind: r.reward_kind,
+        reward_kind: normalizedKind,
         amount,
         display_order: i,
       })
@@ -337,7 +364,7 @@ export async function updateEventSafeFields(
     const supabase = createAdminClient()
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (input.title !== undefined) payload.title = input.title.trim()
-    if (input.description !== undefined) payload.description = input.description?.trim() || null
+    if (input.description !== undefined) payload.description = normalizeEventDescriptionToHtml(input.description)
     if (input.short_description !== undefined) payload.short_description = input.short_description?.trim() || null
     if (input.image_url !== undefined) payload.image_url = input.image_url?.trim() || null
     if (input.status !== undefined) payload.status = input.status

@@ -16,6 +16,7 @@ export interface Database {
           name: string | null
           dept_name: string | null
           current_points: number
+          current_medals: number
           total_donated_amount: number
           level: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
           is_admin: boolean
@@ -28,6 +29,7 @@ export interface Database {
           name?: string | null
           dept_name?: string | null
           current_points?: number
+          current_medals?: number
           total_donated_amount?: number
           level?: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
           is_admin?: boolean
@@ -40,6 +42,7 @@ export interface Database {
           name?: string | null
           dept_name?: string | null
           current_points?: number
+          current_medals?: number
           total_donated_amount?: number
           level?: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
           is_admin?: boolean
@@ -114,6 +117,7 @@ export interface Database {
           related_id: string | null
           related_type: string | null
           description: string | null
+          currency_type: 'V_CREDIT' | 'V_MEDAL'
           user_email: string | null
           user_name: string | null
           donation_target_name: string | null
@@ -127,6 +131,7 @@ export interface Database {
           related_id?: string | null
           related_type?: string | null
           description?: string | null
+          currency_type?: 'V_CREDIT' | 'V_MEDAL'
           user_email?: string | null
           user_name?: string | null
           donation_target_name?: string | null
@@ -140,10 +145,184 @@ export interface Database {
           related_id?: string | null
           related_type?: string | null
           description?: string | null
+          currency_type?: 'V_CREDIT' | 'V_MEDAL'
           user_email?: string | null
           user_name?: string | null
           donation_target_name?: string | null
           created_at?: string
+        }
+      }
+      credit_lots: {
+        Row: {
+          lot_id: string
+          user_id: string
+          source_type: 'ACTIVITY' | 'MEDAL_EXCHANGE' | 'ADMIN_GRANT'
+          initial_amount: number
+          remaining_amount: number
+          related_id: string | null
+          description: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          lot_id?: string
+          user_id: string
+          source_type: 'ACTIVITY' | 'MEDAL_EXCHANGE' | 'ADMIN_GRANT'
+          initial_amount: number
+          remaining_amount: number
+          related_id?: string | null
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          lot_id?: string
+          user_id?: string
+          source_type?: 'ACTIVITY' | 'MEDAL_EXCHANGE' | 'ADMIN_GRANT'
+          initial_amount?: number
+          remaining_amount?: number
+          related_id?: string | null
+          description?: string | null
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      donation_lot_allocations: {
+        Row: {
+          allocation_id: string
+          donation_id: string
+          lot_id: string
+          allocated_amount: number
+          created_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          allocation_id?: string
+          donation_id: string
+          lot_id: string
+          allocated_amount: number
+          created_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          allocation_id?: string
+          donation_id?: string
+          lot_id?: string
+          allocated_amount?: number
+          deleted_at?: string | null
+        }
+      }
+      shop_products: {
+        Row: {
+          product_id: string
+          name: string
+          description: string | null
+          product_type: 'GOODS' | 'CREDIT_PACK'
+          price_medal: number
+          credit_amount: number | null
+          stock: number | null
+          image_url: string | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          product_id?: string
+          name: string
+          description?: string | null
+          product_type: 'GOODS' | 'CREDIT_PACK'
+          price_medal: number
+          credit_amount?: number | null
+          stock?: number | null
+          image_url?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          product_id?: string
+          name?: string
+          description?: string | null
+          product_type?: 'GOODS' | 'CREDIT_PACK'
+          price_medal?: number
+          credit_amount?: number | null
+          stock?: number | null
+          image_url?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      shop_orders: {
+        Row: {
+          order_id: string
+          user_id: string
+          product_id: string
+          product_snapshot_name: string
+          product_type: 'GOODS' | 'CREDIT_PACK'
+          payment_medal: number
+          credit_granted: number
+          status: 'COMPLETED' | 'CANCELLED'
+          created_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          order_id?: string
+          user_id: string
+          product_id: string
+          product_snapshot_name: string
+          product_type: 'GOODS' | 'CREDIT_PACK'
+          payment_medal: number
+          credit_granted?: number
+          status?: 'COMPLETED' | 'CANCELLED'
+          created_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          order_id?: string
+          user_id?: string
+          product_id?: string
+          product_snapshot_name?: string
+          product_type?: 'GOODS' | 'CREDIT_PACK'
+          payment_medal?: number
+          credit_granted?: number
+          status?: 'COMPLETED' | 'CANCELLED'
+          deleted_at?: string | null
+        }
+      }
+      event_rewards: {
+        Row: {
+          reward_id: string
+          event_id: string
+          reward_kind: 'V_CREDIT' | 'V_MEDAL' | 'GOODS' | 'COFFEE_COUPON'
+          amount: number | null
+          display_order: number
+          created_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          reward_id?: string
+          event_id: string
+          reward_kind: 'V_CREDIT' | 'V_MEDAL' | 'GOODS' | 'COFFEE_COUPON'
+          amount?: number | null
+          display_order?: number
+          created_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          reward_id?: string
+          event_id?: string
+          reward_kind?: 'V_CREDIT' | 'V_MEDAL' | 'GOODS' | 'COFFEE_COUPON'
+          amount?: number | null
+          display_order?: number
+          deleted_at?: string | null
         }
       }
       events: {
@@ -152,7 +331,7 @@ export interface Database {
           title: string
           description: string | null
           short_description: string | null
-          category: 'V_TOGETHER' | 'PEOPLE'
+          category: 'PEOPLE' | 'CULTURE'
           type: 'ALWAYS' | 'SEASONAL'
           reward_policy: 'SENDER_ONLY' | 'BOTH'
           reward_type: 'V_CREDIT' | 'COUPON' | 'CHOICE'
@@ -169,7 +348,7 @@ export interface Database {
           title: string
           description?: string | null
           short_description?: string | null
-          category: 'V_TOGETHER' | 'PEOPLE'
+          category: 'PEOPLE' | 'CULTURE'
           type: 'ALWAYS' | 'SEASONAL'
           reward_policy: 'SENDER_ONLY' | 'BOTH'
           reward_type: 'V_CREDIT' | 'COUPON' | 'CHOICE'
@@ -185,7 +364,7 @@ export interface Database {
           title?: string
           description?: string | null
           short_description?: string | null
-          category?: 'V_TOGETHER' | 'PEOPLE'
+          category?: 'PEOPLE' | 'CULTURE'
           type?: 'ALWAYS' | 'SEASONAL'
           reward_policy?: 'SENDER_ONLY' | 'BOTH'
           reward_type?: 'V_CREDIT' | 'COUPON' | 'CHOICE'

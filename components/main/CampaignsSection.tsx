@@ -6,14 +6,14 @@ import { EventVerifyModal } from './EventVerifyModal'
 import { EventInfoModal } from './EventInfoModal'
 import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/events'
 
-type Tab = 'ALL' | 'V.Together' | 'People'
+type Tab = 'ALL' | 'Culture' | 'People'
 
 /** DB에서 내려오는 이벤트 (getEventsWithRoundsForPublic) */
 export type PublicEvent = {
   event_id: string
   title: string
   description: string | null
-  category: 'V_TOGETHER' | 'PEOPLE'
+  category: 'CULTURE' | 'PEOPLE'
   type: string
   image_url?: string | null
   rounds_count?: number
@@ -22,12 +22,13 @@ export type PublicEvent = {
 }
 
 const CATEGORY_DISPLAY: Record<string, Tab> = {
-  V_TOGETHER: 'V.Together',
+  CULTURE: 'Culture',
   PEOPLE: 'People',
-  CULTURE: 'People', // 레거시: 마이그레이션 029 전 데이터
+  V_TOGETHER: 'Culture', // 레거시: 마이그레이션 032 전 데이터
 }
 
 const CATEGORY_ICON: Record<string, string> = {
+  CULTURE: '🚶',
   V_TOGETHER: '🚶',
   PEOPLE: '💬',
 }
@@ -71,7 +72,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
 
   const events = rawEvents.map((e) => ({
     id: e.event_id,
-    category: CATEGORY_DISPLAY[e.category] ?? 'V.Together',
+    category: CATEGORY_DISPLAY[e.category] ?? 'Culture',
     title: e.title,
     desc: String(e.short_description ?? e.description ?? '').trim() || '참여하고 포인트를 획득하세요.',
     icon: CATEGORY_ICON[e.category] ?? '🎯',
@@ -79,7 +80,6 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
     type: e.type as string,
     rounds_count: e.rounds_count ?? 0,
     rounds: e.rounds ?? [],
-    hasPendingReward: (e as { hasPendingReward?: boolean }).hasPendingReward ?? false,
     frequency_limit: (e as { frequency_limit?: string | null }).frequency_limit ?? null,
     alwaysParticipation: (e as { alwaysParticipation?: { allowed: boolean; reason?: string } }).alwaysParticipation,
   }))
@@ -110,7 +110,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           <p className="mt-1 text-gray-500">참여하고 포인트를 획득하세요.</p>
         </div>
         <div className="flex flex-wrap gap-2 rounded-xl bg-white/60 p-1.5 shadow-soft backdrop-blur-sm">
-          {(['ALL', 'V.Together', 'People'] as const).map((tab) => (
+          {(['ALL', 'Culture', 'People'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleFilterChange(tab)}
@@ -214,22 +214,9 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                 <span className="shrink-0 text-xs text-gray-400">클릭 시 상세 보기</span>
                 {isLoggedIn ? (
                   <div className="flex shrink-0 items-center gap-2">
-                    {/* 보상받기: 승인된 제출이 있어 보상 수령 가능할 때 */}
-                    {c.hasPendingReward && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setVerifyModalEventId(c.id)
-                        }}
-                        className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600 btn-press"
-                      >
-                        보상받기
-                      </button>
-                    )}
-                    {/* 인증하기: 기간제는 OPEN 구간 있을 때, 상시는 보상 대기 중이 아닐 때 (참여하기 없이 통일) */}
+                    {/* 인증하기: 기간제 OPEN 구간 또는 상시 이벤트 */}
                     {((c.type === 'SEASONAL' && c.rounds?.some((r) => r.status === 'OPEN')) ||
-                      (c.type === 'ALWAYS' && !c.hasPendingReward)) && (
+                      c.type === 'ALWAYS') && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -259,7 +246,6 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           category: infoModalEvent.category,
           type: infoModalEvent.type,
           rounds: infoModalEvent.rounds,
-          hasPendingReward: (infoModalEvent as { hasPendingReward?: boolean }).hasPendingReward,
           frequency_limit: (infoModalEvent as { frequency_limit?: string | null }).frequency_limit ?? null,
           alwaysParticipation: (infoModalEvent as { alwaysParticipation?: { allowed: boolean; reason?: string } }).alwaysParticipation,
         } : null}

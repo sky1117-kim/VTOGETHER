@@ -24,7 +24,6 @@ import {
   EVENT_TYPES,
   FREQUENCY_LIMITS,
   REWARD_POLICIES,
-  REWARD_KINDS,
   VERIFICATION_METHOD_TYPES,
   VALUE_LABEL_OPTIONS,
   VALUE_LABEL_CUSTOM,
@@ -36,8 +35,6 @@ import { RichTextEditor } from '@/components/ui/RichTextEditor'
 // 입력 필드: 부드러운 테두리, 포커스 시 primary 강조
 const inputClass =
   'mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-gray-900 transition-colors placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20'
-const inputNumberClass =
-  'mt-1.5 w-32 rounded-lg border border-gray-200 bg-white px-3 py-2 text-gray-900 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20'
 const labelClass = 'block text-sm font-semibold text-gray-800'
 
 type VerificationMethodType = VerificationMethodInput['method_type']
@@ -63,19 +60,21 @@ function buildPayload(
     shortDescription: string
     description: string
     imageUrl: string
-    category: 'V_TOGETHER' | 'PEOPLE'
+    category: 'CULTURE' | 'PEOPLE'
     type: 'ALWAYS' | 'SEASONAL'
     frequencyLimit: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
     rewardPolicy: 'SENDER_ONLY' | 'BOTH'
-    selectedRewards: { kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+    rewardAmount: string
     verificationItems: VerificationItem[]
-  },
-  createdBy: string
+  }
 ) {
-  const rewards: EventRewardInput[] = state.selectedRewards.map((r) => ({
-    reward_kind: r.kind,
-    amount: r.kind === 'GOODS' ? null : Math.max(0, parseInt(r.amount, 10) || 0),
-  }))
+  const rewardKind: EventRewardInput['reward_kind'] = state.category === 'PEOPLE' ? 'V_MEDAL' : 'V_CREDIT'
+  const rewards: EventRewardInput[] = [
+    {
+      reward_kind: rewardKind,
+      amount: Math.max(0, parseInt(state.rewardAmount, 10) || 0),
+    },
+  ]
   const verification_methods: VerificationMethodInput[] = state.verificationItems.map((item) => ({
     method_type: item.method_type,
     is_required: true,
@@ -335,15 +334,11 @@ function SortableVerificationItem({
 
 function validateForm(state: {
   title: string
-  selectedRewards: { kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
+  rewardAmount: string
   verificationItems: VerificationItem[]
 }): string | null {
   if (!state.title.trim()) return '제목을 입력하세요.'
-  if (state.selectedRewards.length === 0) return '보상을 1개 이상 선택하세요.'
-  for (const r of state.selectedRewards) {
-    if (r.kind !== 'GOODS' && (!r.amount.trim() || parseInt(r.amount, 10) < 0))
-      return 'V.Credit·커피쿠폰은 금액(수량)을 입력하세요.'
-  }
+  if (!state.rewardAmount.trim() || parseInt(state.rewardAmount, 10) < 0) return '보상 수량을 입력하세요.'
   if (state.verificationItems.length === 0) return '인증 방식을 1개 이상 추가하세요.'
   for (const item of state.verificationItems) {
     if (item.method_type === 'TEXT' && item.input_style === 'CHOICE') {
@@ -372,32 +367,15 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
   const [description, setDescription] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [imageUploading, setImageUploading] = useState(false)
-  const [category, setCategory] = useState<'V_TOGETHER' | 'PEOPLE'>('V_TOGETHER')
+  const [category, setCategory] = useState<'CULTURE' | 'PEOPLE'>('CULTURE')
   const [type, setType] = useState<'ALWAYS' | 'SEASONAL'>('ALWAYS')
   const [frequencyLimit, setFrequencyLimit] = useState<'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'>('ONCE')
   const [rewardPolicy, setRewardPolicy] = useState<'SENDER_ONLY' | 'BOTH'>('SENDER_ONLY')
-  const [selectedRewards, setSelectedRewards] = useState<
-    { kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON'; amount: string }[]
-  >([])
+  const [rewardAmount, setRewardAmount] = useState('100')
   const [verificationItems, setVerificationItems] = useState<VerificationItem[]>([])
   const now = new Date()
   const [roundYear, setRoundYear] = useState(now.getFullYear())
   const [roundMonth, setRoundMonth] = useState(now.getMonth() + 1)
-
-  const toggleReward = (kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON') => {
-    setSelectedRewards((prev) => {
-      const exists = prev.some((r) => r.kind === kind)
-      if (exists) return prev.filter((r) => r.kind !== kind)
-      const needsAmount = REWARD_KINDS.find((k) => k.value === kind)?.needsAmount ?? false
-      return [...prev, { kind, amount: needsAmount ? '100' : '' }]
-    })
-  }
-
-  const setRewardAmount = (kind: 'V_CREDIT' | 'GOODS' | 'COFFEE_COUPON', value: string) => {
-    setSelectedRewards((prev) =>
-      prev.map((r) => (r.kind === kind ? { ...r, amount: value } : r))
-    )
-  }
 
   const addVerificationItem = (method_type: VerificationMethodType) => {
     const defaultStyle: 'SHORT' | 'LONG' = method_type === 'VALUE' ? 'SHORT' : 'LONG'
@@ -477,16 +455,12 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       setShortDescription(ev.short_description ?? '')
       setDescription(ev.description ?? '')
       setImageUrl(ev.image_url ?? '')
-      setCategory((ev as { category?: string }).category === 'CULTURE' ? 'PEOPLE' : ev.category)
+      setCategory(((ev as { category?: string }).category === 'PEOPLE' ? 'PEOPLE' : 'CULTURE'))
       setType(ev.type)
       setFrequencyLimit(ev.frequency_limit ?? 'ONCE')
       setRewardPolicy(ev.reward_policy)
-      setSelectedRewards(
-        revs.map((r) => ({
-          kind: r.reward_kind,
-          amount: r.amount != null ? String(r.amount) : '',
-        }))
-      )
+      const currencyReward = revs.find((r) => r.reward_kind === 'V_MEDAL' || r.reward_kind === 'V_CREDIT')
+      setRewardAmount(currencyReward?.amount != null ? String(currencyReward.amount) : '100')
       setVerificationItems(
         vms.map((m) => ({
           id: crypto.randomUUID(),
@@ -513,7 +487,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
     type,
     frequencyLimit,
     rewardPolicy,
-    selectedRewards,
+    rewardAmount,
     verificationItems,
   }
 
@@ -544,7 +518,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       return
     }
     setPending(true)
-    const result = await createEvent(buildPayload(state, createdBy), createdBy)
+    const result = await createEvent(buildPayload(state), createdBy)
     if (result.error) {
       setPending(false)
       setMessage({ type: 'error', text: result.error })
@@ -688,13 +662,16 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
             <label className={labelClass}>카테고리</label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as 'V_TOGETHER' | 'PEOPLE')}
+              onChange={(e) => setCategory(e.target.value as 'CULTURE' | 'PEOPLE')}
               className={inputClass}
             >
               {EVENT_CATEGORIES.map(({ value, label }) => (
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
+            <p className="mt-2 text-xs font-medium text-emerald-700">
+              자동 보상 안내: {category === 'PEOPLE' ? 'People 선택 시 V.Medal 지급' : 'Culture 선택 시 V.Credit 지급'}
+            </p>
           </div>
           <div>
             <label className={labelClass}>타입</label>
@@ -767,32 +744,19 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
             </select>
           </div>
           <div>
-            <span className={labelClass}>보상 유형 *</span>
-            <div className="mt-2 flex flex-wrap gap-3">
-              {REWARD_KINDS.map(({ value, label, needsAmount }) => (
-                <div key={value} className="flex items-center gap-2">
-                  <label className="flex cursor-pointer items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={selectedRewards.some((r) => r.kind === value)}
-                      onChange={() => toggleReward(value)}
-                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                    />
-                    <span className="text-sm text-gray-700">{label}</span>
-                  </label>
-                  {needsAmount && selectedRewards.some((r) => r.kind === value) && (
-                    <input
-                      type="number"
-                      min={0}
-                      value={selectedRewards.find((r) => r.kind === value)?.amount ?? ''}
-                      onChange={(e) => setRewardAmount(value, e.target.value)}
-                      className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
-                      placeholder={value === 'V_CREDIT' ? 'P' : '매수'}
-                    />
-                  )}
-                </div>
-              ))}
+            <label className={labelClass}>자동 보상 재화</label>
+            <div className="mt-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-700">
+              {category === 'PEOPLE' ? 'People -> V.Medal 자동 지급' : 'Culture -> V.Credit 자동 지급'}
             </div>
+            <label className={`${labelClass} mt-3`}>보상 수량 *</label>
+            <input
+              type="number"
+              min={0}
+              value={rewardAmount}
+              onChange={(e) => setRewardAmount(e.target.value)}
+              className={inputClass}
+              placeholder={category === 'PEOPLE' ? 'M 수량' : 'P 수량'}
+            />
           </div>
         </div>
       </section>

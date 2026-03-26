@@ -10,12 +10,14 @@ import {
   Heart,
   Users,
   CircleDollarSign,
+  Store,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/admin', label: '대시보드', icon: LayoutDashboard, showBadge: false },
   { href: '/admin/point-grant', label: '수동 지급', icon: CircleDollarSign, showBadge: false },
   { href: '/admin/events', label: '이벤트', icon: Gift, showBadge: false },
+  { href: '/admin/shop-products', label: '상점 상품', icon: Store, showBadge: false },
   { href: '/admin/verifications', label: '인증 심사', icon: ClipboardCheck, showBadge: true },
   { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송', icon: Package, showBadge: false },
   { href: '/admin/donation-targets', label: '기부처', icon: Heart, showBadge: false },

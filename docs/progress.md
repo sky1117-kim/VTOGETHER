@@ -47,6 +47,17 @@
 
 ---
 
+## Phase 4: V.Medal / 상점 / 매칭기부
+
+- [x] `users.current_medals`, `credit_lots`, `donation_lot_allocations`, `shop_products`, `shop_orders` 스키마 추가 (2026.03.26)
+- [x] People=V.Medal, Culture=V.Credit 이벤트 보상 분기 반영 (2026.03.26)
+- [x] 사용자 상점 `/shop` 및 구매 액션 추가 (굿즈/크레딧 전환) (2026.03.26)
+- [x] 관리자 상점 상품 관리 `/admin/shop-products` 추가 (등록/활성화) (2026.03.26)
+- [x] 기부 시 Credit lot FIFO 차감 + 출처 할당 저장 반영 (2026.03.26)
+- [x] 관리자 매칭 지표를 lot 기반으로 전환 (2026.03.26)
+
+---
+
 ## 문서
 
 - [x] 관리자 페이지 설계서 `docs/plan-admin.md` (2026.02.13)
@@ -54,3 +65,4 @@
 - [x] ALWAYS 빈도 제한 마이그레이션 `docs/migrations/011-events-frequency-limit.sql` (2026.02.13)
 - [x] Phase 3 기술 설계서 `docs/plan-phase3.md` (2026.02.23)
 - [x] 쿠폰/굿즈 발송 완료 컬럼 마이그레이션 `docs/migrations/017-event-submissions-non-point-fulfilled-at.sql` (2026.02.24)
+- [x] V.Medal 구현 설계서 `docs/plan.md` (2026.03.26)

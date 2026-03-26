@@ -36,7 +36,15 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
   const [amount, setAmount] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successPayload, setSuccessPayload] = useState<{ targetName: string; amount: number } | null>(null)
+  const [successPayload, setSuccessPayload] = useState<{
+    targetName: string
+    amount: number
+    levelUp?: {
+      fromLevel: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
+      toLevel: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
+      awardedMedals: number
+    } | null
+  } | null>(null)
   const openTimeRef = useRef<number>(0)
   const router = useRouter()
 
@@ -72,7 +80,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
       } else {
         setIsOpen(false)
         setAmount(0)
-        setSuccessPayload({ targetName: target.name, amount })
+        setSuccessPayload({ targetName: target.name, amount, levelUp: result.levelUp ?? null })
         router.refresh()
       }
     } catch (err) {
@@ -119,6 +127,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
         <DonationSuccessModal
           targetName={successPayload.targetName}
           amount={successPayload.amount}
+          levelUp={successPayload.levelUp ?? null}
           onClose={handleCloseSuccess}
         />
       )}

@@ -8,9 +8,9 @@ cd "$(dirname "$0")/.."
 echo "🔐 Secret Manager 설정"
 echo ""
 
-# .env 로드
+# 운영 .env 로드 (.env.local 은 사용하지 않음)
 if [ ! -f .env ]; then
-  echo "❌ .env 파일이 없습니다."
+  echo "❌ .env 파일이 없습니다. (SUPABASE_SERVICE_ROLE_KEY 가 있는 운영용 .env)"
   exit 1
 fi
 

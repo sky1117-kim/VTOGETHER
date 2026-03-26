@@ -13,6 +13,11 @@ function displayName(name: string): string {
 interface DonationSuccessModalProps {
   targetName: string
   amount: number
+  levelUp?: {
+    fromLevel: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
+    toLevel: 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
+    awardedMedals: number
+  } | null
   onClose: () => void
 }
 
@@ -20,6 +25,7 @@ interface DonationSuccessModalProps {
 export function DonationSuccessModal({
   targetName,
   amount,
+  levelUp = null,
   onClose,
 }: DonationSuccessModalProps) {
   useBodyScrollLock(true) // 이 모달은 열려 있을 때만 렌더되므로 항상 잠금
@@ -92,6 +98,17 @@ export function DonationSuccessModal({
           <p>세상을 바꾸는 큰 기회가 됩니다.</p>
           <p className="font-medium">따뜻한 마음에 진심으로 감사드립니다.</p>
         </div>
+
+        {levelUp && (
+          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
+            <p className="text-base font-bold text-emerald-800">
+              축하합니다! {levelUp.toLevel === 'GREEN_MASTER' ? 'Green Master' : 'Earth Hero'} 달성
+            </p>
+            <p className="mt-1 text-sm text-emerald-700">
+              레벨업 보상으로 <span className="font-bold">{levelUp.awardedMedals} M</span> 이 지급되었습니다.
+            </p>
+          </div>
+        )}
 
         <button
           type="button"

@@ -144,6 +144,7 @@ export async function grantPoints(
       user_id: userId,
       type: 'EARNED',
       amount,
+      currency_type: 'V_CREDIT',
       related_id: null,
       related_type: 'ADMIN_GRANT',
       description,
@@ -153,6 +154,14 @@ export async function grantPoints(
     if (txError) {
       return { success: false, error: '거래 기록 실패: ' + txError.message }
     }
+    await supabase.from('credit_lots').insert({
+      user_id: userId,
+      source_type: 'ADMIN_GRANT',
+      initial_amount: amount,
+      remaining_amount: amount,
+      related_id: null,
+      description,
+    })
     revalidatePath('/admin')
     revalidatePath('/')
     revalidatePath('/donation')
@@ -321,21 +330,21 @@ export async function getDonationAmountsByPeriod(): Promise<{
   }
 }
 
-/** 이벤트 적립 현황: People/V.Together별 V.Credit, 매칭금 (People만 매칭 대상) */
+/** 이벤트 적립 현황: People/Culture별 적립, 매칭금 (Medal->Credit 전환분 기부만 매칭 대상) */
 export async function getEventEarnedStats(): Promise<{
   peopleEarned: number
-  vTogetherEarned: number
+  cultureEarned: number
   matchingAmount: number
   totalEarned: number
   totalCollected: number
   error: string | null
 }> {
-  const empty = { peopleEarned: 0, vTogetherEarned: 0, matchingAmount: 0, totalEarned: 0, totalCollected: 0, error: null as string | null }
+  const empty = { peopleEarned: 0, cultureEarned: 0, matchingAmount: 0, totalEarned: 0, totalCollected: 0, error: null as string | null }
   try {
     const supabase = createAdminClient()
     const { data: txRows, error: txErr } = await supabase
       .from('point_transactions')
-      .select('amount, related_id')
+      .select('amount, related_id, currency_type')
       .eq('type', 'EARNED')
       .eq('related_type', 'EVENT')
       .is('deleted_at', null)
@@ -359,22 +368,36 @@ export async function getEventEarnedStats(): Promise<{
     const eventToCategory = new Map((evRows ?? []).map((e) => [(e as { event_id: string }).event_id, (e as { category: string }).category]))
 
     let peopleEarned = 0
-    let vTogetherEarned = 0
+    let cultureEarned = 0
     for (const t of txs) {
+      if ((t as { currency_type?: string }).currency_type === 'V_MEDAL') continue
       const subId = (t as { related_id: string }).related_id
       const amount = Number((t as { amount: number }).amount) || 0
       const eventId = subId ? subToEvent.get(subId) : null
       const category = eventId ? eventToCategory.get(eventId) : null
       if (category === 'PEOPLE') peopleEarned += amount
-      else if (category === 'V_TOGETHER') vTogetherEarned += amount
+      else if (category === 'CULTURE' || category === 'V_TOGETHER') cultureEarned += amount
     }
-    const matchingAmount = peopleEarned
-    const totalCollected = vTogetherEarned + peopleEarned + matchingAmount
+
+    const { data: allocRows } = await supabase
+      .from('donation_lot_allocations')
+      .select('allocated_amount, lot_id, donation_id')
+      .is('deleted_at', null)
+    const lotIds = [...new Set((allocRows ?? []).map((a) => a.lot_id))]
+    const { data: lots } = lotIds.length
+      ? await supabase.from('credit_lots').select('lot_id, source_type').in('lot_id', lotIds).is('deleted_at', null)
+      : { data: [] }
+    const lotSourceMap = new Map((lots ?? []).map((l) => [l.lot_id, l.source_type]))
+    const matchingAmount = (allocRows ?? []).reduce((sum, row) => {
+      const source = lotSourceMap.get(row.lot_id)
+      return source === 'MEDAL_EXCHANGE' ? sum + Number(row.allocated_amount ?? 0) : sum
+    }, 0)
+    const totalCollected = cultureEarned + peopleEarned + matchingAmount
     return {
       peopleEarned,
-      vTogetherEarned,
+      cultureEarned,
       matchingAmount,
-      totalEarned: peopleEarned + vTogetherEarned,
+      totalEarned: peopleEarned + cultureEarned,
       totalCollected,
       error: null,
     }
@@ -575,7 +598,7 @@ export async function resetAndSeedTestData(): Promise<{ success: boolean; error:
       return { success: false, error: '데이터 삭제 실패. RLS 정책을 확인하세요.' }
     }
     await supabase.from('donation_targets').update({ current_amount: 0, status: 'ACTIVE' })
-    await supabase.from('users').update({ current_points: 0, total_donated_amount: 0 })
+    await supabase.from('users').update({ current_points: 0, current_medals: 0, total_donated_amount: 0 })
 
     await supabase.from('site_content').upsert(
       [

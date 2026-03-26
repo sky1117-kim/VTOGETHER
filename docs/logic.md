@@ -14,6 +14,25 @@
 - **donation_target_name**: 기부 건일 때 기부처명 전용 컬럼 (기부처 열만 따로 필터/정렬하기 쉽게).
 - `user_id`, `amount`, `related_id` 등 기존 컬럼은 그대로 두고, 위 세 컬럼은 "보기 편의용"으로만 사용합니다.
 
+## V.Medal / 상점 / 매칭기부 (2026.03.26)
+
+- 재화는 `V.Credit` + `V.Medal` 2종으로 운영합니다.
+- 이벤트 보상 정책:
+  - `People` 이벤트 승인 보상은 `V.Medal` 적립
+  - `Culture` 이벤트 승인 보상은 `V.Credit` 적립
+- `V.Medal` 상점:
+  - 굿즈 구매 가능
+  - `V.Credit` 전환 상품 구매 가능
+- `V.Credit` 출처 추적:
+  - `credit_lots`에 `ACTIVITY`, `MEDAL_EXCHANGE`, `ADMIN_GRANT`로 lot 저장
+  - 기부 시 오래된 lot부터 FIFO 차감
+  - 차감 결과는 `donation_lot_allocations`에 저장
+- 매칭기부:
+  - 일반 활동으로 적립된 `V.Credit` 기부는 매칭 제외
+  - `V.Medal -> V.Credit` 전환 lot(`MEDAL_EXCHANGE`)에서 차감된 금액만 매칭 인정
+- 관리자 대시보드 매칭 지표:
+  - 이벤트 카테고리별 적립 + lot 기반 매칭금 집계로 계산
+
 ## Phase 2: 이벤트 & 챌린지
 
 - **관리자 권한**: `users.is_admin = true` 인 사용자만 `/admin` 접근 및 이벤트 등록·인증 심사 가능.
@@ -110,3 +129,10 @@
 ## 이벤트별 엑셀 다운로드 (관리자)
 
 - **이벤트 목록** 또는 **이벤트 상세** 페이지에서 **엑셀 다운로드** 버튼 클릭 시, 해당 이벤트의 제출 목록(참여자명, 이메일, 구간, 상태, 제출일시, 보상유형, 반려사유, 인증요약)이 엑셀 파일(.xlsx)로 내려받기 됨.
+
+## 에러 알림 (Google Chat Webhook)
+
+- 서버/클라이언트 에러를 Google Chat으로 받기 위해 `GOOGLE_CHAT_WEBHOOK_URL` 환경 변수를 사용합니다.
+- **클라이언트 에러**는 `app/global-error.tsx`에서 `/api/report-client-error`로 전송한 뒤, 서버에서 Chat Webhook으로 전달합니다. (웹훅 URL을 브라우저에 직접 노출하지 않음)
+- **서버 에러**는 인증 관련 Route/Action의 실패 지점에서 `sendGoogleChatAlert()`를 호출해 알림을 보냅니다.
+- 보안 정책: 웹훅 URL은 비밀 값이므로 `.env.local`/`.env`에만 저장하고, 코드/채팅/문서에 실제 URL을 남기지 않습니다.

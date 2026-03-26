@@ -171,7 +171,7 @@ export async function approveSubmission(submissionId: string): Promise<{
 
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('title, reward_policy, reward_type, reward_amount')
+      .select('title, category, reward_policy, reward_type, reward_amount')
       .eq('event_id', sub.event_id)
       .is('deleted_at', null)
       .single()
@@ -201,23 +201,24 @@ export async function approveSubmission(submissionId: string): Promise<{
       roundNumber = round?.round_number ?? null
     }
 
-    // V.Credit 금액 산정: 레거시(event.reward_type) 또는 event_rewards의 V_CREDIT 합계. 구간제면 해당 구간 reward_amount 우선.
+    // 이벤트 카테고리 정책: People=V.Medal, Culture=V.Credit
+    const primaryCurrency = event.category === 'PEOPLE' ? 'V_MEDAL' : 'V_CREDIT'
     let rewardAmount = 0
     if (event.reward_type != null && event.reward_type !== 'CHOICE') {
       rewardAmount = Number(event.reward_amount ?? 0)
       if (roundRewardAmount != null) rewardAmount = Number(roundRewardAmount)
     }
     if (rewardAmount === 0) {
-      const pointRewards = rewards.filter((r) => r.reward_kind === 'V_CREDIT' && r.amount != null)
-      rewardAmount = pointRewards.reduce((sum, r) => sum + Number(r.amount ?? 0), 0)
+      const currencyRewards = rewards.filter((r) => r.reward_kind === primaryCurrency && r.amount != null)
+      rewardAmount = currencyRewards.reduce((sum, r) => sum + Number(r.amount ?? 0), 0)
       if (roundRewardAmount != null && rewardAmount === 0) rewardAmount = Number(roundRewardAmount)
     }
 
     // 복수 보상/CHOICE: 사용자가 선택하므로 승인 시점에 지급하지 않음
-    // 단일 보상만: V.Credit 즉시 지급 또는 쿠폰/굿즈 수령 처리
-    const isPoints = rewardAmount > 0
+    // 단일 보상만: 정책 재화 즉시 지급 또는 쿠폰/굿즈 수령 처리
+    const isCurrencyReward = rewardAmount > 0
     // 단일 비포인트 보상(쿠폰/굿즈 1종): 승인 시 바로 수령 처리하여 관리자 발송 대상에 올림
-    const singleNonPointReward = !isChoiceEvent && !isPoints && rewards.length === 1 ? rewards[0]!.reward_kind : null
+    const singleNonPointReward = !isChoiceEvent && !isCurrencyReward && rewards.length === 1 ? rewards[0]!.reward_kind : null
 
     // 포인트 지급 대상 사용자 목록 (return 시 pointsGranted 계산에 사용하므로 블록 밖에서 선언)
     const userIdsToCredit = [sub.user_id]
@@ -226,38 +227,51 @@ export async function approveSubmission(submissionId: string): Promise<{
     }
 
     // isChoiceEvent면 사용자 선택 대기 → 포인트 지급 안 함. 단일 보상만 즉시 지급
-    if (isPoints && !isChoiceEvent) {
+    if (isCurrencyReward && !isChoiceEvent) {
       for (const uid of userIdsToCredit) {
         const { data: u, error: uErr } = await supabase
           .from('users')
-          .select('current_points, name, email')
+          .select('current_points, current_medals, name, email')
           .eq('user_id', uid)
           .is('deleted_at', null)
           .single()
         if (uErr || !u) return { success: false, error: `사용자 조회 실패: ${uid}` }
 
-        const newPoints = (u.current_points ?? 0) + rewardAmount
-        const { error: updateErr } = await supabase
-          .from('users')
-          .update({ current_points: newPoints })
-          .eq('user_id', uid)
+        const updatePayload =
+          primaryCurrency === 'V_MEDAL'
+            ? { current_medals: (u.current_medals ?? 0) + rewardAmount }
+            : { current_points: (u.current_points ?? 0) + rewardAmount }
+        const { error: updateErr } = await supabase.from('users').update(updatePayload).eq('user_id', uid)
         if (updateErr) return { success: false, error: '포인트 지급 실패' }
+
+        if (primaryCurrency === 'V_CREDIT') {
+          await supabase.from('credit_lots').insert({
+            user_id: uid,
+            source_type: 'ACTIVITY',
+            initial_amount: rewardAmount,
+            remaining_amount: rewardAmount,
+            related_id: sub.submission_id,
+            description: `${event.title} 이벤트 보상`,
+          })
+        }
 
         const isRecipient = uid === sub.peer_user_id
         const anonymousFromRecipient = sub.is_anonymous && isRecipient
         const roundDesc = roundNumber != null ? `${roundNumber}구간 승인되어` : '승인되어'
         // 칭찬 챌린지(BOTH): 제출자 vs 수신자 구분. 수신자에게 익명 선택 시 "익명의 동료가 나를 칭찬하여"
+        const unitLabel = primaryCurrency === 'V_MEDAL' ? 'M' : 'P'
         const description =
           event.reward_policy === 'BOTH' && sub.peer_user_id
             ? isRecipient
-              ? `칭찬을 받음: ${anonymousFromRecipient ? '익명의 동료가' : '동료가'} 나를 칭찬하여 ${rewardAmount.toLocaleString()} P 적립`
-              : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} P 적립`
-            : `${event.title} ${roundDesc} ${rewardAmount.toLocaleString()} P 적립`
+              ? `칭찬을 받음: ${anonymousFromRecipient ? '익명의 동료가' : '동료가'} 나를 칭찬하여 ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
+              : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
+            : `${event.title} ${roundDesc} ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
 
         const { error: txErr } = await supabase.from('point_transactions').insert({
           user_id: uid,
           type: 'EARNED',
           amount: rewardAmount,
+          currency_type: primaryCurrency,
           related_id: sub.submission_id,
           related_type: 'EVENT',
           description,
@@ -269,11 +283,11 @@ export async function approveSubmission(submissionId: string): Promise<{
     }
 
     // 복수 보상(CHOICE)이면 사용자 선택 대기 → reward_received는 항상 false
-    const finalRewardReceived = isChoiceEvent ? false : (isPoints || !!singleNonPointReward)
-    const finalRewardType = (isChoiceEvent && !isPoints)
+    const finalRewardReceived = isChoiceEvent ? false : (isCurrencyReward || !!singleNonPointReward)
+    const finalRewardType = isChoiceEvent
       ? null
-      : (isPoints ? 'V_CREDIT' : (singleNonPointReward ?? event.reward_type ?? null))
-    const finalRewardAmount = (isChoiceEvent && !isPoints) ? null : (isPoints ? rewardAmount : null)
+      : (isCurrencyReward ? primaryCurrency : (singleNonPointReward ?? event.reward_type ?? null))
+    const finalRewardAmount = (isChoiceEvent && !isCurrencyReward) ? null : (isCurrencyReward ? rewardAmount : null)
 
     const { error: updateSubErr } = await supabase
       .from('event_submissions')
@@ -293,7 +307,7 @@ export async function approveSubmission(submissionId: string): Promise<{
     revalidatePath('/admin')
     revalidatePath('/my')
     revalidatePath('/')
-    return { success: true, error: null, pointsGranted: (isPoints && !isChoiceEvent) ? rewardAmount * userIdsToCredit.length : undefined }
+    return { success: true, error: null, pointsGranted: (isCurrencyReward && !isChoiceEvent) ? rewardAmount * userIdsToCredit.length : undefined }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '승인 처리 실패' }
   }

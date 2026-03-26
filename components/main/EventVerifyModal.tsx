@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
-import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto, claimRewardChoice } from '@/api/actions/events'
+import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto } from '@/api/actions/events'
 import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
-import type { VerificationMethodRow, RoundForParticipation, RewardOptionRow, PeerSelectionUserRow } from '@/api/queries/events'
+import type { VerificationMethodRow, RoundForParticipation, PeerSelectionUserRow } from '@/api/queries/events'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const METHOD_LABEL: Record<string, string> = {
@@ -44,12 +44,6 @@ const ROUND_STATUS_LABEL: Record<string, string> = {
   DONE: '완료',
   FAILED: '마감',
 }
-const REWARD_KIND_LABEL: Record<string, string> = {
-  V_CREDIT: 'V.Credit',
-  COFFEE_COUPON: '커피 쿠폰',
-  GOODS: '굿즈',
-}
-
 interface EventVerifyModalProps {
   eventId: string | null
   isOpen: boolean
@@ -67,8 +61,6 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     event: { event_id: string; title: string; type: string }
     verificationMethods: VerificationMethodRow[]
     rounds: RoundForParticipation[]
-    rewardOptions: RewardOptionRow[]
-    pendingChoiceSubmission: { submission_id: string; round_number: number | null } | null
     canParticipate?: { allowed: boolean; reason?: string; nextAvailableAt?: string }
     peerSelectionUsers?: PeerSelectionUserRow[]
     currentUserId?: string | null
@@ -82,9 +74,6 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
   const [isAnonymous, setIsAnonymous] = useState(false)
   /** 숫자(VALUE) 인증 필드별 에러 (숫자 아닌 문자 입력 시) */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [choicePending, setChoicePending] = useState(false)
-  /** 보상 선택 후 확인 대기 (이걸로 하시겠어요?) */
-  const [confirmingReward, setConfirmingReward] = useState<'V_CREDIT' | 'COFFEE_COUPON' | 'GOODS' | null>(null)
 
   // 모달/이벤트 변경 시 최신 값 유지 (늦게 도착한 응답 무시용)
   const latestRef = useRef({ isOpen, eventId })
@@ -100,7 +89,6 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setFieldErrors({})
       setSelectedRoundId(null)
       setPeerSearch('')
-      setConfirmingReward(null)
       setIsAnonymous(false)
       return
     }
@@ -212,27 +200,11 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     setTimeout(() => onClose(), 1500)
   }
 
-  const handleRewardChoice = async (rewardKind: 'V_CREDIT' | 'COFFEE_COUPON' | 'GOODS') => {
-    if (!data?.pendingChoiceSubmission) return
-    setChoicePending(true)
-    setError(null)
-    const result = await claimRewardChoice(data.pendingChoiceSubmission.submission_id, rewardKind)
-    setChoicePending(false)
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-    setSuccess(true)
-    onSuccess?.()
-    setTimeout(() => onClose(), 1500)
-  }
-
   // 모달 열림 시 배경 스크롤 방지
   useBodyScrollLock(isOpen)
 
   if (!isOpen) return null
 
-  const showRewardChoice = data?.pendingChoiceSubmission && data.rewardOptions?.length > 0
   const cannotParticipateAlways = data?.event.type === 'ALWAYS' && data.canParticipate && !data.canParticipate.allowed
 
   const modal = (
@@ -294,101 +266,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
             </button>
           </div>
         )}
-        {!loading && data && !success && data.pendingChoiceSubmission && data.rewardOptions.length === 0 && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-5">
-            <p className="text-center text-base font-semibold text-gray-800">{data.event.title}</p>
-            <div className="w-full max-w-md rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800">
-              승인되었으나 보상 옵션이 설정되지 않았습니다. 관리자에게 문의하세요.
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full max-w-md rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
-            >
-              닫기
-            </button>
-          </div>
-        )}
-        {!loading && data && !success && showRewardChoice && (
-          <div className="flex flex-1 flex-col justify-center space-y-6">
-            {confirmingReward == null ? (
-              <>
-                <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
-                {data.pendingChoiceSubmission?.round_number != null && (
-                  <p className="text-sm text-gray-600">{data.pendingChoiceSubmission.round_number}구간 승인됨 · 받을 보상을 선택하세요.</p>
-                )}
-                {!data.pendingChoiceSubmission?.round_number && (
-                  <p className="text-sm text-gray-600">승인되었습니다. 받을 보상을 선택하세요.</p>
-                )}
-                <div className="flex flex-col gap-2">
-                  {data.rewardOptions.map((opt) => (
-                    <button
-                      key={opt.reward_kind}
-                      type="button"
-                      disabled={choicePending}
-                      onClick={() => setConfirmingReward(opt.reward_kind)}
-                      className="rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-green-400 hover:bg-green-50 disabled:opacity-50"
-                    >
-                      {REWARD_KIND_LABEL[opt.reward_kind] ?? opt.reward_kind}
-                      {opt.reward_kind === 'V_CREDIT' && opt.amount != null && (
-                        <span className="ml-2 text-green-600"> {opt.amount} P</span>
-                      )}
-                      {opt.reward_kind === 'COFFEE_COUPON' && opt.amount != null && (
-                        <span className="ml-2 text-green-600"> {opt.amount}매</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-                <div className="border-t border-gray-100 pt-4">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="w-full rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
-                  >
-                    취소
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-base font-semibold text-gray-800">이걸로 하시겠어요?</p>
-                <div className="rounded-xl border-2 border-green-200 bg-green-50/50 px-4 py-3">
-                  <p className="text-sm font-medium text-gray-800">
-                    {REWARD_KIND_LABEL[confirmingReward] ?? confirmingReward}
-                    {confirmingReward === 'V_CREDIT' && (() => {
-                      const opt = data.rewardOptions.find((o) => o.reward_kind === 'V_CREDIT')
-                      return opt?.amount != null ? ` ${opt.amount} P` : ''
-                    })()}
-                    {confirmingReward === 'COFFEE_COUPON' && (() => {
-                      const opt = data.rewardOptions.find((o) => o.reward_kind === 'COFFEE_COUPON')
-                      return opt?.amount != null ? ` ${opt.amount}매` : ''
-                    })()}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-600">선택 후에는 변경할 수 없습니다.</p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingReward(null)}
-                    className="flex-1 rounded-xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
-                  >
-                    다시 선택
-                  </button>
-                  <button
-                    type="button"
-                    disabled={choicePending}
-                    onClick={() => confirmingReward && handleRewardChoice(confirmingReward)}
-                    className="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 btn-press"
-                  >
-                    {choicePending ? '처리 중…' : '이걸로 받기'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {!loading && data && !success && !showRewardChoice && cannotParticipateAlways && (
+        {!loading && data && !success && cannotParticipateAlways && (
           <div className="flex flex-1 flex-col items-center justify-center gap-5">
             <div className="w-full max-w-md space-y-4">
               <p className="text-center text-base font-semibold text-gray-800">{data.event.title}</p>
@@ -406,7 +284,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
           </div>
         )}
 
-        {!loading && data && !success && !showRewardChoice && !cannotParticipateAlways && (
+        {!loading && data && !success && !cannotParticipateAlways && (
           <form id="event-verify-form" onSubmit={handleSubmit} className="space-y-6">
             <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
 
@@ -716,7 +594,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
         </div>
 
         {/* 폼일 때만 푸터 고정 (취소/제출) */}
-        {!loading && data && !success && !showRewardChoice && !cannotParticipateAlways && (
+        {!loading && data && !success && !cannotParticipateAlways && (
           <div className="flex-shrink-0 border-t border-gray-100 p-6 pt-4">
             <div className="flex gap-3">
               <button

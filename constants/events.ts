@@ -1,7 +1,7 @@
 /** 이벤트 등록/관리 화면에서 쓰는 선택 옵션 (라벨·값) */
 
 export const EVENT_CATEGORIES = [
-  { value: 'V_TOGETHER' as const, label: 'V.Together' },
+  { value: 'CULTURE' as const, label: 'Culture' },
   { value: 'PEOPLE' as const, label: 'People' },
 ] as const
 
@@ -41,6 +41,7 @@ export const REWARD_POLICIES = [
 /** 보상 유형: 하나만 선택 가능 또는 복수 선택. 굿즈는 금액 없음, V.Credit·커피쿠폰은 금액 필수 */
 export const REWARD_KINDS = [
   { value: 'V_CREDIT' as const, label: 'V.Credit', needsAmount: true },
+  { value: 'V_MEDAL' as const, label: 'V.Medal', needsAmount: true },
   { value: 'GOODS' as const, label: '굿즈', needsAmount: false },
   { value: 'COFFEE_COUPON' as const, label: '커피쿠폰', needsAmount: true },
 ] as const

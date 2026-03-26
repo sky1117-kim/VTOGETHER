@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Heart, User } from 'lucide-react'
+import { Home, Store, User } from 'lucide-react'
 
 const navigationItems = [
   { href: '/', label: '홈', icon: Home },
-  { href: '/donation', label: '기부하기', icon: Heart },
+  { href: '/shop', label: '상점', icon: Store },
   { href: '/my', label: '마이페이지', icon: User },
 ]
 

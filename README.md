@@ -15,14 +15,17 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ## 주요 기능 / 페이지
 
 - **메인**: `/` — 대시보드, 기부, 이벤트 & 챌린지, 명예의 전당(분기별 TOP 10)
-- **관리자**: `/admin` — 대시보드(전사 기부·목표 달성률·승인 대기·**MAU**·**이벤트 적립 현황** People/V.Together/매칭금), 메인 문구 편집, 사용자·관리자 설정. 네비에 승인 대기 배지, 설정 섹션 접기/펼치기 지원
+- **상점**: `/shop` — `V.Medal`로 굿즈 구매 또는 `V.Credit` 전환 상품 구매
+- **관리자**: `/admin` — 대시보드(전사 기부·목표 달성률·승인 대기·**MAU**·**이벤트 적립 현황** People/Culture/매칭금), 메인 문구 편집, 사용자·관리자 설정. 네비에 승인 대기 배지, 설정 섹션 접기/펼치기 지원
 - **V.Credit 수동 지급**: `/admin/point-grant` — 이벤트 외 보정·특별 보상 등 직원에게 P 직접 적립(사유 기록, `point_transactions` ADMIN_GRANT)
 - **이벤트 관리**: `/admin/events` — 목록, `/admin/events/new` — 등록 (보상: V.Credit/굿즈/커피쿠폰 복수 선택, 인증: 사진·텍스트·숫자·동료선택+텍스트 + 직원 안내문)
 - **인증 심사**: `/admin/verifications` — 이벤트 참여 인증 승인/반려, 일괄 처리
 - **기부처 관리**: `/admin/donation-targets` — 목표 수정, 오프라인 성금 합산
+- **상점 상품 관리**: `/admin/shop-products` — 상점 상품 등록/활성화/가격·재고·설명 수정 + 상품 이미지 업로드(드래그앤드롭/자동압축) + 검색/필터
 - **최근 접속 사용자**: `/admin/recent-users` — 마지막 접속 시각 기준 사용자 목록
 - **스켈레톤 UI**: 메인·마이·기부·관리자 페이지 로딩 시 콘텐츠 자리 표시용 스켈레톤 표시
 - **세아웍스 인사 연동**: 로그인 시 부서명(`dept_name`) 자동 동기화 (`docs/seah-orgsync-api.md` 참고)
+- **Google Chat 에러 알림**: 서버/클라이언트 에러 발생 시 지정한 Chat 스페이스로 알림 전송 (`GOOGLE_CHAT_WEBHOOK_URL`)
 
 ## Getting Started
 

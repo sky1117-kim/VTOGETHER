@@ -32,9 +32,10 @@ fi
 echo "✓ 프로젝트: $PROJECT"
 echo ""
 
-# 4. .env 로드
+# 4. 운영 환경 변수 로드 (로컬 전용 .env.local 은 배포에 쓰지 않음)
 if [ ! -f .env ]; then
-  echo "❌ .env 파일이 없습니다. 프로젝트 루트에 .env를 만들어주세요."
+  echo "❌ .env 파일이 없습니다. 운영/배포용으로 프로젝트 루트에 .env 를 만들어주세요."
+  echo "   (로컬 개발은 .env.local — deploy 는 이 스크립트가 읽지 않습니다.)"
   exit 1
 fi
 
@@ -75,6 +76,12 @@ if [ -n "$SEAH_ORGSYNC_USER_API_URL" ] && [ -n "$SEAH_ORGSYNC_USERNAME" ] && [ -
   ENV_VARS="$ENV_VARS,SEAH_ORGSYNC_USER_API_URL=$SEAH_ORGSYNC_USER_API_URL,SEAH_ORGSYNC_ORG_API_URL=$SEAH_ORGSYNC_ORG_API_URL,SEAH_ORGSYNC_USERNAME=$SEAH_ORGSYNC_USERNAME,SEAH_ORGSYNC_PASSWORD=$SEAH_ORGSYNC_PASSWORD"
 fi
 
+# 구글 챗 에러 알림 (선택) — .env에 있으면 배포에 포함 (.env.local 은 deploy 시 로드되지 않음)
+if [ -n "$GOOGLE_CHAT_WEBHOOK_URL" ]; then
+  echo "✓ GOOGLE_CHAT_WEBHOOK_URL 포함"
+  ENV_VARS="$ENV_VARS,GOOGLE_CHAT_WEBHOOK_URL=$GOOGLE_CHAT_WEBHOOK_URL"
+fi
+
 if gcloud secrets describe supabase-service-role &>/dev/null 2>&1; then
   echo "✓ Secret Manager의 supabase-service-role 사용"
   gcloud run deploy vtogether \
@@ -100,5 +107,5 @@ echo "   (Cloud Run 콘솔에서 실제 URL 확인: https://console.cloud.google
 echo ""
 echo "📌 다음 확인 사항:"
 echo "   • Supabase → Authentication → URL Configuration: Redirect URLs에 $APP_URL/** 추가"
-echo "   • .env의 NEXT_PUBLIC_APP_URL이 위 URL과 일치하는지 확인"
+echo "   • 운영 .env 의 NEXT_PUBLIC_APP_URL이 위 URL과 일치하는지 확인"
 echo ""

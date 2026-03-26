@@ -4,9 +4,9 @@ import { EventRowActions } from './EventRowActions'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 
 const CATEGORY_LABEL: Record<string, string> = {
-  V_TOGETHER: 'V.Together',
+  CULTURE: 'Culture',
   PEOPLE: 'People',
-  CULTURE: 'People', // 레거시: 마이그레이션 029 전 데이터
+  V_TOGETHER: 'Culture', // 레거시: 마이그레이션 032 전 데이터
 }
 const TYPE_LABEL: Record<string, string> = {
   ALWAYS: '상시',

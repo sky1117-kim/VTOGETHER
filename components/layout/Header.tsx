@@ -18,7 +18,7 @@ export async function Header() {
     <nav className="fixed left-0 right-0 top-0 z-50 bg-white/80 shadow-soft backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 justify-between">
-          <div className="flex items-center">
+          <div className="flex items-center gap-6">
             <Link
               href="/"
               className="group flex shrink-0 cursor-pointer items-center gap-3 rounded-xl py-1.5 pr-2 transition hover:bg-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
@@ -30,6 +30,26 @@ export async function Header() {
                 V.Together
               </span>
             </Link>
+            <div className="hidden items-center gap-1 md:flex">
+              <Link
+                href="/"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+              >
+                홈
+              </Link>
+              <Link
+                href="/shop"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+              >
+                상점
+              </Link>
+              <Link
+                href="/my"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+              >
+                마이페이지
+              </Link>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="mr-2 hidden flex-col items-end md:flex">

@@ -51,155 +51,9 @@ export type PointNotificationRow = {
   created_at: string
 }
 
-/** 보상 선택 대기 알림 (복수 보상 이벤트 승인 후, 제출자용) */
-export type PendingRewardChoiceRow = {
-  type: 'PENDING_REWARD'
-  submission_id: string
-  event_id: string
-  event_title: string
-  round_number: number | null
-  reviewed_at: string
-}
-
-/** 칭찬 수신자용: 보낸 사람이 보상 선택 시 포인트 지급 (CHOICE/BOTH 이벤트) */
-export type PendingRecipientRewardRow = {
-  type: 'PENDING_RECIPIENT_REWARD'
-  submission_id: string
-  event_id: string
-  event_title: string
-  round_number: number | null
-  reviewed_at: string
-}
-
-/** 알림 버튼용: 적립 내역 + 보상 선택 대기 (통합) */
+/** 알림 버튼용: 적립 내역 */
 export type NotificationItem =
   | (PointNotificationRow & { type?: 'EARNED' })
-  | PendingRewardChoiceRow
-  | PendingRecipientRewardRow
-
-export async function getPendingRewardChoiceNotifications(
-  userId: string
-): Promise<PendingRewardChoiceRow[]> {
-  const supabase = await createClient()
-  const { data: subs, error: subsError } = await supabase
-    .from('event_submissions')
-    .select('submission_id, event_id, round_id, status, reward_received, reviewed_at')
-    .eq('user_id', userId)
-    .eq('status', 'APPROVED')
-    .eq('reward_received', false)
-    .is('deleted_at', null)
-    .not('reviewed_at', 'is', null)
-
-  if (subsError || !subs?.length) return []
-
-  const eventIds = [...new Set(subs.map((s) => s.event_id))]
-  const { data: events } = await supabase
-    .from('events')
-    .select('event_id, title, reward_type')
-    .in('event_id', eventIds)
-    .is('deleted_at', null)
-  const eventTitleBy = new Map((events ?? []).map((e) => [e.event_id, e.title]))
-  const choiceByRewardType = new Set(
-    (events ?? []).filter((e) => e.reward_type === 'CHOICE').map((e) => e.event_id)
-  )
-  const { data: rewardsByEvent } = await supabase
-    .from('event_rewards')
-    .select('event_id')
-    .in('event_id', eventIds)
-    .is('deleted_at', null)
-  const rewardCountByEvent = new Map<string, number>()
-  for (const r of rewardsByEvent ?? []) {
-    rewardCountByEvent.set(r.event_id, (rewardCountByEvent.get(r.event_id) ?? 0) + 1)
-  }
-  const choiceByMultiReward = new Set([...rewardCountByEvent.entries()].filter(([, c]) => c > 1).map(([eid]) => eid))
-  const choiceEventIds = new Set([...choiceByRewardType, ...choiceByMultiReward])
-  const choiceSubs = subs.filter((s) => choiceEventIds.has(s.event_id))
-  if (choiceSubs.length === 0) return []
-
-  const roundIds = choiceSubs.map((s) => s.round_id).filter(Boolean) as string[]
-  let roundNumberBy = new Map<string, number>()
-  if (roundIds.length > 0) {
-    const { data: rounds } = await supabase
-      .from('event_rounds')
-      .select('round_id, round_number')
-      .in('round_id', roundIds)
-      .is('deleted_at', null)
-    for (const r of rounds ?? []) roundNumberBy.set(r.round_id, r.round_number)
-  }
-
-  return choiceSubs.map((s) => ({
-    type: 'PENDING_REWARD' as const,
-    submission_id: s.submission_id,
-    event_id: s.event_id,
-    event_title: eventTitleBy.get(s.event_id) ?? '이벤트',
-    round_number: s.round_id ? roundNumberBy.get(s.round_id) ?? null : null,
-    reviewed_at: s.reviewed_at!,
-  }))
-}
-
-/** 칭찬 수신자용: 나에게 보낸 칭찬이 승인됐으나 보낸 사람이 아직 보상 미선택 (CHOICE/BOTH) */
-export async function getPendingRecipientRewardNotifications(
-  userId: string
-): Promise<PendingRecipientRewardRow[]> {
-  const supabase = await createClient()
-  const { data: subs, error: subsError } = await supabase
-    .from('event_submissions')
-    .select('submission_id, event_id, round_id, status, reward_received, reviewed_at')
-    .eq('peer_user_id', userId)
-    .eq('status', 'APPROVED')
-    .eq('reward_received', false)
-    .is('deleted_at', null)
-    .not('reviewed_at', 'is', null)
-
-  if (subsError || !subs?.length) return []
-
-  const eventIds = [...new Set(subs.map((s) => s.event_id))]
-  const { data: events } = await supabase
-    .from('events')
-    .select('event_id, title, reward_type, reward_policy')
-    .in('event_id', eventIds)
-    .is('deleted_at', null)
-  const eventTitleBy = new Map((events ?? []).map((e) => [e.event_id, e.title]))
-  const bothEventIds = new Set((events ?? []).filter((e) => e.reward_policy === 'BOTH').map((e) => e.event_id))
-  const choiceByRewardType = new Set(
-    (events ?? []).filter((e) => e.reward_type === 'CHOICE').map((e) => e.event_id)
-  )
-  const { data: rewardsByEvent } = await supabase
-    .from('event_rewards')
-    .select('event_id')
-    .in('event_id', eventIds)
-    .is('deleted_at', null)
-  const rewardCountByEvent = new Map<string, number>()
-  for (const r of rewardsByEvent ?? []) {
-    rewardCountByEvent.set(r.event_id, (rewardCountByEvent.get(r.event_id) ?? 0) + 1)
-  }
-  const choiceByMultiReward = new Set([...rewardCountByEvent.entries()].filter(([, c]) => c > 1).map(([eid]) => eid))
-  const choiceEventIds = new Set([...choiceByRewardType, ...choiceByMultiReward])
-  const recipientChoiceSubs = subs.filter(
-    (s) => bothEventIds.has(s.event_id) && choiceEventIds.has(s.event_id)
-  )
-  if (recipientChoiceSubs.length === 0) return []
-
-  const roundIds = recipientChoiceSubs.map((s) => s.round_id).filter(Boolean) as string[]
-  let roundNumberBy = new Map<string, number>()
-  if (roundIds.length > 0) {
-    const { data: rounds } = await supabase
-      .from('event_rounds')
-      .select('round_id, round_number')
-      .in('round_id', roundIds)
-      .is('deleted_at', null)
-    for (const r of rounds ?? []) roundNumberBy.set(r.round_id, r.round_number)
-  }
-
-  return recipientChoiceSubs.map((s) => ({
-    type: 'PENDING_RECIPIENT_REWARD' as const,
-    submission_id: s.submission_id,
-    event_id: s.event_id,
-    event_title: eventTitleBy.get(s.event_id) ?? '이벤트',
-    round_number: s.round_id ? roundNumberBy.get(s.round_id) ?? null : null,
-    reviewed_at: s.reviewed_at!,
-  }))
-}
 
 export async function getRecentPointNotifications(
   userId: string,
@@ -224,21 +78,16 @@ export async function getRecentPointNotifications(
   return (data ?? []) as PointNotificationRow[]
 }
 
-/** 알림 버튼용: 적립 내역 + 보상 선택 대기 통합 (최신순) */
+/** 알림 버튼용: 최근 적립 내역만 최신순 제공 */
 export async function getNotificationsForBell(
   userId: string,
   days = 7
 ): Promise<NotificationItem[]> {
-  const [earned, pendingRewards, pendingRecipientRewards] = await Promise.all([
-    getRecentPointNotifications(userId, days),
-    getPendingRewardChoiceNotifications(userId),
-    getPendingRecipientRewardNotifications(userId),
-  ])
+  const earned = await getRecentPointNotifications(userId, days)
   const earnedItems: NotificationItem[] = earned.map((e) => ({ ...e, type: 'EARNED' as const }))
-  const pendingItems: NotificationItem[] = [...pendingRewards, ...pendingRecipientRewards]
-  const combined = [...earnedItems, ...pendingItems].sort((a, b) => {
-    const aAt = 'transaction_id' in a ? a.created_at : a.reviewed_at
-    const bAt = 'transaction_id' in b ? b.created_at : b.reviewed_at
+  const combined = [...earnedItems].sort((a, b) => {
+    const aAt = a.created_at
+    const bAt = b.created_at
     return new Date(bAt).getTime() - new Date(aAt).getTime()
   })
   return combined.slice(0, 30)

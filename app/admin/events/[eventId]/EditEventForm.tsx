@@ -20,6 +20,7 @@ const STATUS_OPTIONS: { value: EventRow['status']; label: string }[] = [
 
 const REWARD_KIND_LABEL: Record<EventRewardRow['reward_kind'], string> = {
   V_CREDIT: 'V.Credit (P)',
+  V_MEDAL: 'V.Medal (M)',
   COFFEE_COUPON: '커피 쿠폰 (매수)',
   GOODS: '굿즈',
 }
@@ -27,8 +28,8 @@ const REWARD_KIND_LABEL: Record<EventRewardRow['reward_kind'], string> = {
 /** 수정 가능한 필드만 노출. 카테고리·인증 방식은 변경 시 데이터 깨질 수 있어 제외. 보상 금액은 수정 가능 */
 interface EditEventFormProps {
   eventId: string
-  event: Pick<EventRow, 'title' | 'description' | 'short_description' | 'image_url' | 'status'>
-  /** 이벤트 보상 목록. V.Credit·커피쿠폰 금액 수정 가능 (이미 지급된 건 기존 금액, 이후부터 새 금액 적용) */
+  event: Pick<EventRow, 'title' | 'description' | 'short_description' | 'image_url' | 'status' | 'category'>
+  /** 이벤트 보상 목록. 정책 재화(V.Credit 또는 V.Medal) 수량만 수정 */
   rewards?: EventRewardRow[]
 }
 
@@ -62,7 +63,9 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
     if (result.url) setImageUrl(result.url)
   }
 
-  const amountRewards = rewards.filter((r) => r.reward_kind === 'V_CREDIT' || r.reward_kind === 'COFFEE_COUPON')
+  const primaryRewardKind: EventRewardRow['reward_kind'] =
+    event.category === 'PEOPLE' ? 'V_MEDAL' : 'V_CREDIT'
+  const amountRewards = rewards.filter((r) => r.reward_kind === primaryRewardKind)
   const [rewardAmounts, setRewardAmounts] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {}
     for (const r of amountRewards) {
@@ -220,7 +223,9 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
 
       {amountRewards.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-          <p className="mb-3 text-sm font-bold text-gray-700">보상 금액 (V.Credit · 커피 쿠폰)</p>
+          <p className="mb-3 text-sm font-bold text-gray-700">
+            보상 수량 ({event.category === 'PEOPLE' ? 'People -> V.Medal' : 'Culture -> V.Credit'})
+          </p>
           <p className="mb-3 text-xs text-gray-500">
             이미 지급된 보상은 기존 금액 그대로이며, 이후 인증 통과분부터 새 금액이 적용됩니다.
           </p>

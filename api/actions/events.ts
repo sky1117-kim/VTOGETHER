@@ -7,6 +7,7 @@ import { getEventForParticipation } from '@/api/queries/events'
 
 const REWARD_KIND_LABEL: Record<string, string> = {
   V_CREDIT: 'V.Credit',
+  V_MEDAL: 'V.Medal',
   COFFEE_COUPON: '커피 쿠폰',
   GOODS: '굿즈',
 }
@@ -176,7 +177,7 @@ export async function submitEventSubmission(
   }
 }
 
-type RewardKindChoice = 'V_CREDIT' | 'COFFEE_COUPON' | 'GOODS'
+type RewardKindChoice = 'V_CREDIT' | 'V_MEDAL' | 'COFFEE_COUPON' | 'GOODS'
 
 /**
  * 승인 후 보상 선택(CHOICE/복수 보상): 사용자가 보상 종류를 골라 포인트 지급 또는 쿠폰/굿즈 선택
@@ -215,7 +216,7 @@ export async function claimRewardChoice(
 
     let rewardAmount = 0
     let roundNumber: number | null = null
-    if (rewardKind === 'V_CREDIT' && option.amount != null) {
+    if ((rewardKind === 'V_CREDIT' || rewardKind === 'V_MEDAL') && option.amount != null) {
       rewardAmount = Number(option.amount)
       if (sub.round_id) {
         const { data: round } = await admin.from('event_rounds').select('reward_amount, round_number').eq('round_id', sub.round_id).is('deleted_at', null).single()
@@ -224,7 +225,7 @@ export async function claimRewardChoice(
       }
     }
 
-    if (rewardKind === 'V_CREDIT' && rewardAmount > 0) {
+    if ((rewardKind === 'V_CREDIT' || rewardKind === 'V_MEDAL') && rewardAmount > 0) {
       const userIdsToCredit = [sub.user_id]
       if (event?.reward_policy === 'BOTH' && sub.peer_user_id) userIdsToCredit.push(sub.peer_user_id)
       const eventTitle = event?.title ?? '이벤트'
@@ -233,7 +234,7 @@ export async function claimRewardChoice(
       // 사용자 정보 1회 조회 (칭찬 챌린지 시 2명일 수 있음)
       const { data: usersData, error: usersErr } = await admin
         .from('users')
-        .select('user_id, current_points, name, email')
+        .select('user_id, current_points, current_medals, name, email')
         .in('user_id', userIdsToCredit)
         .is('deleted_at', null)
       if (usersErr || !usersData || usersData.length !== userIdsToCredit.length) {
@@ -244,20 +245,33 @@ export async function claimRewardChoice(
       for (const uid of userIdsToCredit) {
         const u = userMap.get(uid)
         if (!u) return { success: false, error: '사용자 조회 실패' }
-        const newPoints = (u.current_points ?? 0) + rewardAmount
-        await admin.from('users').update({ current_points: newPoints }).eq('user_id', uid)
+        if (rewardKind === 'V_MEDAL') {
+          await admin.from('users').update({ current_medals: (u.current_medals ?? 0) + rewardAmount }).eq('user_id', uid)
+        } else {
+          await admin.from('users').update({ current_points: (u.current_points ?? 0) + rewardAmount }).eq('user_id', uid)
+          await admin.from('credit_lots').insert({
+            user_id: uid,
+            source_type: 'ACTIVITY',
+            initial_amount: rewardAmount,
+            remaining_amount: rewardAmount,
+            related_id: sub.submission_id,
+            description: `${eventTitle} 이벤트 보상`,
+          })
+        }
         const isRecipient = uid === sub.peer_user_id
         const anonymousFromRecipient = sub.is_anonymous && isRecipient
+        const unitLabel = rewardKind === 'V_MEDAL' ? 'M' : 'P'
         const description =
           event?.reward_policy === 'BOTH' && sub.peer_user_id
             ? isRecipient
-              ? `칭찬을 받음: ${anonymousFromRecipient ? '익명의 동료가' : '동료가'} 나를 칭찬하여 ${rewardAmount.toLocaleString()} P 적립`
-              : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} P 적립`
-            : `${eventTitle} ${roundDesc} ${rewardAmount.toLocaleString()} P 적립`
+              ? `칭찬을 받음: ${anonymousFromRecipient ? '익명의 동료가' : '동료가'} 나를 칭찬하여 ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
+              : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
+            : `${eventTitle} ${roundDesc} ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
         await admin.from('point_transactions').insert({
           user_id: uid,
           type: 'EARNED',
           amount: rewardAmount,
+          currency_type: rewardKind,
           related_id: sub.submission_id,
           related_type: 'EVENT',
           description,
@@ -272,7 +286,7 @@ export async function claimRewardChoice(
       .update({
         reward_received: true,
         reward_type: rewardKind,
-        reward_amount: rewardKind === 'V_CREDIT' ? rewardAmount : null,
+        reward_amount: rewardKind === 'V_CREDIT' || rewardKind === 'V_MEDAL' ? rewardAmount : null,
       })
       .eq('submission_id', submissionId)
 

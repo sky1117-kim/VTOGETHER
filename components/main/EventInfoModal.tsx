@@ -36,7 +36,6 @@ interface EventInfoModalProps {
     category: string
     type: string
     rounds?: { round_number: number; status: string }[]
-    hasPendingReward?: boolean
     frequency_limit?: string | null
     alwaysParticipation?: { allowed: boolean; reason?: string }
   } | null
@@ -76,19 +75,6 @@ export function EventInfoModal({
   let raw = event?.description?.trim() || '참여하고 포인트를 획득하세요.'
   const isHtml = /<[a-z][^>]*>/i.test(raw)
 
-  // TipTap 직렬화 시 에디터와 모달 표시가 달라지는 띄어쓰기 문제 수정
-  if (isHtml) {
-    // 1) 인라인 태그 내부 끝 공백: <span>평균페이스 </span> → <span>평균페이스</span>
-    raw = raw.replace(
-      /<(span|strong|em|b|i|u)([^>]*)>([^<]*?)\s+<\/\1>/g,
-      (_, tag, attrs, content) => `<${tag}${attrs}>${content.trimEnd()}</${tag}>`
-    )
-    // 2) 인라인 태그 뒤 공백+한글: </span> 가 → </span>가 (조사 붙여쓰기)
-    raw = raw.replace(
-      /(<\/(?:span|strong|em|b|i|u)[^>]*>)\s+([가-힣])/g,
-      '$1$2'
-    )
-  }
   const description = raw
 
   const modal = (
@@ -136,7 +122,7 @@ export function EventInfoModal({
           {/* 에디터(RichTextEditor)와 동일: 패딩·줄간격·단락/목록 스페이싱·글자색/배경색(hex) 적용 */}
           <div
             ref={descriptionRef}
-            className="event-description rte-content min-h-0 w-full break-keep rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-base leading-normal text-gray-900 outline-none [&_a]:text-green-600 [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:leading-normal [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:leading-normal"
+            className="event-description rte-content min-h-0 w-full break-keep whitespace-pre-wrap rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-base leading-normal text-gray-900 outline-none [&_a]:text-green-600 [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:leading-normal [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:leading-normal"
           >
             {isHtml ? (
               <>
@@ -197,17 +183,8 @@ export function EventInfoModal({
             )}
             {isLoggedIn && event && (
               <div className="mt-4 space-y-2">
-                {event.hasPendingReward && (
-                  <button
-                    type="button"
-                    onClick={() => onVerify(event.event_id)}
-                    className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600"
-                  >
-                    보상받기
-                  </button>
-                )}
                 {((event.type === 'SEASONAL' && event.rounds?.some((r) => r.status === 'OPEN')) ||
-                  (event.type === 'ALWAYS' && !event.hasPendingReward)) && (
+                  event.type === 'ALWAYS') && (
                   <button
                     type="button"
                     onClick={() => onVerify(event.event_id)}

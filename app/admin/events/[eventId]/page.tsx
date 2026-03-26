@@ -8,9 +8,9 @@ import { DeleteRoundButton } from './DeleteRoundButton'
 import { ExportEventExcelButton } from '../components/ExportEventExcelButton'
 
 const CATEGORY_LABEL: Record<string, string> = {
-  V_TOGETHER: 'V.Together',
+  CULTURE: 'Culture',
   PEOPLE: 'People',
-  CULTURE: 'People', // 레거시: 마이그레이션 029 전 데이터
+  V_TOGETHER: 'Culture', // 레거시: 마이그레이션 032 전 데이터
 }
 const TYPE_LABEL: Record<string, string> = {
   ALWAYS: '상시',
@@ -85,7 +85,7 @@ export default async function AdminEventDetailPage({
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h3 className="text-base font-semibold text-gray-900">소개문구 · 상태 수정</h3>
         <p className="mt-1 text-sm text-gray-500">
-          제목, 짧은 소개, 상세 소개문구, 대표 이미지 URL, 진행 상태, V.Credit·커피 쿠폰 금액을 수정할 수 있습니다. 카테고리·인증 방식은 변경하지 않습니다.
+          제목, 짧은 소개, 상세 소개문구, 대표 이미지 URL, 진행 상태, 카테고리 정책 재화 수량을 수정할 수 있습니다. 카테고리·인증 방식은 변경하지 않습니다.
         </p>
         <div className="mt-4">
           <EditEventForm
@@ -96,6 +96,7 @@ export default async function AdminEventDetailPage({
               short_description: event.short_description,
               image_url: event.image_url,
               status: event.status,
+              category: event.category,
             }}
             rewards={rewards}
           />

@@ -153,11 +153,11 @@ export default async function AdminPage() {
         </Link>
       </section>
 
-      {/* 이벤트 적립 현황: People 매칭 / V.Together (매칭 없음) */}
+      {/* 이벤트 적립 현황: People/Culture 및 매칭 */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-800">이벤트 적립 현황</h3>
         <p className="mb-4 text-xs text-gray-500">
-          People 이벤트 적립분은 회사 매칭 대상, V.Together는 매칭 없음
+          People은 V.Medal 적립, Culture는 V.Credit 적립. 매칭은 Medal 전환 Credit 기부분만 반영
         </p>
         {eventEarnedStats.error ? (
           <p className="text-sm text-red-500">{eventEarnedStats.error}</p>
@@ -171,9 +171,9 @@ export default async function AdminPage() {
               <p className="mt-0.5 text-xs text-gray-500">매칭 대상</p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">V.Together V.Credit</dt>
+              <dt className="text-xs font-medium text-gray-500">Culture V.Credit</dt>
               <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
-                {formatPoints(eventEarnedStats.vTogetherEarned)}
+                {formatPoints(eventEarnedStats.cultureEarned)}
               </dd>
               <p className="mt-0.5 text-xs text-gray-500">매칭 없음</p>
             </div>
@@ -196,7 +196,7 @@ export default async function AdminPage() {
               <dd className="mt-1 text-2xl font-bold tabular-nums text-green-800">
                 {formatPoints(eventEarnedStats.totalCollected)}
               </dd>
-              <p className="mt-0.5 text-xs text-green-600">V.Together + People + 매칭금</p>
+              <p className="mt-0.5 text-xs text-green-600">Culture + People + 매칭금</p>
             </div>
           </dl>
         )}
