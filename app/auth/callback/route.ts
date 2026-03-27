@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getErrorMessage, sendGoogleChatAlert } from '@/lib/google-chat-alert'
+import { getPublicAppOrigin } from '@/lib/public-app-url'
 import { getDeptNameByEmail } from '@/lib/seah-orgsync'
 import { NextResponse } from 'next/server'
 
@@ -10,7 +11,8 @@ import { NextResponse } from 'next/server'
  */
 function toAbsoluteRedirect(path: string, requestUrl: URL) {
   const safePath = path.startsWith('/') ? path : '/'
-  return new URL(safePath, requestUrl.origin)
+  const appOrigin = getPublicAppOrigin()
+  return new URL(safePath, appOrigin || requestUrl.origin)
 }
 
 export async function GET(request: Request) {

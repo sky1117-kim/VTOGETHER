@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getPublicAppOrigin } from '@/lib/public-app-url'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -41,7 +42,7 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth')
   ) {
-    const url = request.nextUrl.clone()
+    const url = new URL('/login', getPublicAppOrigin())
     url.pathname = '/login'
     // 로그인 후 원래 페이지로 돌아갈 수 있도록 현재 경로를 next 파라미터로 전달
     if (request.nextUrl.pathname !== '/') {
