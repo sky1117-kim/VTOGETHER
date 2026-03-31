@@ -42,11 +42,25 @@ export type PendingSubmissionRow = {
   created_at: string
 }
 
+function getRecipientUserIds(sub: {
+  peer_user_id: string | null
+  verification_data?: unknown
+}): string[] {
+  const fromSingle = sub.peer_user_id ? [sub.peer_user_id] : []
+  const vd = (sub.verification_data ?? {}) as Record<string, unknown>
+  const fromArray = Array.isArray(vd.peer_user_ids)
+    ? vd.peer_user_ids.map((v) => String(v).trim()).filter(Boolean)
+    : []
+  return [...new Set([...fromSingle, ...fromArray])]
+}
+
 /** 관리자: 제출 목록 (승인대기·승인·반려) 전체 조회 (이벤트명·참여자·구간 정보 포함) */
 export async function getPendingSubmissionsForAdmin(): Promise<{
   data: PendingSubmissionRow[] | null
   error: string | null
 }> {
+  const auth = await requireAdminReviewer()
+  if (!auth.ok) return { data: null, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data: submissions, error: subError } = await supabase
@@ -106,7 +120,19 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
           const str = Array.isArray(val) ? (val as string[]).join(', ') : String(val).trim()
           if (str === '') continue
           if (method_type === 'TEXT' && str) preview_text = preview_text ? `${preview_text} · ${str}` : str
-          else if (method_type === 'PEER_SELECT' && str) preview_text = preview_text ? `${preview_text} · ${peer?.name ?? '동료 선택됨'}` : (peer?.name ?? '동료 선택됨')
+          else if (method_type === 'PEER_SELECT' && str) {
+            let peerPreview = peer?.name ?? '동료 선택됨'
+            if (val && typeof val === 'object' && !Array.isArray(val)) {
+              const obj = val as { organization_name?: unknown; peer_user_ids?: unknown }
+              const org = typeof obj.organization_name === 'string' ? obj.organization_name.trim() : ''
+              const peerIds = Array.isArray(obj.peer_user_ids)
+                ? obj.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim())
+                : []
+              if (peerIds.length > 1) peerPreview = `${peerPreview} 외 ${peerIds.length - 1}명`
+              if (org) peerPreview = `${org} · ${peerPreview}`
+            }
+            preview_text = preview_text ? `${preview_text} · ${peerPreview}` : peerPreview
+          }
           else if (method_type === 'VALUE' && (preview_value === null || preview_value === '')) preview_value = typeof val === 'number' ? val : str
         }
       }
@@ -140,11 +166,23 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
   }
 }
 
-/** 현재 로그인 사용자 ID (관리자 심사자) */
-async function getReviewerUserId(): Promise<string | null> {
+/** 현재 로그인 사용자가 관리자인지 확인하고 심사자 ID 반환 */
+async function requireAdminReviewer(): Promise<{ ok: true; reviewerId: string } | { ok: false; error: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user?.id ?? null
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+  const admin = createAdminClient()
+  const { data: me, error } = await admin
+    .from('users')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !me?.is_admin) return { ok: false, error: '관리자만 사용할 수 있습니다.' }
+  return { ok: true, reviewerId: user.id }
 }
 
 /** 단건 승인: 포인트 지급(참여자 + 쌍방 시 수신자) 후 submission 상태 업데이트 */
@@ -153,15 +191,16 @@ export async function approveSubmission(submissionId: string): Promise<{
   error: string | null
   pointsGranted?: number
 }> {
-  const reviewerId = await getReviewerUserId()
-  if (!reviewerId) return { success: false, error: '로그인이 필요합니다.' }
+  const auth = await requireAdminReviewer()
+  if (!auth.ok) return { success: false, error: auth.error }
+  const reviewerId = auth.reviewerId
 
   try {
     const supabase = createAdminClient()
 
     const { data: sub, error: subError } = await supabase
       .from('event_submissions')
-      .select('submission_id, event_id, round_id, user_id, peer_user_id, is_anonymous, status')
+      .select('submission_id, event_id, round_id, user_id, peer_user_id, verification_data, is_anonymous, status')
       .eq('submission_id', submissionId)
       .is('deleted_at', null)
       .single()
@@ -222,13 +261,15 @@ export async function approveSubmission(submissionId: string): Promise<{
 
     // 포인트 지급 대상 사용자 목록 (return 시 pointsGranted 계산에 사용하므로 블록 밖에서 선언)
     const userIdsToCredit = [sub.user_id]
-    if (event.reward_policy === 'BOTH' && sub.peer_user_id) {
-      userIdsToCredit.push(sub.peer_user_id)
+    const recipientUserIds = getRecipientUserIds(sub)
+    if (event.reward_policy === 'BOTH' && recipientUserIds.length > 0) {
+      userIdsToCredit.push(...recipientUserIds)
     }
+    const uniqueUserIdsToCredit = [...new Set(userIdsToCredit)]
 
     // isChoiceEvent면 사용자 선택 대기 → 포인트 지급 안 함. 단일 보상만 즉시 지급
     if (isCurrencyReward && !isChoiceEvent) {
-      for (const uid of userIdsToCredit) {
+      for (const uid of uniqueUserIdsToCredit) {
         const { data: u, error: uErr } = await supabase
           .from('users')
           .select('current_points, current_medals, name, email')
@@ -255,16 +296,14 @@ export async function approveSubmission(submissionId: string): Promise<{
           })
         }
 
-        const isRecipient = uid === sub.peer_user_id
-        const anonymousFromRecipient = sub.is_anonymous && isRecipient
+        const isRecipient = recipientUserIds.includes(uid)
         const roundDesc = roundNumber != null ? `${roundNumber}구간 승인되어` : '승인되어'
-        // 칭찬 챌린지(BOTH): 제출자 vs 수신자 구분. 수신자에게 익명 선택 시 "익명의 동료가 나를 칭찬하여"
         const unitLabel = primaryCurrency === 'V_MEDAL' ? 'M' : 'C'
         const description =
-          event.reward_policy === 'BOTH' && sub.peer_user_id
+          event.reward_policy === 'BOTH' && recipientUserIds.length > 0
             ? isRecipient
-              ? `칭찬을 받음: ${anonymousFromRecipient ? '익명의 동료가' : '동료가'} 나를 칭찬하여 ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
-              : `칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
+              ? `칭찬챌린지 (수신): ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
+              : `칭찬챌린지 (발신): ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
             : `${event.title} ${roundDesc} ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
 
         const { error: txErr } = await supabase.from('point_transactions').insert({
@@ -289,7 +328,7 @@ export async function approveSubmission(submissionId: string): Promise<{
       : (isCurrencyReward ? primaryCurrency : (singleNonPointReward ?? event.reward_type ?? null))
     const finalRewardAmount = (isChoiceEvent && !isCurrencyReward) ? null : (isCurrencyReward ? rewardAmount : null)
 
-    const { error: updateSubErr } = await supabase
+    const { data: updatedSub, error: updateSubErr } = await supabase
       .from('event_submissions')
       .update({
         status: 'APPROVED',
@@ -300,14 +339,18 @@ export async function approveSubmission(submissionId: string): Promise<{
         reviewed_at: new Date().toISOString(),
       })
       .eq('submission_id', submissionId)
+      .eq('status', 'PENDING')
+      .select('submission_id')
+      .maybeSingle()
 
     if (updateSubErr) return { success: false, error: updateSubErr.message }
+    if (!updatedSub) return { success: false, error: '이미 심사된 건입니다.' }
 
     revalidatePath('/admin/verifications')
     revalidatePath('/admin')
     revalidatePath('/my')
     revalidatePath('/')
-    return { success: true, error: null, pointsGranted: (isCurrencyReward && !isChoiceEvent) ? rewardAmount * userIdsToCredit.length : undefined }
+    return { success: true, error: null, pointsGranted: (isCurrencyReward && !isChoiceEvent) ? rewardAmount * uniqueUserIdsToCredit.length : undefined }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '승인 처리 실패' }
   }
@@ -318,8 +361,9 @@ export async function rejectSubmission(
   submissionId: string,
   reason?: string | null
 ): Promise<{ success: boolean; error: string | null }> {
-  const reviewerId = await getReviewerUserId()
-  if (!reviewerId) return { success: false, error: '로그인이 필요합니다.' }
+  const auth = await requireAdminReviewer()
+  if (!auth.ok) return { success: false, error: auth.error }
+  const reviewerId = auth.reviewerId
 
   try {
     const supabase = createAdminClient()
@@ -333,7 +377,7 @@ export async function rejectSubmission(
     if (!sub) return { success: false, error: '제출 건을 찾을 수 없습니다.' }
     if (sub.status !== 'PENDING') return { success: false, error: '이미 심사된 건입니다.' }
 
-    const { error } = await supabase
+    const { data: updatedSub, error } = await supabase
       .from('event_submissions')
       .update({
         status: 'REJECTED',
@@ -342,8 +386,12 @@ export async function rejectSubmission(
         reviewed_at: new Date().toISOString(),
       })
       .eq('submission_id', submissionId)
+      .eq('status', 'PENDING')
+      .select('submission_id')
+      .maybeSingle()
 
     if (error) return { success: false, error: error.message }
+    if (!updatedSub) return { success: false, error: '이미 심사된 건입니다.' }
     revalidatePath('/admin/verifications')
     revalidatePath('/admin')
     return { success: true, error: null }

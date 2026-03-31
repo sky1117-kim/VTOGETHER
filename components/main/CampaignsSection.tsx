@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { EventVerifyModal } from './EventVerifyModal'
 import { EventInfoModal } from './EventInfoModal'
 import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/events'
+import { HealthChallengeVerifyModal } from './HealthChallengeVerifyModal'
+import type { HealthSeasonPublic, HealthTrackPublic } from '@/api/queries/health-challenges'
 
 type Tab = 'ALL' | 'Culture' | 'People'
 
@@ -35,20 +37,42 @@ const CATEGORY_ICON: Record<string, string> = {
 
 const FADE_DURATION_MS = 220
 
+function toPlainTextSummary(raw: unknown): string {
+  const s = String(raw ?? '')
+  // 카드 요약은 HTML 없이 텍스트만 노출
+  return s
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 interface CampaignsSectionProps {
   events: PublicEvent[]
   /** 로그인 여부 (true면 '추후 적용 예정' 문구 숨김, 인증하기 버튼 활성) */
   isLoggedIn?: boolean
+  /** 활성 건강 챌린지(현재 진행 중인 시즌/종목). People 이벤트 인증하기에서 사용 */
+  healthChallenge?: { season: HealthSeasonPublic; tracks: HealthTrackPublic[]; submittedTrackIds: string[] }
 }
 
-export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: CampaignsSectionProps) {
+function normalizeAlwaysParticipation(raw: unknown): { allowed: boolean; reason?: string } | null {
+  if (!raw || typeof raw !== 'object') return null
+  const candidate = raw as { allowed?: unknown; reason?: unknown }
+  if (typeof candidate.allowed !== 'boolean') return null
+  return {
+    allowed: candidate.allowed,
+    reason: typeof candidate.reason === 'string' ? candidate.reason : undefined,
+  }
+}
+
+export function CampaignsSection({ events: rawEvents, isLoggedIn = false, healthChallenge }: CampaignsSectionProps) {
   const router = useRouter()
   const [filter, setFilter] = useState<Tab>('ALL')
   const [displayFilter, setDisplayFilter] = useState<Tab>('ALL')
   const [isFadingOut, setIsFadingOut] = useState(false)
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 탭 전환 시 최신 데이터 로드 (관리자 승인 후 돌아왔을 때 "보상받기" 등 반영)
+  // 탭 전환 시 최신 데이터 로드 (관리자 승인 상태 반영)
   useEffect(() => {
     const onVisible = () => router.refresh()
     document.addEventListener('visibilitychange', onVisible)
@@ -69,19 +93,33 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
 
   const [verifyModalEventId, setVerifyModalEventId] = useState<string | null>(null)
   const [infoModalEvent, setInfoModalEvent] = useState<(typeof rawEvents)[0] | null>(null)
+  const [healthVerifyOpen, setHealthVerifyOpen] = useState(false)
+  const [healthVerifyNonce, setHealthVerifyNonce] = useState(0)
+
+  const linkedHealthEventId = healthChallenge?.season.event_id ?? null
+  const isHealthLinkedEvent = useCallback(
+    (eventId: string) => {
+      // 1) 정석: health_challenge_seasons.event_id로 1:1 매칭
+      if (linkedHealthEventId) return eventId === linkedHealthEventId
+      // 2) 안전장치: event_id가 비어있으면 People 카테고리를 건강 챌린지로 간주
+      const raw = rawEvents.find((e) => e.event_id === eventId)
+      return raw?.category === 'PEOPLE'
+    },
+    [linkedHealthEventId, rawEvents],
+  )
 
   const events = rawEvents.map((e) => ({
     id: e.event_id,
     category: CATEGORY_DISPLAY[e.category] ?? 'Culture',
     title: e.title,
-    desc: String(e.short_description ?? e.description ?? '').trim() || '참여하고 포인트를 획득하세요.',
+    desc: toPlainTextSummary(e.short_description ?? e.description) || '참여하고 포인트를 획득하세요.',
     icon: CATEGORY_ICON[e.category] ?? '🎯',
     image_url: e.image_url ?? null,
     type: e.type as string,
     rounds_count: e.rounds_count ?? 0,
     rounds: e.rounds ?? [],
     frequency_limit: (e as { frequency_limit?: string | null }).frequency_limit ?? null,
-    alwaysParticipation: (e as { alwaysParticipation?: { allowed: boolean; reason?: string } }).alwaysParticipation,
+    alwaysParticipation: normalizeAlwaysParticipation((e as { alwaysParticipation?: unknown }).alwaysParticipation),
   }))
 
   const filtered =
@@ -93,7 +131,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
     OPEN: '인증가능',
     LOCKED: '미오픈',
     SUBMITTED: '승인 대기중',
-    APPROVED: '보상대기',
+    APPROVED: '승인완료',
     DONE: '완료',
     FAILED: '마감',
     REJECTED: '반려됨',
@@ -125,6 +163,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           ))}
         </div>
       </div>
+
       <div
         className="grid grid-cols-1 gap-6 md:grid-cols-3 transition-opacity duration-[220ms] ease-out"
         style={{ opacity: isFadingOut ? 0 : 1 }}
@@ -200,7 +239,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                       <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
                         {FREQUENCY_TAG_LABEL[c.frequency_limit] ?? `${c.frequency_limit} 가능`}
                       </span>
-                      {c.alwaysParticipation && !c.alwaysParticipation.allowed && (
+                      {c.alwaysParticipation?.allowed === false && (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
                           {ALREADY_SUBMITTED_TAG_LABEL[c.frequency_limit] ?? '이미 제출함'}
                         </span>
@@ -221,6 +260,13 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (healthChallenge && isHealthLinkedEvent(c.id)) {
+                            setVerifyModalEventId(null)
+                            setHealthVerifyNonce((v) => v + 1)
+                            setHealthVerifyOpen(true)
+                            return
+                          }
+                          setHealthVerifyOpen(false)
                           setVerifyModalEventId(c.id)
                         }}
                         className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-700 btn-press"
@@ -247,12 +293,19 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           type: infoModalEvent.type,
           rounds: infoModalEvent.rounds,
           frequency_limit: (infoModalEvent as { frequency_limit?: string | null }).frequency_limit ?? null,
-          alwaysParticipation: (infoModalEvent as { alwaysParticipation?: { allowed: boolean; reason?: string } }).alwaysParticipation,
+          alwaysParticipation: normalizeAlwaysParticipation((infoModalEvent as { alwaysParticipation?: unknown }).alwaysParticipation) ?? undefined,
         } : null}
         isOpen={!!infoModalEvent}
         onClose={() => setInfoModalEvent(null)}
         onVerify={(eventId) => {
           setInfoModalEvent(null)
+          if (healthChallenge && isHealthLinkedEvent(eventId)) {
+            setVerifyModalEventId(null)
+            setHealthVerifyNonce((v) => v + 1)
+            setHealthVerifyOpen(true)
+            return
+          }
+          setHealthVerifyOpen(false)
           setVerifyModalEventId(eventId)
         }}
         isLoggedIn={isLoggedIn}
@@ -266,6 +319,21 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false }: Camp
           router.refresh()
         }}
       />
+      {healthChallenge && (
+        <HealthChallengeVerifyModal
+          key={healthVerifyNonce}
+          isOpen={healthVerifyOpen}
+          onClose={() => setHealthVerifyOpen(false)}
+          isLoggedIn={isLoggedIn}
+          season={healthChallenge.season}
+          tracks={healthChallenge.tracks}
+          submittedTrackIds={healthChallenge.submittedTrackIds}
+          onSuccess={() => {
+            // 모달 내부에서 close + refresh도 수행하지만, 카드 상태 반영을 위해 한 번 더 갱신
+            router.refresh()
+          }}
+        />
+      )}
     </section>
   )
 }

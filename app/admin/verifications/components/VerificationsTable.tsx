@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import type { PendingSubmissionRow } from '@/api/actions/admin/verifications'
@@ -22,6 +22,28 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: '승인대기',
   APPROVED: '승인',
   REJECTED: '반려',
+}
+
+function parsePeerSelectDisplay(
+  rawValue: unknown,
+  fallbackPeerName: string | null
+): string {
+  if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+    const v = rawValue as { organization_name?: unknown; peer_user_ids?: unknown }
+    const org = typeof v.organization_name === 'string' ? v.organization_name.trim() : ''
+    const peerIds = Array.isArray(v.peer_user_ids)
+      ? v.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim())
+      : []
+    const base = fallbackPeerName ?? '동료 선택됨'
+    const peerText = peerIds.length > 1 ? `${base} 외 ${peerIds.length - 1}명` : base
+    return org ? `${org} · ${peerText}` : peerText
+  }
+  if (Array.isArray(rawValue)) {
+    const list = rawValue.filter((x): x is string => typeof x === 'string' && !!x.trim())
+    if (list.length > 1) return `${fallbackPeerName ?? list[0]} 외 ${list.length - 1}명`
+    return fallbackPeerName ?? list[0] ?? '동료 선택됨'
+  }
+  return fallbackPeerName ?? '동료 선택됨'
 }
 
 interface VerificationsTableProps {
@@ -87,12 +109,6 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
     const methods = filteredRows[0]?.verification_methods ?? []
     return methods.some((m) => m.method_type === 'PHOTO')
   }, [filterEventId, filteredRows])
-
-  useEffect(() => {
-    if (filterEventId && !roundOptions.some((o) => o.round_id === filterRoundId)) {
-      setFilterRoundId('')
-    }
-  }, [filterEventId, filterRoundId, roundOptions])
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -515,7 +531,7 @@ function SubmissionCard({
                 <div key={m.method_id} className="space-y-2">
                   <p className="text-xs font-semibold text-gray-500">{displayLabel} {urls.length > 1 && `(${urls.length}장)`}</p>
                   <div className="flex flex-wrap gap-2">
-                    {urls.map((url, i) => (
+                    {urls.map((url) => (
                       <VerificationPhotoCard key={url} url={url} />
                     ))}
                   </div>
@@ -644,7 +660,13 @@ function VerificationPreviewCell({ row }: { row: PendingSubmissionRow }) {
         const str = Array.isArray(val) ? (val as string[]).join(', ') : String(val).trim()
         if (str === '') continue
         if (m.method_type === 'VALUE') items.push({ type: 'value', label: m.label ?? undefined, unit: m.unit ?? undefined, value: str })
-        else if (m.method_type === 'PEER_SELECT') items.push({ type: 'text', label: m.label ?? undefined, value: row.peer_name ?? '동료 선택됨' })
+        else if (m.method_type === 'PEER_SELECT') {
+          items.push({
+            type: 'text',
+            label: m.label ?? undefined,
+            value: parsePeerSelectDisplay(val, row.peer_name),
+          })
+        }
         else items.push({ type: 'text', label: m.label ?? undefined, value: str })
       }
     }
@@ -706,7 +728,8 @@ function VerificationDetailModal({
           if (m.method_type === 'PHOTO' && urls.length === 0) return null
           if (m.method_type !== 'PHOTO' && !str) return null
           const label = m.label || METHOD_LABEL[m.method_type] || m.method_type
-          const displayValue = m.method_type === 'PEER_SELECT' ? (row.peer_name ?? '동료 선택됨') : str
+          const displayValue =
+            m.method_type === 'PEER_SELECT' ? parsePeerSelectDisplay(val, row.peer_name) : str
           return { method_type: m.method_type, label, unit: m.unit, value: displayValue, photoUrls: urls }
         })
         .filter(Boolean) as { method_type: string; label: string; unit?: string | null; value: string; photoUrls?: string[] }[]

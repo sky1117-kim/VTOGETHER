@@ -4,7 +4,9 @@
 
 - **Google 로그인**은 프로필에 부서를 내려주지 않기 때문에, 최초 로그인 시 `public.users`에 저장되는 `dept_name`은 **항상 NULL**입니다.
 - 현재는 **관리자 페이지(/admin)** 의 사용자 목록에서 해당 사용자 행의 부서 입력란에 부서명을 입력한 뒤 **저장**하면 됩니다.
-- **구현됨:** 회사 그룹웨어 **세아웍스** 연동으로 로그인 시 부서 정보를 자동으로 불러와 `dept_name`에 반영합니다. (`lib/seah-orgsync.ts`, `docs/seah-orgsync-api.md` 참고)
+- **구현됨(배치형):** 세아웍스 인사 데이터는 `seah_org_units`(조직) + `seah_employees`(직원) 2테이블로 분리 저장합니다. 서비스 로직은 `users`를 그대로 사용하고, 필요할 때 `users.email = seah_employees.email` 조인 후 조직(`seah_org_units.org_name`)을 참조합니다.
+- **동기화 주기:** 외부 세아웍스 API는 `/api/cron/seah-orgsync`를 **하루 1회** 배치로 호출합니다. 실시간(로그인/페이지 진입 시) 외부 API 호출은 하지 않습니다.
+- **식별자/정책:** 이메일은 소문자 정규화(`lower(email)`) 기준으로 관리하고, 퇴사자(`status_code='N'`)는 삭제하지 않고 비활성 상태로 유지합니다.
 - **예정:** 메인 My Status 카드의 프로필 사진은 현재 플레이스홀더(이름 첫 글자)이며, 세아웍스 API에 프로필 이미지 필드가 추가되면 연동 예정입니다.
 
 ## 포인트 거래 내역 (point_transactions) — 추출용 컬럼
@@ -36,7 +38,8 @@
 ## Phase 2: 이벤트 & 챌린지
 
 - **관리자 권한**: `users.is_admin = true` 인 사용자만 `/admin` 접근 및 이벤트 등록·인증 심사 가능.
-- **V.Credit 수동 지급**: `/admin/point-grant`에서 관리자가 특정 사용자에게 정수 P만큼 적립. `users.current_points` 증가 + `point_transactions`에 `type=EARNED`, `related_type=ADMIN_GRANT`, `description`=사유(없으면「관리자 지급」). **관리자 세션 검증** 후에만 서버 액션 실행.
+- **지급/적립 내역 통합 화면**: `/admin/point-grant`에서 수동 지급과 거래 내역 조회를 함께 처리. 수동 지급은 기존과 동일하게 `users.current_points` 증가 + `point_transactions`에 `type=EARNED`, `related_type=ADMIN_GRANT`, `description`=사유(없으면「관리자 지급」)로 기록.
+- **관리자 거래 조회 기준**: 같은 페이지에서 `point_transactions` 전체를 대상으로 이름/이메일/사유 검색, 거래유형(`EARNED`/`DONATED`/`USED`), 재화(`V_CREDIT`/`V_MEDAL`), 출처코드(`related_type`), 기간 필터로 조회.
 - **Footer 관리자 링크**: 메인/기부/마이 페이지 하단 Footer의 "관리자" 링크는 **관리자(`is_admin = true`)일 때만** 표시됩니다. 일반 사용자에게는 노출되지 않습니다.
 - **최초 관리자 설정**: 한 명은 Supabase Table Editor에서 `users` 테이블 → 해당 행의 `is_admin`을 **true**로 수동 설정. 그 다음 로그인하여 `/admin` → **관리자 계정 설정** 섹션에서 다른 사용자에게도 관리자 체크를 줄 수 있음 (웹에서 설정).
 - **이벤트 구간(기간제)**: 참여 기간과 인증 마감이 다름. 1구간 1~10일(인증 15일), 2구간 11~20일(인증 25일), 3구간 21~말일(인증 익월 5일). 자세한 규칙·상태 판단은 `docs/plan-rounds-logic.md` 참고. `event_rounds.submission_deadline` 컬럼 사용 (마이그레이션 013). 해당 월 3구간 자동 생성은 `createRoundsForMonth(eventId, year, month)` 서버 액션 또는 `lib/rounds.ts`의 `getThreeRoundsForMonth(year, month)` 활용.
@@ -67,11 +70,19 @@
   - **전체 모인금액** = V.Together 적립 + People 적립 + People 매칭금액
   - 관리자 대시보드 `/admin`의 **이벤트 적립 현황** 섹션에서 People/V.Together별 V.Credit, 매칭금, 전체 모인금액을 확인 가능.
 
+## 건강 챌린지 (마이그레이션 033·034, People 재화: V.Medal)
+
+- **데이터 모델**: 활동·정산은 `health_challenge_*` 테이블. **시즌은 `/admin/events/new`에서 People 이벤트와 함께 생성하거나**, 이벤트 상세 `/admin/events/[eventId]`의 「건강 챌린지 룰」에서 시즌을 새로 붙일 수 있습니다. `health_challenge_seasons.event_id`로 이벤트와 1:1(034). **4종목(걷기·러닝·하이킹·라이딩)의 1회 최소 조건·월 누적 L1~L3·시즌 기간·ACTIVE 여부는 동일 이벤트 수정 페이지에서 편집**합니다.
+- **메인**: 활성 시즌이 있으면 메인 「이벤트 & 챌린지」블록 **안**(필터 아래, 이벤트 카드 그리드 위)에 `#health-challenge`로 노출. 한 번에 **여러 건** 인증을 제출할 수 있고, **종목(블록)마다 사진을 여러 장** 첨부할 수 있습니다(`photo_urls` JSON 배열).
+- **제출 정책(2026.03.30)**: 건강 챌린지는 **같은 달에 종목별 1회 제출**합니다. 제출 시 입력하는 값은 해당 종목의 **월 누적 달성 수치**이며, 승인 후 월 합계(예: 40km) 기준으로 레벨을 판정합니다.
+- **심사**: `/admin/verifications`에서 활동 로그 승인 시 해당 활동일이 속한 **연·월** 롤업에 거리(km) 또는 고도(m)를 더하고, 종목 임계값으로 `achieved_level`(0~3)을 다시 계산합니다.
+- **월말 정산**: `/admin/health-challenges` 또는 인증 심사 화면에서 연·월 선택 후 실행. 사용자별 **종목 달성 레벨의 합**만큼 V.Medal 지급(레벨 1당 1M), **합계 상한 12M**(4종목×L3). `point_transactions`에 `related_type=HEALTH_CHALLENGE_SETTLEMENT`로 남깁니다. 동일 시즌·연·월·사용자에 이미 정산 레코드가 있으면(유니크) 재지급하지 않습니다.
+- **기본 종목·L1~L3**: 시즌 생성 시 서버가 기획표 기준 4종목·임계값을 자동 채웁니다(마이그레이션 시드 없음).
+
 ## Soft Delete (020 마이그레이션)
 - 모든 테이블에 `deleted_at` 컬럼 추가. 데이터 삭제 시 실제 DELETE 대신 `deleted_at = NOW()`로 플래그 처리.
 - 조회 시 `deleted_at IS NULL`인 행만 노출. 이벤트·구간·제출·기부·포인트 거래 등 모두 적용.
-  - **승인 시 V.Credit 즉시 지급**: 보상이 **단일** V.Credit일 때만 승인 시점에 즉시 지급. "보상 선택" 없이 지급됨.
-  - **보상 선택 (CHOICE)**: 이벤트에 보상이 **2종 이상**(V.Credit + 커피쿠폰 등)이거나 `reward_type='CHOICE'`일 때, 승인 시 `reward_received=false`로 저장. V.Credit가 포함되어 있어도 **즉시 지급하지 않고** 사용자 선택 대기. 사용자가 메인 "보상받기" 클릭 → EventVerifyModal에서 받을 보상(V.Credit/커피쿠폰/굿즈) 선택 → `claimRewardChoice` 호출로 지급 완료.
+  - **승인 시 자동 지급 (2026.03.30 정책)**: 보상 선택(CHOICE) 경로는 사용하지 않음. 승인 시점에 카테고리 정책에 따라 즉시 지급됨(PEOPLE=V.Medal, CULTURE=V.Credit).
 - **인증 방식**:
   - 사진 / 텍스트 / 숫자 / 동료 선택. 항목을 여러 개 추가 가능 (예: 텍스트 2개, 사진+텍스트, 동료 선택+텍스트 등).
   - **제목(label)**: 모든 인증 방식에 공통. 관리자가 이벤트 등록 시 "제목 (심사 시 표시)"를 입력. 인증 심사·상세 보기에서 "(제목) - 제출답변" 형태로 표시. 비우면 방식명(사진/텍스트/숫자/동료 선택)으로 fallback.
@@ -79,19 +90,20 @@
   - `event_verification_methods.input_style`: 단답(SHORT)=한 줄 입력, 장문(LONG)=여러 줄 입력, 객관식(CHOICE)=관리자가 정한 선택지 중 하나 선택. **텍스트(TEXT) 항목에만** 선택 가능 (마이그레이션 014, 031).
   - **객관식(CHOICE) 인증**: 관리자가 선택지를 2개 이상 입력. 참여자는 그 중 하나를 선택. `event_verification_methods.options` JSONB에 선택지 문자열 배열 저장.
   - **숫자(VALUE) 인증**: 숫자만 입력 가능 (단답/장문 옵션 없음). 제목(label)은 거리/속도/시간 등 항목명 선택 또는 직접 입력. `event_verification_methods.unit`: 단위 (예: km/h, km). 심사 화면에서 "거리: 34 km"처럼 표시.
+  - **숫자 입력 표시 규칙**: 웹 입력창에서는 타이핑 중 천 단위 콤마를 자동 표시 (`20000` → `20,000`). 서버 전송/검증 시에는 콤마를 제거한 순수 숫자로 변환.
   - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. **2장 이상 필수** 제출. `verification_data`에 URL 배열로 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
+  - **칭찬 챌린지 동료 선택 확장 (2026.03.30)**: `PEER_SELECT` 인증은 단일 대상만이 아니라 **여러 명 동료 선택**을 지원. 제출 데이터는 `verification_data[method_id]`에 `{ peer_user_ids: string[], organization_name: string }` 형태로 저장하고, `peer_user_id` 컬럼에는 기존 하위호환을 위해 첫 번째 선택 동료를 함께 저장. 관리자 심사 화면에서는 "조직명 + 대표 동료 + 외 n명" 형태로 미리보기.
+  - **동료 선택 인원 정책 (2026.03.30)**: `PEER_SELECT` 항목의 `options`에 `SINGLE` 또는 `MULTIPLE` 저장. 관리자 등록 화면에서 항목별 선택(개인형/조직형) 가능. 참여 모달과 서버 제출 검증은 이 값을 기준으로 1명 제한 또는 다중 선택 허용을 강제.
 
-## 이벤트 카드 버튼 표시 기준 (인증하기 / 보상받기)
+## 이벤트 카드 버튼 표시 기준 (인증하기)
 
-메인 **이벤트 & 챌린지** 카드 하단 버튼은 **인증하기**와 **보상받기**만 사용합니다. (참여하기 문구 없이 모두 "인증하기"로 통일.)
+메인 **이벤트 & 챌린지** 카드 하단 버튼은 **인증하기**를 사용합니다. (참여하기 문구 없이 "인증하기"로 통일.)
 
 | 버튼 | 표시 조건 |
 |------|-----------|
-| **보상받기** | 해당 이벤트에 **승인(APPROVED)된 제출**이 있어, 보상 수령(또는 보상 선택)을 아직 하지 않았을 때. `hasPendingReward` = true 인 이벤트. |
 | **인증하기** | **기간제(SEASONAL)**: 인증 가능(OPEN) 구간이 하나라도 있을 때. **상시(ALWAYS)**: 보상 대기 중인 제출이 없을 때(참여 가능 상태). |
 
 - 기간제·상시 모두 제출 가능한 경우에는 "인증하기"만 노출합니다.
-- 보상받기와 인증하기는 조건에 따라 **동시에** 나올 수 있습니다 (예: 1구간 보상대기 + 2구간 인증가능).
 
 ## Phase 3: V.Honors 랭킹 (명예의 전당)
 

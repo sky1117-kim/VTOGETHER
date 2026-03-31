@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getEventWithRoundsForAdmin } from '@/api/actions/admin/events'
+import { getLinkedHealthSeasonForEvent } from '@/api/actions/admin/health-challenges'
 import { AddRoundsForm } from './AddRoundsForm'
 import { EditEventForm } from './EditEventForm'
 import { DeleteEventButton } from './DeleteEventButton'
 import { DeleteRoundButton } from './DeleteRoundButton'
 import { ExportEventExcelButton } from '../components/ExportEventExcelButton'
+import { EventHealthChallengeEditor } from './EventHealthChallengeEditor'
 
 const CATEGORY_LABEL: Record<string, string> = {
   CULTURE: 'Culture',
@@ -49,6 +51,9 @@ export default async function AdminEventDetailPage({
   }
 
   const { event, rounds, rewards, verification_methods } = data
+
+  const healthLinked =
+    event.category === 'PEOPLE' ? await getLinkedHealthSeasonForEvent(eventId) : { data: null, error: null as string | null }
 
   return (
     <div className="space-y-6">
@@ -102,6 +107,27 @@ export default async function AdminEventDetailPage({
           />
         </div>
       </div>
+
+      {event.category === 'PEOPLE' && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-6 shadow-sm">
+          <h3 className="text-base font-semibold text-gray-900">건강 챌린지 룰 (4종목)</h3>
+          <p className="mt-1 text-sm text-gray-600">
+            걷기·러닝·하이킹·라이딩을 한 시즌에 병행합니다. 1회 인증 최소 조건과 월 누적 L1~L3 목표를 여기서
+            바꿉니다. 시즌이 없으면 아래에서 먼저 만듭니다.
+          </p>
+          {healthLinked.error && (
+            <p className="mt-2 text-sm text-red-600">{healthLinked.error}</p>
+          )}
+          <div className="mt-4">
+            <EventHealthChallengeEditor
+              key={healthLinked.data?.season_id ?? 'no-health-season'}
+              eventId={eventId}
+              eventTitle={event.title}
+              initial={healthLinked.data}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 인증 방식: 조회 전용 (등록 후 변경 불가) */}
       <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-6 shadow-sm">

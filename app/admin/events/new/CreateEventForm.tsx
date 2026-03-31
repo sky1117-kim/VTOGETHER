@@ -17,20 +17,29 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { createEvent, createRoundsForMonth, getEventForCopy } from '@/api/actions/admin/events'
-import { uploadEventRepresentativeImage } from '@/api/actions/events'
+import { createHealthSeason, type HealthSeasonTrackPayload } from '@/api/actions/admin/health-challenges'
+import { uploadEventRepresentativeImage, uploadHealthCriteriaAttachment } from '@/api/actions/events'
 import type { VerificationMethodInput, EventRewardInput, EventRow } from '@/api/actions/admin/events'
+import { DEFAULT_HEALTH_TRACK_SEEDS } from '@/lib/health-challenge-default-season'
 import {
   EVENT_CATEGORIES,
   EVENT_TYPES,
   FREQUENCY_LIMITS,
   REWARD_POLICIES,
   VERIFICATION_METHOD_TYPES,
+  PEER_SELECT_MODES,
   VALUE_LABEL_OPTIONS,
   VALUE_LABEL_CUSTOM,
   VALUE_UNIT_OPTIONS,
   VALUE_UNIT_CUSTOM,
 } from '@/constants/events'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
+import {
+  formatDecimalWithCommas,
+  formatIntegerWithCommas,
+  sanitizeDecimalInput,
+  sanitizeIntegerInput,
+} from '@/lib/number-format'
 
 // 입력 필드: 부드러운 테두리, 포커스 시 primary 강조
 const inputClass =
@@ -52,6 +61,8 @@ interface VerificationItem {
   options?: string[]
   /** VALUE용. 단위 (예: km/h, km). 선택 또는 직접 입력 */
   unit?: string
+  /** PEER_SELECT용. 개인형(1명) / 조직형(여러 명) */
+  peer_select_mode?: 'SINGLE' | 'MULTIPLE'
 }
 
 function buildPayload(
@@ -66,21 +77,42 @@ function buildPayload(
     rewardPolicy: 'SENDER_ONLY' | 'BOTH'
     rewardAmount: string
     verificationItems: VerificationItem[]
-  }
+  },
+  registrationKind: 'general' | 'health_challenge'
 ) {
   const rewardKind: EventRewardInput['reward_kind'] = state.category === 'PEOPLE' ? 'V_MEDAL' : 'V_CREDIT'
   const rewards: EventRewardInput[] = [
     {
       reward_kind: rewardKind,
-      amount: Math.max(0, parseInt(state.rewardAmount, 10) || 0),
+      amount: Math.max(0, parseInt(sanitizeIntegerInput(state.rewardAmount), 10) || 0),
     },
   ]
-  const verification_methods: VerificationMethodInput[] = state.verificationItems.map((item) => ({
+  const verification_methods: VerificationMethodInput[] =
+    registrationKind === 'health_challenge'
+      ? [
+          {
+            method_type: 'TEXT',
+            is_required: false,
+            instruction:
+              '실제 활동 인증은 메인 페이지 「이벤트 & 챌린지」의 건강 챌린지 영역에서 제출합니다. 이 항목은 안내용이며 비워 두셔도 됩니다.',
+            input_style: 'SHORT',
+            label: '건강 챌린지 안내',
+            options: null,
+            unit: null,
+            placeholder: null,
+          },
+        ]
+      : state.verificationItems.map((item) => ({
     method_type: item.method_type,
     is_required: true,
     instruction: item.instruction.trim() || null,
     input_style: item.method_type === 'PHOTO' ? null : item.method_type === 'VALUE' ? null : item.method_type === 'PEER_SELECT' ? null : item.input_style,
-    options: item.input_style === 'CHOICE' && Array.isArray(item.options) ? item.options.filter(Boolean) : null,
+    options:
+      item.method_type === 'PEER_SELECT'
+        ? [item.peer_select_mode ?? 'SINGLE']
+        : item.input_style === 'CHOICE' && Array.isArray(item.options)
+          ? item.options.filter(Boolean)
+          : null,
     // 제목(label): 모든 방식 공통. VALUE는 항목명(거리/속도 등), 그 외는 사용자 입력 제목. 심사 시 "(제목) - 제출답변" 표시
     label:
       item.method_type === 'VALUE'
@@ -119,6 +151,7 @@ function SortableVerificationItem({
   onLabelChange,
   onUnitChange,
   onOptionsChange,
+  onPeerSelectModeChange,
   inputClass,
 }: {
   item: VerificationItem
@@ -129,6 +162,7 @@ function SortableVerificationItem({
   onLabelChange: (id: string, label: string) => void
   onUnitChange: (id: string, unit: string) => void
   onOptionsChange: (id: string, options: string[]) => void
+  onPeerSelectModeChange: (id: string, mode: 'SINGLE' | 'MULTIPLE') => void
   inputClass: string
 }) {
   const {
@@ -279,6 +313,23 @@ function SortableVerificationItem({
           )}
         </>
       )}
+      {item.method_type === 'PEER_SELECT' && (
+        <div>
+          <label className="text-xs font-medium text-gray-500">선택 인원</label>
+          <select
+            value={item.peer_select_mode ?? 'SINGLE'}
+            onChange={(e) => onPeerSelectModeChange(item.id, e.target.value as 'SINGLE' | 'MULTIPLE')}
+            className="mt-1 w-44 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+          >
+            {PEER_SELECT_MODES.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-400">개인형은 1명만, 조직형은 여러 명 선택 가능합니다.</p>
+        </div>
+      )}
       {item.method_type === 'VALUE' && (
         <>
           <div>
@@ -332,14 +383,108 @@ function SortableVerificationItem({
   )
 }
 
+type HealthTrackRowForm = {
+  kind: 'WALK' | 'RUN' | 'HIKE' | 'RIDE'
+  title: string
+  min_distance_km: string
+  min_speed_kmh: string
+  min_elevation_m: string
+  level1: string
+  level2: string
+  level3: string
+}
+
+function defaultHealthTrackRows(): HealthTrackRowForm[] {
+  return DEFAULT_HEALTH_TRACK_SEEDS.map((s) => ({
+    kind: s.kind,
+    title: s.title,
+    min_distance_km: s.min_distance_km != null ? String(s.min_distance_km) : '',
+    min_speed_kmh: s.min_speed_kmh != null ? String(s.min_speed_kmh) : '',
+    min_elevation_m: s.min_elevation_m != null ? String(s.min_elevation_m) : '',
+    level1: String(s.level_targets[0]),
+    level2: String(s.level_targets[1]),
+    level3: String(s.level_targets[2]),
+  }))
+}
+
+function parseHN(s: string): number | null {
+  const t = sanitizeDecimalInput(s).trim()
+  if (t === '') return null
+  const n = Number(t)
+  return Number.isFinite(n) ? n : null
+}
+
+function parseReqHN(s: string, label: string): { ok: true; n: number } | { ok: false; err: string } {
+  const t = sanitizeDecimalInput(s).trim()
+  if (t === '') return { ok: false, err: `${label}을(를) 입력하세요.` }
+  const n = Number(t)
+  if (!Number.isFinite(n) || n < 0) return { ok: false, err: `${label}은(는) 0 이상 숫자여야 합니다.` }
+  return { ok: true, n }
+}
+
+/** 건강 챌린지 등록 시 4 → 서버 페이로드 */
+function healthRowsToPayload(rows: HealthTrackRowForm[]): { ok: true; tracks: HealthSeasonTrackPayload[] } | { ok: false; err: string } {
+  const tracks: HealthSeasonTrackPayload[] = []
+  for (const row of rows) {
+    const l1 = parseReqHN(row.level1, `${row.kind} L1`)
+    const l2 = parseReqHN(row.level2, 'L2')
+    const l3 = parseReqHN(row.level3, 'L3')
+    if (!l1.ok) return { ok: false, err: l1.err }
+    if (!l2.ok) return { ok: false, err: l2.err }
+    if (!l3.ok) return { ok: false, err: l3.err }
+    if (l1.n > l2.n || l2.n > l3.n) {
+      return { ok: false, err: `${row.kind}: L1 ≤ L2 ≤ L3 이 되도록 입력하세요.` }
+    }
+    tracks.push({
+      kind: row.kind,
+      title: row.title.trim(),
+      min_distance_km: parseHN(row.min_distance_km),
+      min_speed_kmh: parseHN(row.min_speed_kmh),
+      min_elevation_m: parseHN(row.min_elevation_m),
+      level1: l1.n,
+      level2: l2.n,
+      level3: l3.n,
+    })
+  }
+  return { ok: true, tracks }
+}
+
+const HC_KIND_LABEL: Record<HealthTrackRowForm['kind'], string> = {
+  WALK: '걷기 (월 누적 km)',
+  RUN: '러닝 (km + 속도)',
+  HIKE: '하이킹 (월 누적 고도 m)',
+  RIDE: '라이딩 (km + 속도)',
+}
+
 function validateForm(state: {
   title: string
   rewardAmount: string
   verificationItems: VerificationItem[]
+  category: 'CULTURE' | 'PEOPLE'
+  healthStartDate: string
+  healthEndDate: string
+  registrationKind: 'general' | 'health_challenge'
+  healthTrackRows: HealthTrackRowForm[]
 }): string | null {
   if (!state.title.trim()) return '제목을 입력하세요.'
-  if (!state.rewardAmount.trim() || parseInt(state.rewardAmount, 10) < 0) return '보상 수량을 입력하세요.'
-  if (state.verificationItems.length === 0) return '인증 방식을 1개 이상 추가하세요.'
+  if (!sanitizeIntegerInput(state.rewardAmount).trim() || parseInt(sanitizeIntegerInput(state.rewardAmount), 10) < 0) return '보상 수량을 입력하세요.'
+  if (state.registrationKind !== 'health_challenge' && state.verificationItems.length === 0) {
+    return '인증 방식을 1개 이상 추가하세요.'
+  }
+  if (state.registrationKind === 'health_challenge' && state.category !== 'PEOPLE') {
+    return '건강 챌린지는 People 카테고리여야 합니다.'
+  }
+  if (state.registrationKind === 'health_challenge') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(state.healthStartDate) || !/^\d{4}-\d{2}-\d{2}$/.test(state.healthEndDate)) {
+      return '건강 챌린지 기간은 YYYY-MM-DD 형식으로 입력하세요.'
+    }
+    if (state.healthStartDate > state.healthEndDate) return '건강 챌린지 종료일이 시작일보다 빠를 수 없습니다.'
+  }
+  if (state.registrationKind === 'health_challenge') {
+    if (state.healthTrackRows.length !== 4) return '4종목 설정이 필요합니다.'
+    const p = healthRowsToPayload(state.healthTrackRows)
+    if (!p.ok) return p.err
+  }
   for (const item of state.verificationItems) {
     if (item.method_type === 'TEXT' && item.input_style === 'CHOICE') {
       const validOpts = (item.options ?? []).filter((o) => o.trim())
@@ -347,6 +492,14 @@ function validateForm(state: {
     }
   }
   return null
+}
+
+/** 챌린지 시즌 기본 기간(해당 연·월 전체) */
+function monthRangeUtcString(year: number, month1to12: number): { start: string; end: string } {
+  const start = `${year}-${String(month1to12).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month1to12, 0).getDate()
+  const end = `${year}-${String(month1to12).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  return { start, end }
 }
 
 interface CreateEventFormProps {
@@ -376,6 +529,16 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
   const now = new Date()
   const [roundYear, setRoundYear] = useState(now.getFullYear())
   const [roundMonth, setRoundMonth] = useState(now.getMonth() + 1)
+  const initialMonth = monthRangeUtcString(now.getFullYear(), now.getMonth() + 1)
+  const [healthStartDate, setHealthStartDate] = useState(initialMonth.start)
+  const [healthEndDate, setHealthEndDate] = useState(initialMonth.end)
+  const [healthSeasonSlug, setHealthSeasonSlug] = useState('')
+  const [healthSeasonStatus, setHealthSeasonStatus] = useState<'DRAFT' | 'ACTIVE'>('ACTIVE')
+  const [registrationKind, setRegistrationKind] = useState<'general' | 'health_challenge'>('general')
+  const [healthCriteriaUrl, setHealthCriteriaUrl] = useState('')
+  const [healthCriteriaUploading, setHealthCriteriaUploading] = useState(false)
+  const [healthTrackRows, setHealthTrackRows] = useState<HealthTrackRowForm[]>(() => defaultHealthTrackRows())
+  const linkHealthChallenge = registrationKind === 'health_challenge'
 
   const addVerificationItem = (method_type: VerificationMethodType) => {
     const defaultStyle: 'SHORT' | 'LONG' = method_type === 'VALUE' ? 'SHORT' : 'LONG'
@@ -388,6 +551,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
         input_style: defaultStyle,
         label: '',
         unit: method_type === 'VALUE' ? '' : undefined,
+        peer_select_mode: method_type === 'PEER_SELECT' ? 'SINGLE' : undefined,
       },
     ])
   }
@@ -428,6 +592,11 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       prev.map((item) => (item.id === id ? { ...item, options } : item))
     )
   }
+  const setPeerSelectMode = (id: string, mode: 'SINGLE' | 'MULTIPLE') => {
+    setVerificationItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, peer_select_mode: mode } : item))
+    )
+  }
   const setVerificationUnit = (id: string, unit: string) => {
     setVerificationItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, unit } : item))
@@ -437,6 +606,31 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
     setVerificationItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, label } : item))
     )
+  }
+
+  function patchHealthRow(idx: number, patch: Partial<HealthTrackRowForm>) {
+    setHealthTrackRows((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], ...patch }
+      return next
+    })
+  }
+
+  async function onHealthCriteriaFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setHealthCriteriaUploading(true)
+    setMessage(null)
+    const fd = new FormData()
+    fd.set('file', file)
+    const r = await uploadHealthCriteriaAttachment(fd)
+    setHealthCriteriaUploading(false)
+    if (r.error) {
+      setMessage({ type: 'error', text: r.error })
+      return
+    }
+    if (r.url) setHealthCriteriaUrl(r.url)
   }
 
   /** 기존 이벤트를 선택해 폼에 불러오기 (수정 후 새로 등록) */
@@ -470,6 +664,10 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           label: m.label ?? '',
           unit: m.method_type === 'VALUE' ? (m.unit ?? '') : undefined,
           options: m.input_style === 'CHOICE' && Array.isArray(m.options) ? m.options : undefined,
+          peer_select_mode:
+            m.method_type === 'PEER_SELECT'
+              ? ((Array.isArray(m.options) && m.options.includes('MULTIPLE')) ? 'MULTIPLE' : 'SINGLE')
+              : undefined,
         }))
       )
       setMessage({ type: 'ok', text: '기존 이벤트 내용을 불러왔습니다. 필요하면 수정 후 등록하세요.' })
@@ -512,13 +710,20 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setMessage(null)
-    const error = validateForm(state)
+    const error = validateForm({
+      ...state,
+      category,
+      healthStartDate,
+      healthEndDate,
+      registrationKind,
+      healthTrackRows,
+    })
     if (error) {
       setMessage({ type: 'error', text: error })
       return
     }
     setPending(true)
-    const result = await createEvent(buildPayload(state), createdBy)
+    const result = await createEvent(buildPayload(state, registrationKind), createdBy)
     if (result.error) {
       setPending(false)
       setMessage({ type: 'error', text: result.error })
@@ -528,6 +733,33 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       const roundResult = await createRoundsForMonth(result.eventId, roundYear, roundMonth)
       if (roundResult.error) {
         setMessage({ type: 'error', text: `이벤트는 등록됐으나 구간 생성 실패: ${roundResult.error}` })
+        setPending(false)
+        return
+      }
+    }
+    const attachHealthSeason =
+      !!result.eventId &&
+      linkHealthChallenge
+
+    if (attachHealthSeason && result.eventId) {
+      const parsed = healthRowsToPayload(healthTrackRows)
+      const customTracks = linkHealthChallenge && parsed.ok ? parsed.tracks : null
+      const hs = await createHealthSeason({
+        name: title.trim(),
+        slug: healthSeasonSlug,
+        startDate: healthStartDate,
+        endDate: healthEndDate,
+        status: healthSeasonStatus,
+        eventId: result.eventId,
+        criteriaAttachmentUrl:
+          linkHealthChallenge ? healthCriteriaUrl.trim() || null : null,
+        tracks: customTracks,
+      })
+      if (!hs.success) {
+        setMessage({
+          type: 'error',
+          text: `이벤트는 등록됐으나 건강 챌린지 시즌 생성에 실패했습니다: ${hs.error} (이벤트 수정·건강 챌린지 메뉴에서 이어서 설정할 수 있습니다.)`,
+        })
         setPending(false)
         return
       }
@@ -580,6 +812,212 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           </div>
         </section>
       )}
+
+      {/* 맨 위: 일반 이벤트 vs 건강 챌린지(4종목·기준표) */}
+      <section className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-b from-emerald-50/40 to-white p-6 shadow-sm">
+        <h2 className="mb-2 text-base font-semibold text-gray-900">등록 유형</h2>
+        <p className="mb-4 text-sm text-gray-600">
+          <strong>건강 챌린지</strong>를 고르면 People 고정·시즌 기간·<strong>4종목 목표·1회 조건</strong>·
+          <strong>기준표 첨부</strong>를 한 번에 설정합니다. 메인에서는 종목별로 인증 제출을 고를 수 있습니다.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => {
+              setRegistrationKind('general')
+              setMessage(null)
+            }}
+            className={`rounded-xl border-2 px-5 py-4 text-left transition ${
+              registrationKind === 'general'
+                ? 'border-emerald-600 bg-white shadow-md ring-2 ring-emerald-100'
+                : 'border-gray-200 bg-white/80 hover:border-gray-300'
+            }`}
+          >
+            <span className="block text-sm font-bold text-gray-900">일반 이벤트</span>
+            <span className="mt-1 block text-xs text-gray-500">Culture / People · 인증 방식 직접 구성</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRegistrationKind('health_challenge')
+              setCategory('PEOPLE')
+              setHealthTrackRows(defaultHealthTrackRows())
+              setMessage(null)
+              const r =
+                type === 'SEASONAL'
+                  ? monthRangeUtcString(roundYear, roundMonth)
+                  : monthRangeUtcString(now.getFullYear(), now.getMonth() + 1)
+              setHealthStartDate(r.start)
+              setHealthEndDate(r.end)
+            }}
+            className={`rounded-xl border-2 px-5 py-4 text-left transition ${
+              registrationKind === 'health_challenge'
+                ? 'border-emerald-600 bg-white shadow-md ring-2 ring-emerald-100'
+                : 'border-gray-200 bg-white/80 hover:border-gray-300'
+            }`}
+          >
+            <span className="block text-sm font-bold text-emerald-900">건강 챌린지</span>
+            <span className="mt-1 block text-xs text-gray-600">4종목·기준표·시즌 — People / V.Medal 정산</span>
+          </button>
+        </div>
+
+      {linkHealthChallenge && (
+          <div className="mt-6 space-y-5 border-t border-emerald-100 pt-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>시즌 시작일</label>
+                <input
+                  type="date"
+                  value={healthStartDate}
+                  onChange={(e) => setHealthStartDate(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>시즌 종료일</label>
+                <input
+                  type="date"
+                  value={healthEndDate}
+                  onChange={(e) => setHealthEndDate(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelClass}>시즌 슬러그 (선택)</label>
+                <input
+                  type="text"
+                  value={healthSeasonSlug}
+                  onChange={(e) => setHealthSeasonSlug(e.target.value)}
+                  className={inputClass}
+                  placeholder="비우면 자동 생성"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>시즌 오픈</label>
+                <select
+                  value={healthSeasonStatus}
+                  onChange={(e) => setHealthSeasonStatus(e.target.value as 'DRAFT' | 'ACTIVE')}
+                  className={inputClass}
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="DRAFT">DRAFT</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelClass}>참가 기준표 (PDF·이미지 — URL 또는 파일)</label>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <input
+                    type="url"
+                    value={healthCriteriaUrl}
+                    onChange={(e) => setHealthCriteriaUrl(e.target.value)}
+                    className={`min-w-[200px] flex-1 ${inputClass}`}
+                    placeholder="https://..."
+                  />
+                  <label className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    <input
+                      type="file"
+                      accept=".pdf,image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      onChange={onHealthCriteriaFile}
+                      disabled={healthCriteriaUploading}
+                    />
+                    {healthCriteriaUploading ? '업로드 중…' : '파일 첨부'}
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">메인 건강 챌린지 영역에「참가 기준표」링크로 노출됩니다.</p>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-3 text-sm font-bold text-gray-900">4종목 — 1회 최소 조건 · 월 누적 L1~L3</h3>
+              <div className="space-y-4">
+                {healthTrackRows.map((row, idx) => (
+                  <div key={row.kind} className="rounded-xl border border-gray-200 bg-white/90 p-4">
+                    <p className="text-sm font-semibold text-gray-900">{HC_KIND_LABEL[row.kind]}</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-medium text-gray-500">종목 이름</label>
+                        <input
+                          type="text"
+                          value={row.title}
+                          onChange={(e) => patchHealthRow(idx, { title: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+                      {(row.kind === 'WALK' || row.kind === 'RUN' || row.kind === 'RIDE') && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">1회 최소 거리 (km)</label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={formatDecimalWithCommas(row.min_distance_km)}
+                            onChange={(e) => patchHealthRow(idx, { min_distance_km: sanitizeDecimalInput(e.target.value) })}
+                            className={inputClass}
+                          />
+                        </div>
+                      )}
+                      {(row.kind === 'RUN' || row.kind === 'RIDE') && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">1회 최소 속도 (km/h)</label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={formatDecimalWithCommas(row.min_speed_kmh)}
+                            onChange={(e) => patchHealthRow(idx, { min_speed_kmh: sanitizeDecimalInput(e.target.value) })}
+                            className={inputClass}
+                          />
+                        </div>
+                      )}
+                      {row.kind === 'HIKE' && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">1회 최소 고도 (m)</label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={formatDecimalWithCommas(row.min_elevation_m)}
+                            onChange={(e) => patchHealthRow(idx, { min_elevation_m: sanitizeDecimalInput(e.target.value) })}
+                            className={inputClass}
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">월 L1 목표</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formatDecimalWithCommas(row.level1)}
+                          onChange={(e) => patchHealthRow(idx, { level1: sanitizeDecimalInput(e.target.value) })}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">L2</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formatDecimalWithCommas(row.level2)}
+                          onChange={(e) => patchHealthRow(idx, { level2: sanitizeDecimalInput(e.target.value) })}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">L3</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formatDecimalWithCommas(row.level3)}
+                          onChange={(e) => patchHealthRow(idx, { level3: sanitizeDecimalInput(e.target.value) })}
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* 기본 정보 · 이벤트 설정 */}
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -660,15 +1098,24 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           </div>
           <div>
             <label className={labelClass}>카테고리</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as 'CULTURE' | 'PEOPLE')}
-              className={inputClass}
-            >
-              {EVENT_CATEGORIES.map(({ value, label }) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
+            {linkHealthChallenge ? (
+              <div className={`${inputClass} bg-emerald-50/70 font-medium text-emerald-900`}>
+                People (건강 챌린지 전용)
+              </div>
+            ) : (
+              <select
+                value={category}
+                onChange={(e) => {
+                  const v = e.target.value as 'CULTURE' | 'PEOPLE'
+                  setCategory(v)
+                }}
+                className={inputClass}
+              >
+                {EVENT_CATEGORIES.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            )}
             <p className="mt-2 text-xs font-medium text-emerald-700">
               자동 보상 안내: {category === 'PEOPLE' ? 'People 선택 시 V.Medal 지급' : 'Culture 선택 시 V.Credit 지급'}
             </p>
@@ -750,10 +1197,10 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
             </div>
             <label className={`${labelClass} mt-3`}>보상 수량 *</label>
             <input
-              type="number"
-              min={0}
-              value={rewardAmount}
-              onChange={(e) => setRewardAmount(e.target.value)}
+              type="text"
+              inputMode="numeric"
+              value={formatIntegerWithCommas(rewardAmount)}
+              onChange={(e) => setRewardAmount(sanitizeIntegerInput(e.target.value))}
               className={inputClass}
               placeholder={category === 'PEOPLE' ? 'M 수량' : 'C 수량'}
             />
@@ -762,6 +1209,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
       </section>
 
       {/* 인증 방식 */}
+      {!linkHealthChallenge && (
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-2 text-base font-semibold text-gray-900">인증 방식 *</h2>
         <p className="mb-4 text-sm text-gray-600">
@@ -797,6 +1245,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
                     onLabelChange={setVerificationLabel}
                     onUnitChange={setVerificationUnit}
                     onOptionsChange={setVerificationOptions}
+                    onPeerSelectModeChange={setPeerSelectMode}
                     inputClass={inputClass}
                   />
                 ))}
@@ -805,6 +1254,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           </DndContext>
         )}
       </section>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 border-t border-gray-200 pt-6">
         <button

@@ -12,17 +12,17 @@ export const EVENT_TYPES = [
 
 export const FREQUENCY_LIMITS = [
   { value: 'ONCE' as const, label: '1회만' },
-  { value: 'DAILY' as const, label: '1일 1회' },
-  { value: 'WEEKLY' as const, label: '1주 1회' },
-  { value: 'MONTHLY' as const, label: '1월 1회' },
+  { value: 'DAILY' as const, label: '일 1회' },
+  { value: 'WEEKLY' as const, label: '주 1회' },
+  { value: 'MONTHLY' as const, label: '월 1회' },
 ] as const
 
 /** 카드/태그용: 빈도 제한 문구 (예: "1달에 1번 가능") */
 export const FREQUENCY_TAG_LABEL: Record<string, string> = {
   ONCE: '1회만 가능',
-  DAILY: '1일 1회 가능',
-  WEEKLY: '1주 1회 가능',
-  MONTHLY: '1달 1회 가능',
+  DAILY: '일 1회 가능',
+  WEEKLY: '주 1회 가능',
+  MONTHLY: '월 1회 가능',
 }
 
 /** 이미 제출했을 때 표시 문구 (빈도별) */
@@ -52,6 +52,12 @@ export const VERIFICATION_METHOD_TYPES = [
   { value: 'TEXT' as const, label: '텍스트' },
   { value: 'VALUE' as const, label: '숫자' },
   { value: 'PEER_SELECT' as const, label: '동료 선택' },
+] as const
+
+/** 동료 선택(PEER_SELECT) 방식: 개인형(1명) / 조직형(여러 명) */
+export const PEER_SELECT_MODES = [
+  { value: 'SINGLE' as const, label: '개인형 (1명만)' },
+  { value: 'MULTIPLE' as const, label: '조직형 (여러 명)' },
 ] as const
 
 /** 숫자(VALUE) 인증 방식용 항목명. 심사 시 "거리: 34 km" 등으로 표시 */

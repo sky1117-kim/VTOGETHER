@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getThreeRoundsForMonth } from '@/lib/rounds'
 
@@ -24,6 +25,24 @@ function normalizeEventDescriptionToHtml(input?: string | null): string | null {
     .split(/\n{2,}/)
     .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
     .join('')
+}
+
+async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+  const admin = createAdminClient()
+  const { data: me, error } = await admin
+    .from('users')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !me?.is_admin) return { ok: false, error: '관리자 권한이 필요합니다.' }
+  return { ok: true, userId: user.id }
 }
 
 export type EventRow = {
@@ -50,6 +69,8 @@ export async function getEventsForAdmin(): Promise<{
   data: EventRow[] | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase
@@ -95,6 +116,8 @@ export async function getEventWithRoundsForAdmin(eventId: string): Promise<{
   data: { event: EventRow; rounds: EventRoundRow[]; rewards: EventRewardRow[]; verification_methods: EventVerificationMethodRow[] } | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data: event, error: eventError } = await supabase
@@ -172,6 +195,8 @@ export async function getEventForCopy(eventId: string): Promise<{
   data: EventCopySource | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data: event, error: eventError } = await supabase
@@ -256,8 +281,10 @@ export type CreateEventInput = {
 /** 관리자: 이벤트 생성 (복수 보상 + 인증 방식·안내문 함께 등록) */
 export async function createEvent(
   input: CreateEventInput,
-  createdBy: string
+  _createdBy: string
 ): Promise<{ eventId: string | null; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { eventId: null, error: auth.error }
   const { title, category, type, reward_policy, rewards, verification_methods } = input
   if (!title?.trim()) return { eventId: null, error: '제목을 입력하세요.' }
   if (!rewards?.length) return { eventId: null, error: '보상을 1개 이상 선택하세요.' }
@@ -284,7 +311,8 @@ export async function createEvent(
         image_url: input.image_url?.trim() || null,
         status: input.status ?? 'ACTIVE',
         frequency_limit,
-        created_by: createdBy,
+        // 클라이언트 전달값 대신 서버에서 확인한 관리자 ID를 사용
+        created_by: auth.userId,
       })
       .select('event_id')
       .single()
@@ -321,12 +349,17 @@ export async function createEvent(
         instruction: m.instruction?.trim() || null,
         input_style: m.input_style ?? null,
         options:
-          m.input_style === 'CHOICE' && Array.isArray(m.options)
+          m.method_type === 'PEER_SELECT'
             ? (() => {
-                const f = m.options!.filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
-                return f.length > 0 ? f : null
+                const mode = Array.isArray(m.options) && m.options.includes('MULTIPLE') ? 'MULTIPLE' : 'SINGLE'
+                return [mode]
               })()
-            : null,
+            : m.input_style === 'CHOICE' && Array.isArray(m.options)
+              ? (() => {
+                  const f = m.options!.filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
+                  return f.length > 0 ? f : null
+                })()
+              : null,
         unit: m.method_type === 'VALUE' ? (m.unit?.trim() || null) : null,
       })
       if (methodError) {
@@ -357,6 +390,8 @@ export async function updateEventSafeFields(
   eventId: string,
   input: UpdateEventSafeInput
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   if (!eventId?.trim()) return { success: false, error: '이벤트 ID가 없습니다.' }
   if (input.title !== undefined && !input.title?.trim()) return { success: false, error: '제목을 비울 수 없습니다.' }
 
@@ -390,6 +425,8 @@ export async function updateEventRewardAmounts(
   eventId: string,
   updates: UpdateEventRewardAmountInput[]
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   if (!eventId?.trim()) return { success: false, error: '이벤트 ID가 없습니다.' }
   for (const u of updates) {
     if (u.amount < 0) return { success: false, error: '보상 금액은 0 이상이어야 합니다.' }
@@ -417,6 +454,8 @@ export async function updateEventRewardAmounts(
 
 /** 관리자: 이벤트 소프트 삭제 (deleted_at 플래그로 관리, 관련 데이터 함께 플래그) */
 export async function deleteEvent(eventId: string): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   if (!eventId?.trim()) return { success: false, error: '이벤트 ID가 없습니다.' }
   try {
     const supabase = createAdminClient()
@@ -446,6 +485,8 @@ export async function createRoundsForMonth(
   year: number,
   month: number
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   if (month < 1 || month > 12) return { success: false, error: '월은 1~12 사이여야 합니다.' }
   try {
     const supabase = createAdminClient()
@@ -493,6 +534,8 @@ export async function deleteEventRound(
   eventId: string,
   roundId: string
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   if (!eventId?.trim() || !roundId?.trim()) return { success: false, error: '이벤트/구간 ID가 없습니다.' }
   try {
     const supabase = createAdminClient()
@@ -535,6 +578,8 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
   eventTitle: string | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, eventTitle: null, error: auth.error }
   if (!eventId?.trim()) return { data: null, eventTitle: null, error: '이벤트 ID가 없습니다.' }
   try {
     const supabase = createAdminClient()

@@ -8,6 +8,7 @@ import {
 } from '@/api/queries/ranking'
 import { getEventsWithRoundsForPublic } from '@/api/queries/events'
 import { getNotificationsForBell } from '@/api/queries/user'
+import { getActiveHealthChallengeDefinition, getHealthChallengeSubmittedTrackIdsThisMonth } from '@/api/queries/health-challenges'
 import { DashboardSection } from '@/components/main/DashboardSection'
 import { DonationSection } from '@/components/main/DonationSection'
 import { CampaignsSection } from '@/components/main/CampaignsSection'
@@ -27,6 +28,12 @@ export default async function HomePage({ searchParams }: PageProps) {
   let personalRank: Awaited<ReturnType<typeof getPersonalRankingQuarterly>> = []
   let teamRank: Awaited<ReturnType<typeof getTeamRankingQuarterly>> = []
   let events: Awaited<ReturnType<typeof getEventsWithRoundsForPublic>> = []
+  let healthDefinition: Awaited<ReturnType<typeof getActiveHealthChallengeDefinition>> = {
+    season: null,
+    tracks: [],
+    error: null,
+  }
+  let healthSubmittedTrackIds: Awaited<ReturnType<typeof getHealthChallengeSubmittedTrackIdsThisMonth>> = []
 
   try {
     const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes] = await Promise.all([
@@ -45,6 +52,20 @@ export default async function HomePage({ searchParams }: PageProps) {
     events = eventsRes ?? []
   } catch {
     // DB 미설정 시 기본값 유지
+  }
+
+  // 건강 챌린지: 이벤트 표시와 별개로, 실패해도 메인 페이지가 죽지 않게 분리해서 처리
+  try {
+    const r = await getActiveHealthChallengeDefinition()
+    healthDefinition = r
+  } catch {
+    // ignore
+  }
+
+  try {
+    healthSubmittedTrackIds = await getHealthChallengeSubmittedTrackIdsThisMonth(user?.id ?? null)
+  } catch {
+    // ignore
   }
 
   const displayName = user ? user.name || user.email : '게스트'
@@ -94,7 +115,15 @@ export default async function HomePage({ searchParams }: PageProps) {
         />
       </div>
       <div className="animate-fade-up mt-8">
-        <CampaignsSection events={events} isLoggedIn={!!user} />
+        <CampaignsSection
+          events={events}
+          isLoggedIn={!!user}
+          healthChallenge={
+            healthDefinition.season && healthDefinition.tracks.length
+              ? { season: healthDefinition.season, tracks: healthDefinition.tracks, submittedTrackIds: healthSubmittedTrackIds }
+              : undefined
+          }
+        />
       </div>
       <div className="animate-fade-up mt-8">
         <SalaryDonationSection />

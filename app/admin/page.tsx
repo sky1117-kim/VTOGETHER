@@ -445,8 +445,8 @@ export default async function AdminPage() {
             href="/admin/point-grant"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
-            <span className="text-lg font-bold text-gray-900">V.Credit 수동 지급</span>
-            <span className="mt-1 text-sm text-gray-500">직원에게 C 직접 적립 (보정·특별 보상)</span>
+            <span className="text-lg font-bold text-gray-900">지급/적립 내역</span>
+            <span className="mt-1 text-sm text-gray-500">수동 지급 + 직원 거래 내역 통합 조회</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>
         </div>
@@ -456,7 +456,7 @@ export default async function AdminPage() {
       <AdminSection
         id="admin-settings"
         title="설정 · 운영"
-        description="메인 문구, 포인트 지급, 관리자 설정, 테스트 데이터"
+        description="메인 문구, 지급/적립 내역, 관리자 설정, 테스트 데이터"
         defaultOpen={false}
       >
         <div className="space-y-6">
@@ -469,15 +469,15 @@ export default async function AdminPage() {
           </div>
 
           <div className="border-t border-gray-100 pt-6">
-            <h3 className="mb-2 font-bold text-gray-900">V.Credit 수동 지급</h3>
+            <h3 className="mb-2 font-bold text-gray-900">지급/적립 내역</h3>
             <p className="mb-4 text-sm text-gray-500">
-              직원에게 C를 직접 넣을 때는 전용 페이지에서 이름·이메일로 검색 후 지급합니다. 포인트 내역에 사유가 남습니다.
+              직원에게 C를 직접 넣는 수동 지급과, 직원 전체의 지급/적립/사용 거래 내역 조회를 같은 페이지에서 처리합니다.
             </p>
             <Link
               href="/admin/point-grant"
               className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
             >
-              수동 지급 페이지 열기
+              지급/적립 내역 페이지 열기
             </Link>
           </div>
 

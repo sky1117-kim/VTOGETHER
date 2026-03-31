@@ -6,6 +6,7 @@ import { updateEventSafeFields, updateEventRewardAmounts } from '@/api/actions/a
 import { uploadEventRepresentativeImage } from '@/api/actions/events'
 import type { EventRow, EventRewardRow } from '@/api/actions/admin/events'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
+import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
 
 const inputClass =
   'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500'
@@ -237,13 +238,13 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
                 </label>
                 <input
                   id={`reward-${r.reward_id}`}
-                  type="number"
-                  min={0}
-                  value={rewardAmounts[r.reward_id] ?? ''}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatIntegerWithCommas(rewardAmounts[r.reward_id] ?? '')}
                   onChange={(e) =>
                     setRewardAmounts((prev) => ({
                       ...prev,
-                      [r.reward_id]: parseInt(e.target.value, 10) || 0,
+                      [r.reward_id]: parseInt(sanitizeIntegerInput(e.target.value), 10) || 0,
                     }))
                   }
                   className={inputNumberClass}

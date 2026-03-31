@@ -52,6 +52,18 @@ export default async function AdminEventsPage() {
         }
       />
 
+      <div className="rounded-xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
+        <strong className="font-semibold">건강 챌린지</strong>는{' '}
+        <Link href="/admin/events/new" className="font-medium underline underline-offset-2">
+          새 이벤트 등록
+        </Link>
+        에서 People 카테고리와 함께 시즌을 열 수 있습니다. 활동 심사·정산은{' '}
+        <Link href="/admin/verifications" className="font-medium underline underline-offset-2">
+          인증 심사
+        </Link>
+        에서 일반 이벤트와 같이 처리합니다.
+      </div>
+
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -115,7 +127,7 @@ export default async function AdminEventsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {e.reward_type == null
-                      ? '복수 보상'
+                      ? '자동 지급 (설정된 보상 기준)'
                       : (e.reward_type === 'V_CREDIT' || (e as { reward_type?: string }).reward_type === 'POINTS') && e.reward_amount != null
                         ? `${e.reward_amount}C`
                         : e.reward_type}

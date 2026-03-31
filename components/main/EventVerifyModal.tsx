@@ -1,12 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto } from '@/api/actions/events'
 import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
 import type { VerificationMethodRow, RoundForParticipation, PeerSelectionUserRow } from '@/api/queries/events'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatDecimalWithCommas, sanitizeDecimalInput } from '@/lib/number-format'
+
+type PeerSelectPayload = {
+  peer_user_ids: string[]
+  organization_name: string
+}
+
+function isMultiPeerSelectMode(method: { options?: string[] | null }): boolean {
+  return Array.isArray(method.options) && method.options.includes('MULTIPLE')
+}
 
 const METHOD_LABEL: Record<string, string> = {
   PHOTO: '사진',
@@ -18,29 +28,11 @@ const METHOD_LABEL: Record<string, string> = {
 const inputClass =
   'w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-500/20'
 
-/** 숫자 추출: 콤마(천 단위) 제거, 소수점(.) 하나만 허용 */
-function parseNumberInput(value: string): string {
-  let s = value.replace(/,/g, '')
-  s = s.replace(/[^\d.]/g, '')
-  const firstPeriod = s.indexOf('.')
-  if (firstPeriod === -1) return s
-  return s.slice(0, firstPeriod + 1) + s.slice(firstPeriod + 1).replace(/\./g, '')
-}
-
-/** 천 단위 콤마 포맷 (표시용). 소수점 있으면 그대로 유지 */
-function formatNumberDisplay(value: string): string {
-  const parsed = parseNumberInput(value)
-  if (parsed === '') return ''
-  const [intPart, decPart] = parsed.split('.')
-  const formatted = Number(intPart || 0).toLocaleString('ko-KR')
-  return decPart !== undefined ? `${formatted}.${decPart}` : formatted
-}
-
 const ROUND_STATUS_LABEL: Record<string, string> = {
   OPEN: '인증 가능',
   LOCKED: '미오픈',
   SUBMITTED: '승인 대기중',
-  APPROVED: '보상 대기',
+  APPROVED: '승인 완료',
   DONE: '완료',
   FAILED: '마감',
 }
@@ -75,12 +67,36 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
   /** 숫자(VALUE) 인증 필드별 에러 (숫자 아닌 문자 입력 시) */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  // 모달/이벤트 변경 시 최신 값 유지 (늦게 도착한 응답 무시용)
-  const latestRef = useRef({ isOpen, eventId })
-  latestRef.current = { isOpen, eventId }
+  const parsePeerSelectPayload = (methodId: string): PeerSelectPayload => {
+    const raw = formData[methodId]
+    if (!raw) return { peer_user_ids: [], organization_name: '' }
+    try {
+      const parsed = JSON.parse(raw) as Partial<PeerSelectPayload>
+      const peer_user_ids = Array.isArray(parsed.peer_user_ids)
+        ? parsed.peer_user_ids.filter((v): v is string => typeof v === 'string' && !!v.trim())
+        : []
+      const organization_name = typeof parsed.organization_name === 'string' ? parsed.organization_name : ''
+      return { peer_user_ids, organization_name }
+    } catch {
+      return { peer_user_ids: [], organization_name: '' }
+    }
+  }
+
+  const updatePeerSelectPayload = (
+    methodId: string,
+    updater: (prev: PeerSelectPayload) => PeerSelectPayload
+  ) => {
+    const current = parsePeerSelectPayload(methodId)
+    const next = updater(current)
+    setFormData((prev) => ({
+      ...prev,
+      [methodId]: JSON.stringify(next),
+    }))
+  }
 
   useEffect(() => {
     if (!isOpen || !eventId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(null)
       setError(null)
       setSuccess(false)
@@ -92,13 +108,13 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setIsAnonymous(false)
       return
     }
-    const fetchingFor = eventId
+    let cancelled = false
     setLoading(true)
     setError(null)
     getEventForParticipationAction(eventId)
       .then((res) => {
-        // 모달 닫았거나 다른 이벤트 선택 시 응답 무시 (경쟁 상태 방지)
-        if (latestRef.current.eventId !== fetchingFor || !latestRef.current.isOpen) return
+        // 모달 닫힘/이벤트 변경으로 effect가 정리되면 늦은 응답은 무시합니다.
+        if (cancelled) return
         if (res.error || !res.data) {
           setError(res.error ?? '불러오기 실패')
           setData(null)
@@ -110,10 +126,11 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
         else if (res.data.rounds.length > 0) setSelectedRoundId(res.data.rounds[0].round_id)
       })
       .finally(() => {
-        if (latestRef.current.eventId === fetchingFor && latestRef.current.isOpen) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false)
       })
+    return () => {
+      cancelled = true
+    }
   }, [isOpen, eventId])
 
   const handlePhotoAdd = async (methodId: string, file: File | null) => {
@@ -144,7 +161,8 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       const arr = prev[methodId] ?? []
       const next = arr.filter((_, i) => i !== index)
       if (next.length === 0) {
-        const { [methodId]: _, ...rest } = prev
+        const rest = { ...prev }
+        delete rest[methodId]
         return rest
       }
       return { ...prev, [methodId]: next }
@@ -161,13 +179,18 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     }
     const verificationData: Record<string, unknown> = {}
     const missing: string[] = []
-    let peerUserId: string | null = null
+    const peerUserIds: string[] = []
     for (const m of data.verificationMethods) {
       if (m.method_type === 'PEER_SELECT') {
-        const peer = formData[m.method_id + '_peer']?.trim() ?? ''
-        if (!peer) missing.push('동료 선택')
-        verificationData[m.method_id] = peer
-        if (peer) peerUserId = peer
+        const peerSelect = parsePeerSelectPayload(m.method_id)
+        const isMultiMode = isMultiPeerSelectMode(m)
+        if (peerSelect.peer_user_ids.length === 0) missing.push('동료 선택')
+        if (!isMultiMode && peerSelect.peer_user_ids.length > 1) {
+          setError('개인형 칭찬 챌린지는 동료 1명만 선택할 수 있습니다.')
+          return
+        }
+        verificationData[m.method_id] = peerSelect
+        peerUserIds.push(...peerSelect.peer_user_ids)
       } else if (m.method_type === 'PHOTO') {
         const urls = photoUrlsByMethod[m.method_id] ?? []
         if (urls.length < 2) missing.push('사진 (2장 이상)')
@@ -187,9 +210,13 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       setError(valueFieldErrors[0][1])
       return
     }
+    const normalizedPeerUserIds = [...new Set(peerUserIds.map((id) => id.trim()).filter(Boolean))]
+    if (normalizedPeerUserIds.length > 0) {
+      verificationData.peer_user_ids = normalizedPeerUserIds
+    }
     setSubmitPending(true)
     setError(null)
-    const result = await submitEventSubmission(eventId, roundId, verificationData, peerUserId ?? undefined, isAnonymous)
+    const result = await submitEventSubmission(eventId, roundId, verificationData, normalizedPeerUserIds, isAnonymous)
     setSubmitPending(false)
     if (result.error) {
       setError(result.error)
@@ -212,13 +239,16 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
       {/* 큰 폼 기준 고정 크기 — 로딩↔로드 시 크기 변화 없음. 짧은 내용은 본문에서 중앙 배치 */}
       <div
-        className="relative z-10 flex h-[65vh] min-h-[500px] max-h-[720px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-modal"
+        className="relative z-10 flex h-[75vh] min-h-[560px] max-h-[820px] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 고정 */}
-        <div className="flex-shrink-0 border-b border-gray-100 p-6 pb-4">
+        <div className="flex-shrink-0 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 p-6 pb-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-gray-900">이벤트 인증</h3>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Event Verification</p>
+              <h3 className="mt-1 text-xl font-bold text-gray-900">이벤트 인증</h3>
+            </div>
             <button
               type="button"
               onClick={onClose}
@@ -286,7 +316,10 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
 
         {!loading && data && !success && !cannotParticipateAlways && (
           <form id="event-verify-form" onSubmit={handleSubmit} className="space-y-6">
-            <p className="text-base font-semibold text-gray-800">{data.event.title}</p>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
+              <p className="text-xs font-medium text-emerald-700">참여 이벤트</p>
+              <p className="mt-1 text-base font-semibold text-gray-900">{data.event.title}</p>
+            </div>
 
             {/* 구간 선택: 카드형 버튼 그룹 */}
             {data.event.type === 'SEASONAL' && data.rounds.length > 0 && (
@@ -335,10 +368,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                     if (m.method_type === 'PHOTO') {
                       const urls = photoUrlsByMethod[m.method_id] ?? []
                       return (
-                        <div
-                          key={m.method_id}
-                          className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
-                        >
+                        <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                           <label className="mb-2 block text-sm font-bold text-gray-800">
                             {m.label?.trim() || m.instruction?.trim() || '사진을 첨부해 주세요'}
                             <span className="ml-1 font-normal text-amber-600">(2장 이상 필수)</span>
@@ -382,10 +412,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       const raw = formData[m.method_id] ?? ''
                       const valueError = fieldErrors[m.method_id]
                       return (
-                        <div
-                          key={m.method_id}
-                          className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
-                        >
+                        <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                           <label className="mb-2 block text-sm font-bold text-gray-800">
                             {(m.label?.trim() || METHOD_LABEL[m.method_type])}
                             {m.unit && (
@@ -401,7 +428,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                           <input
                             type="text"
                             inputMode="numeric"
-                            value={raw === '' ? '' : formatNumberDisplay(raw)}
+                            value={raw === '' ? '' : formatDecimalWithCommas(raw)}
                             onChange={(e) => {
                               const input = e.target.value
                               const hasInvalid =
@@ -412,7 +439,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                               }))
                               setFormData((prev) => ({
                                 ...prev,
-                                [m.method_id]: parseNumberInput(input),
+                                [m.method_id]: sanitizeDecimalInput(input),
                               }))
                             }}
                             className={`${inputClass} ${valueError ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : ''}`}
@@ -427,6 +454,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                     if (m.method_type === 'PEER_SELECT') {
                       const users = data.peerSelectionUsers ?? []
                       const currentUserId = data.currentUserId ?? ''
+                      const isMultiMode = isMultiPeerSelectMode(m)
                       const filtered = users.filter((u) => u.user_id !== currentUserId)
                       // 타이핑하기 전에는 목록 비표시. 입력이 있을 때만 검색 결과를 스크롤 창으로 표시
                       const hasSearch = peerSearch.trim().length > 0
@@ -440,81 +468,134 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         : []
                       const peerLabel = (u: PeerSelectionUserRow) =>
                         [u.name || '이름 없음', u.dept_name, u.email].filter(Boolean).join(' · ')
-                      const selectedPeerId = formData[m.method_id + '_peer'] ?? ''
-                      const selectedPeer = selectedPeerId
-                        ? filtered.find((u) => u.user_id === selectedPeerId)
-                        : null
                       // 제목(label): 관리자가 설정한 값 사용. 비우면 방식명(동료 선택) fallback
                       const displayLabel = (m.label?.trim() || METHOD_LABEL[m.method_type])
                       return (
-                        <div
-                          key={m.method_id}
-                          className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
-                        >
+                        <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                           <label className="mb-2 block text-sm font-bold text-gray-800">
                             {displayLabel}
                             {m.instruction?.trim() && (
                               <span className="ml-1 font-normal text-gray-500">— {m.instruction.trim()}</span>
                             )}
                           </label>
-                          {selectedPeer ? (
-                            <div className="mb-3 flex items-center justify-between rounded-xl border border-green-200 bg-green-50/50 px-4 py-3">
-                              <span className="text-sm font-medium text-gray-800">
-                                선택됨: {peerLabel(selectedPeer)}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFormData((prev) => ({ ...prev, [m.method_id + '_peer']: '' }))
-                                  setPeerSearch('')
-                                }}
-                                className="text-xs font-medium text-green-600 hover:underline"
-                              >
-                                변경
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              <input
-                                type="text"
-                                value={peerSearch}
-                                onChange={(e) => setPeerSearch(e.target.value)}
-                                placeholder="이름·이메일·부서로 검색하면 동료 목록이 나옵니다"
-                                className={inputClass}
-                                autoComplete="off"
-                              />
-                              {!hasSearch ? (
-                                <p className="mt-2 text-xs text-gray-500">
-                                  검색어를 입력하면 동료 목록이 스크롤 창으로 나타납니다.
-                                </p>
-                              ) : (
-                                <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                                  {list.length === 0 ? (
-                                    <p className="px-4 py-3 text-sm text-amber-600">
-                                      검색 결과가 없습니다. 이름·이메일·부서를 입력해보세요.
-                                    </p>
-                                  ) : (
-                                    <ul className="py-1">
-                                      {list.map((u) => (
-                                        <li key={u.user_id}>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setFormData((prev) => ({ ...prev, [m.method_id + '_peer']: u.user_id }))
-                                              setPeerSearch('')
-                                            }}
-                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-800 hover:bg-green-50 hover:text-green-800"
-                                          >
-                                            {peerLabel(u)}
-                                          </button>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
+                          {(() => {
+                            const peerSelect = parsePeerSelectPayload(m.method_id)
+                            const selectedPeers = filtered.filter((u) =>
+                              peerSelect.peer_user_ids.includes(u.user_id)
+                            )
+                            return (
+                              <>
+                                <div className="mb-3">
+                                  <label className="mb-1 block text-xs font-medium text-gray-600">추천 조직명 (선택)</label>
+                                  <input
+                                    type="text"
+                                    value={peerSelect.organization_name}
+                                    onChange={(e) =>
+                                      updatePeerSelectPayload(m.method_id, (prev) => ({
+                                        ...prev,
+                                        organization_name: e.target.value,
+                                      }))
+                                    }
+                                    placeholder="예: 전략기획팀 / ESG 운영실"
+                                    className={inputClass}
+                                  />
                                 </div>
-                              )}
-                            </>
-                          )}
+                                <input
+                                  type="text"
+                                  value={peerSearch}
+                                  onChange={(e) => setPeerSearch(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key !== 'Enter') return
+                                    e.preventDefault()
+                                    const firstMatch = list[0]
+                                    if (!firstMatch) return
+                                    if (!peerSelect.peer_user_ids.includes(firstMatch.user_id)) {
+                                      updatePeerSelectPayload(m.method_id, (prev) => ({
+                                        ...prev,
+                                        peer_user_ids: isMultiMode
+                                          ? [...prev.peer_user_ids, firstMatch.user_id]
+                                          : [firstMatch.user_id],
+                                      }))
+                                    }
+                                    // 연속 선택 UX: 엔터로 추가 후 바로 다음 검색 가능하도록 입력어를 비웁니다.
+                                    setPeerSearch('')
+                                  }}
+                                  placeholder={
+                                    isMultiMode
+                                      ? '이름·이메일·부서로 검색해 여러 명 선택하세요'
+                                      : '이름·이메일·부서로 검색해 1명을 선택하세요'
+                                  }
+                                  className={inputClass}
+                                  autoComplete="off"
+                                />
+                                {selectedPeers.length > 0 && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {selectedPeers.map((u) => (
+                                      <button
+                                        key={u.user_id}
+                                        type="button"
+                                        onClick={() =>
+                                          updatePeerSelectPayload(m.method_id, (prev) => ({
+                                            ...prev,
+                                            peer_user_ids: prev.peer_user_ids.filter((id) => id !== u.user_id),
+                                          }))
+                                        }
+                                        className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                                      >
+                                        {peerLabel(u)} ×
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                {!hasSearch ? (
+                                  <p className="mt-2 text-xs text-gray-500">
+                                    {isMultiMode
+                                      ? '검색어를 입력하면 동료 목록이 나타나며 여러 명을 선택할 수 있습니다.'
+                                      : '검색어를 입력하면 동료 목록이 나타나며 개인형은 1명만 선택됩니다.'}
+                                  </p>
+                                ) : (
+                                  <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                                    {list.length === 0 ? (
+                                      <p className="px-4 py-3 text-sm text-amber-600">
+                                        검색 결과가 없습니다. 이름·이메일·부서를 입력해보세요.
+                                      </p>
+                                    ) : (
+                                      <ul className="py-1">
+                                        {list.map((u) => {
+                                          const isSelected = peerSelect.peer_user_ids.includes(u.user_id)
+                                          return (
+                                            <li key={u.user_id}>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  updatePeerSelectPayload(m.method_id, (prev) => ({
+                                                    ...prev,
+                                                    peer_user_ids: isSelected
+                                                      ? prev.peer_user_ids.filter((id) => id !== u.user_id)
+                                                      : isMultiMode
+                                                        ? [...prev.peer_user_ids, u.user_id]
+                                                        : [u.user_id],
+                                                  }))
+                                                }
+                                                className={`w-full px-4 py-2.5 text-left text-sm ${
+                                                  isSelected
+                                                    ? 'bg-emerald-50 font-semibold text-emerald-800'
+                                                    : 'text-gray-800 hover:bg-green-50 hover:text-green-800'
+                                                }`}
+                                              >
+                                                {isSelected ? '✓ ' : ''}
+                                                {peerLabel(u)}
+                                              </button>
+                                            </li>
+                                          )
+                                        })}
+                                      </ul>
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
                           <label className="mt-4 flex cursor-pointer items-center gap-2">
                             <input
                               type="checkbox"
@@ -531,10 +612,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                     const isChoice = m.input_style === 'CHOICE'
                     const choiceOptions = (m.options ?? []).filter((o) => typeof o === 'string' && o.trim())
                     return (
-                      <div
-                        key={m.method_id}
-                        className="rounded-xl border border-gray-200 bg-gray-50/30 p-4"
-                      >
+                        <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                         <label className="mb-2 block text-sm font-bold text-gray-800">
                           {(m.label?.trim() || m.instruction?.trim() || m.placeholder?.trim()) ?? '입력하세요'}
                         </label>

@@ -21,6 +21,31 @@ export type UserRow = {
   last_active_at: string | null
 }
 
+export type AdminPointTransactionFilter = {
+  q?: string
+  txType?: 'ALL' | 'EARNED' | 'DONATED' | 'USED'
+  currencyType?: 'ALL' | 'V_CREDIT' | 'V_MEDAL'
+  relatedType?: string
+  from?: string
+  to?: string
+  page?: number
+  pageSize?: number
+}
+
+export type AdminPointTransactionRow = {
+  transaction_id: string
+  user_id: string
+  type: 'EARNED' | 'DONATED' | 'USED'
+  amount: number
+  related_type: string | null
+  description: string | null
+  currency_type: 'V_CREDIT' | 'V_MEDAL'
+  user_email: string | null
+  user_name: string | null
+  donation_target_name: string | null
+  created_at: string
+}
+
 export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; error: string | null }> {
   try {
     const supabase = createAdminClient()
@@ -74,6 +99,93 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
     }
   } catch (e) {
     return { data: null, error: e instanceof Error ? e.message : 'Failed to fetch users' }
+  }
+}
+
+/** 관리자 전용 포인트 거래 내역 조회 (직원 지급/적립/사용 통합) */
+export async function getPointTransactionsForAdmin(
+  filter: AdminPointTransactionFilter = {}
+): Promise<{
+  data: AdminPointTransactionRow[] | null
+  total: number
+  page: number
+  pageSize: number
+  error: string | null
+}> {
+  try {
+    const supabase = createAdminClient()
+    const safePage = Number.isInteger(filter.page) && (filter.page ?? 1) > 0 ? (filter.page as number) : 1
+    const safePageSize =
+      Number.isInteger(filter.pageSize) && (filter.pageSize ?? 30) > 0
+        ? Math.min(filter.pageSize as number, 100)
+        : 30
+    const fromIndex = (safePage - 1) * safePageSize
+    const toIndex = fromIndex + safePageSize - 1
+
+    // 거래 목록에 필요한 컬럼만 조회해서 응답 크기를 줄입니다.
+    const selectColumns =
+      'transaction_id, user_id, type, amount, related_type, description, currency_type, user_email, user_name, donation_target_name, created_at'
+
+    let query = supabase
+      .from('point_transactions')
+      .select(selectColumns, { count: 'exact' })
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+
+    if (filter.txType && filter.txType !== 'ALL') query = query.eq('type', filter.txType)
+    if (filter.currencyType && filter.currencyType !== 'ALL') query = query.eq('currency_type', filter.currencyType)
+    if (filter.relatedType?.trim()) query = query.eq('related_type', filter.relatedType.trim())
+    if (filter.from?.trim()) query = query.gte('created_at', filter.from.trim())
+    if (filter.to?.trim()) query = query.lte('created_at', `${filter.to.trim()}T23:59:59.999Z`)
+    if (filter.q?.trim()) {
+      const q = filter.q.trim().replace(/,/g, ' ')
+      query = query.or(`user_name.ilike.%${q}%,user_email.ilike.%${q}%,description.ilike.%${q}%`)
+    }
+
+    const { data, count, error } = await query.range(fromIndex, toIndex)
+
+    // 구버전 스키마(soft delete 미적용)일 때 fallback
+    if (error?.message?.includes('deleted_at')) {
+      let fallbackQuery = supabase
+        .from('point_transactions')
+        .select(selectColumns, { count: 'exact' })
+        .order('created_at', { ascending: false })
+      if (filter.txType && filter.txType !== 'ALL') fallbackQuery = fallbackQuery.eq('type', filter.txType)
+      if (filter.currencyType && filter.currencyType !== 'ALL') fallbackQuery = fallbackQuery.eq('currency_type', filter.currencyType)
+      if (filter.relatedType?.trim()) fallbackQuery = fallbackQuery.eq('related_type', filter.relatedType.trim())
+      if (filter.from?.trim()) fallbackQuery = fallbackQuery.gte('created_at', filter.from.trim())
+      if (filter.to?.trim()) fallbackQuery = fallbackQuery.lte('created_at', `${filter.to.trim()}T23:59:59.999Z`)
+      if (filter.q?.trim()) {
+        const q = filter.q.trim().replace(/,/g, ' ')
+        fallbackQuery = fallbackQuery.or(`user_name.ilike.%${q}%,user_email.ilike.%${q}%,description.ilike.%${q}%`)
+      }
+      const fallback = await fallbackQuery.range(fromIndex, toIndex)
+      if (fallback.error) return { data: null, total: 0, page: safePage, pageSize: safePageSize, error: fallback.error.message }
+      return {
+        data: (fallback.data ?? []) as AdminPointTransactionRow[],
+        total: fallback.count ?? 0,
+        page: safePage,
+        pageSize: safePageSize,
+        error: null,
+      }
+    }
+
+    if (error) return { data: null, total: 0, page: safePage, pageSize: safePageSize, error: error.message }
+    return {
+      data: (data ?? []) as AdminPointTransactionRow[],
+      total: count ?? 0,
+      page: safePage,
+      pageSize: safePageSize,
+      error: null,
+    }
+  } catch (e) {
+    return {
+      data: null,
+      total: 0,
+      page: 1,
+      pageSize: 30,
+      error: e instanceof Error ? e.message : '거래 내역 조회 실패',
+    }
   }
 }
 

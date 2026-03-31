@@ -484,6 +484,234 @@ export interface Database {
           updated_at?: string
         }
       }
+      health_challenge_seasons: {
+        Row: {
+          season_id: string
+          name: string
+          slug: string
+          starts_at: string
+          ends_at: string
+          timezone: string
+          status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
+          event_id: string | null
+          criteria_attachment_url: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          season_id?: string
+          name: string
+          slug: string
+          starts_at: string
+          ends_at: string
+          timezone?: string
+          status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
+          event_id?: string | null
+          criteria_attachment_url?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          name?: string
+          slug?: string
+          starts_at?: string
+          ends_at?: string
+          timezone?: string
+          status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
+          event_id?: string | null
+          criteria_attachment_url?: string | null
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      health_challenge_tracks: {
+        Row: {
+          track_id: string
+          season_id: string
+          kind: string
+          title: string
+          sort_order: number
+          metric: 'DISTANCE_KM' | 'ELEVATION_M'
+          min_distance_km: number | null
+          min_speed_kmh: number | null
+          min_elevation_m: number | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          track_id?: string
+          season_id: string
+          kind: string
+          title: string
+          sort_order?: number
+          metric: 'DISTANCE_KM' | 'ELEVATION_M'
+          min_distance_km?: number | null
+          min_speed_kmh?: number | null
+          min_elevation_m?: number | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          title?: string
+          sort_order?: number
+          metric?: 'DISTANCE_KM' | 'ELEVATION_M'
+          min_distance_km?: number | null
+          min_speed_kmh?: number | null
+          min_elevation_m?: number | null
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      health_challenge_level_thresholds: {
+        Row: {
+          threshold_id: string
+          track_id: string
+          level: number
+          target_value: number
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          threshold_id?: string
+          track_id: string
+          level: number
+          target_value: number
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          target_value?: number
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      health_challenge_activity_logs: {
+        Row: {
+          log_id: string
+          season_id: string
+          track_id: string
+          user_id: string
+          activity_date: string
+          distance_km: number | null
+          speed_kmh: number | null
+          elevation_m: number | null
+          photo_urls: Json
+          status: 'PENDING' | 'APPROVED' | 'REJECTED'
+          contributed_value: number | null
+          rejection_reason: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          log_id?: string
+          season_id: string
+          track_id: string
+          user_id: string
+          activity_date: string
+          distance_km?: number | null
+          speed_kmh?: number | null
+          elevation_m?: number | null
+          photo_urls?: Json
+          status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+          contributed_value?: number | null
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+          contributed_value?: number | null
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      health_challenge_monthly_rollups: {
+        Row: {
+          rollup_id: string
+          season_id: string
+          track_id: string
+          user_id: string
+          year: number
+          month: number
+          approved_total: number
+          achieved_level: number
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          rollup_id?: string
+          season_id: string
+          track_id: string
+          user_id: string
+          year: number
+          month: number
+          approved_total?: number
+          achieved_level?: number
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          approved_total?: number
+          achieved_level?: number
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      health_challenge_monthly_settlements: {
+        Row: {
+          settlement_id: string
+          season_id: string
+          user_id: string
+          year: number
+          month: number
+          level_sum: number
+          medal_amount: number
+          status: 'PENDING' | 'PAID'
+          paid_at: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          settlement_id?: string
+          season_id: string
+          user_id: string
+          year: number
+          month: number
+          level_sum?: number
+          medal_amount?: number
+          status?: 'PENDING' | 'PAID'
+          paid_at?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          level_sum?: number
+          medal_amount?: number
+          status?: 'PENDING' | 'PAID'
+          paid_at?: string | null
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
     }
   }
 }
