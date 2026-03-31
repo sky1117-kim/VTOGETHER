@@ -2,8 +2,6 @@ import Link from 'next/link'
 import { TrendingUp, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { LevelRoadmapModal } from '@/components/my/LevelRoadmapModal'
-import { PointNotificationBell } from './PointNotificationBell'
-import type { NotificationItem } from '@/api/queries/user'
 type Level = 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
 
 const LEVEL_INFO: Record<Level, { label: string; icon: string; next: Level | null; nextMin: number }> = {
@@ -56,10 +54,6 @@ interface DashboardSectionProps {
   heroSeasonBadge?: string
   heroTitle?: string
   heroSubtitle?: string
-  /** 로그인 사용자 ID (알림 버튼용) */
-  userId?: string | null
-  /** 최근 1주일 적립 + 보상 선택 대기 알림 목록 */
-  recentNotifications?: NotificationItem[]
 }
 
 const defaultHero = {
@@ -86,8 +80,6 @@ export function DashboardSection({
   heroSeasonBadge = defaultHero.seasonBadge,
   heroTitle = defaultHero.title,
   heroSubtitle = defaultHero.subtitle,
-  userId = null,
-  recentNotifications = [],
 }: DashboardSectionProps) {
   const level = normalizeLevel(levelProp)
   const safeTitle = heroTitle ?? defaultHero.title
@@ -128,7 +120,7 @@ export function DashboardSection({
         <div className="absolute bottom-0 right-0 h-80 w-80 translate-x-1/4 translate-y-1/4 rounded-full bg-green-600 opacity-25 mix-blend-overlay blur-3xl" aria-hidden />
       </div>
 
-      {/* My Status 카드: 컴팩트 배치 (헤더 · 포인트 · 등급) — 알림 모달 정렬용 */}
+      {/* My Status 카드: 컴팩트 배치 (헤더 · 포인트 · 등급) */}
       <div data-my-status-card className="card-hover w-full max-w-sm overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
         {/* Header: 등급별 그라데이션 + 아바타·이름·부서·이메일 */}
         <div className={`relative ${headerStyle.gradient} px-4 py-4`}>
@@ -157,15 +149,6 @@ export function DashboardSection({
                 </div>
               </div>
             </div>
-            {userId && (
-              <div className="shrink-0">
-                <PointNotificationBell
-                  userId={userId}
-                  notifications={recentNotifications}
-                  variant="dark"
-                />
-              </div>
-            )}
           </div>
         </div>
 

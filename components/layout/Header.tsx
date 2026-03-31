@@ -2,13 +2,25 @@ import Link from 'next/link'
 import { getCurrentUser } from '@/api/actions/auth'
 import { signOut } from '@/api/actions/auth'
 import { LevelBadge } from '@/components/my/LevelBadge'
+import { getNotificationsForBell } from '@/api/queries/user'
+import { PointNotificationBell } from '@/components/main/PointNotificationBell'
 
 export async function Header() {
   let user: Awaited<ReturnType<typeof getCurrentUser>> = null
+  let recentNotifications: Awaited<ReturnType<typeof getNotificationsForBell>> = []
+
   try {
     user = await getCurrentUser()
   } catch {
     // 인증 비활성화 시
+  }
+
+  if (user?.id) {
+    try {
+      recentNotifications = await getNotificationsForBell(user.id, 7)
+    } catch {
+      // 알림 조회 실패 시에도 헤더는 정상 노출
+    }
   }
 
   const displayName = user ? user.name || user.email : '게스트'
@@ -51,8 +63,12 @@ export async function Header() {
               </Link>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="mr-2 hidden flex-col items-end md:flex">
+          <div className="flex items-center gap-2.5">
+            {user?.id && (
+              <PointNotificationBell userId={user.id} notifications={recentNotifications} />
+            )}
+            {user?.id && <div className="hidden h-5 w-px bg-gray-200 md:block" aria-hidden />}
+            <div className="mr-1 hidden flex-col items-end md:flex">
               <span className="text-xs text-gray-400">환영합니다</span>
               <span className="text-sm font-bold text-gray-800">{displayName}</span>
             </div>

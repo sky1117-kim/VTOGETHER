@@ -7,7 +7,6 @@ import {
   getCurrentQuarterBounds,
 } from '@/api/queries/ranking'
 import { getEventsWithRoundsForPublic } from '@/api/queries/events'
-import { getNotificationsForBell } from '@/api/queries/user'
 import {
   getActiveHealthChallengeDefinition,
   getHealthChallengeSubmittedTrackIdsThisMonth,
@@ -84,17 +83,8 @@ export default async function HomePage({ searchParams }: PageProps) {
   const totalDonated = user?.total_donated_amount ?? 0
   const level = user?.level ?? 'ECO_KEEPER'
 
-  let recentNotifications: Awaited<ReturnType<typeof getNotificationsForBell>> = []
-  if (user?.id) {
-    try {
-      recentNotifications = await getNotificationsForBell(user.id, 7)
-    } catch {
-      // ignore
-    }
-  }
-
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-12 pt-2 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 pb-12 pt-0 sm:px-6 lg:px-8">
       {showAdminDenied && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           관리자 페이지는 관리자 계정으로만 접근할 수 있습니다. 관리자 권한이 필요하면 기존 관리자에게 문의하세요.
@@ -112,8 +102,6 @@ export default async function HomePage({ searchParams }: PageProps) {
           heroSeasonBadge={siteContent.hero_season_badge}
           heroTitle={siteContent.hero_title}
           heroSubtitle={siteContent.hero_subtitle}
-          userId={user?.id ?? null}
-          recentNotifications={recentNotifications}
         />
       </div>
       <div className="animate-fade-up mt-8">
