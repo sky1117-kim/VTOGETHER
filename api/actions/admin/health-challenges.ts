@@ -249,7 +249,7 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
 
     const { data: track, error: tErr } = await admin
       .from('health_challenge_tracks')
-      .select('track_id, metric, min_distance_km, min_speed_kmh, min_elevation_m')
+      .select('track_id, title, metric, min_distance_km, min_speed_kmh, min_elevation_m')
       .eq('track_id', log.track_id)
       .is('deleted_at', null)
       .single()
@@ -429,6 +429,7 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
           })
         }
 
+        const trackLabel = (track.title ?? '').trim() || '건강 챌린지'
         await admin.from('point_transactions').insert({
           user_id: log.user_id,
           type: 'EARNED',
@@ -436,7 +437,7 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
           currency_type: 'V_MEDAL',
           related_id: log.log_id,
           related_type: HEALTH_CHALLENGE_RELATED_TYPE,
-          description: `건강 챌린지 승인 보상 (${deltaLevel}레벨 상승 → ${medalAmount} M)`,
+          description: `${trackLabel} 레벨 ${achieved} 달성`,
           user_email: urow.email ?? null,
           user_name: urow.name ?? null,
         })

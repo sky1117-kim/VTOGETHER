@@ -42,6 +42,10 @@ export interface SeahDepartment {
   status_code?: string
 }
 
+function isSeahDepartment(value: unknown): value is SeahDepartment {
+  return typeof value === 'object' && value !== null
+}
+
 /** Basic Auth 헤더 생성 (env 없으면 null, throw 안 함) */
 function getBasicAuthHeader(): string | null {
   const username = process.env.SEAH_ORGSYNC_USERNAME?.trim()
@@ -278,7 +282,7 @@ export async function fetchDepartments(): Promise<SeahDepartment[] | null> {
 
     const data = await res.json()
     const list = extractListFromSeahResponse(data)
-    return Array.isArray(list) ? list : null
+    return list.filter(isSeahDepartment)
   } catch (err) {
     console.error('[SeahOrgsync] fetchDepartments 에러:', err)
     return null

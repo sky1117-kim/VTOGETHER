@@ -8,7 +8,7 @@ type ShopProductRow = {
   product_id: string
   name: string
   description: string | null
-  product_type: 'GOODS' | 'CREDIT_PACK'
+  product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
   price_medal: number
   credit_amount: number | null
   stock: number | null

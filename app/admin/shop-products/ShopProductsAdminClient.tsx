@@ -15,12 +15,23 @@ type ProductRow = {
   product_id: string
   name: string
   description: string | null
-  product_type: 'GOODS' | 'CREDIT_PACK'
+  product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
   price_medal: number
   credit_amount: number | null
   stock: number | null
   image_url: string | null
   is_active: boolean
+}
+
+function parseImageUrls(raw: string): string[] {
+  return raw
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+}
+
+function joinImageUrls(urls: string[]): string {
+  return urls.join('\n')
 }
 
 async function compressImageFile(file: File): Promise<File> {
@@ -63,17 +74,18 @@ function ProductImageUploadBox({
   borderTone,
   fileTone,
   disabled,
-  onSelectFile,
+  onSelectFiles,
   onClear,
 }: {
   imageUrl: string
   borderTone: string
   fileTone: string
   disabled: boolean
-  onSelectFile: (file: File | null) => void
+  onSelectFiles: (files: File[]) => void
   onClear: () => void
 }) {
   const [isDragging, setIsDragging] = useState(false)
+  const imageUrls = parseImageUrls(imageUrl)
   return (
     <div className="space-y-2 md:col-span-2">
       <label className="block text-xs font-semibold text-gray-600">상품 이미지</label>
@@ -87,18 +99,19 @@ function ProductImageUploadBox({
         onDrop={(e) => {
           e.preventDefault()
           setIsDragging(false)
-          onSelectFile(e.dataTransfer.files?.[0] ?? null)
+          onSelectFiles(Array.from(e.dataTransfer.files ?? []))
         }}
       >
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <input
             type="file"
             disabled={disabled}
+            multiple
             accept="image/png,image/jpeg,image/webp,image/gif"
             className={`block w-full rounded-lg border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-semibold ${fileTone}`}
-            onChange={(e) => onSelectFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => onSelectFiles(Array.from(e.target.files ?? []))}
           />
-          {imageUrl && (
+          {imageUrls.length > 0 && (
             <button
               type="button"
               disabled={disabled}
@@ -109,11 +122,20 @@ function ProductImageUploadBox({
             </button>
           )}
         </div>
-        <p className="mt-2 text-xs text-gray-500">파일을 끌어다 놓아도 업로드됩니다. (자동 압축 적용)</p>
+        <p className="mt-2 text-xs text-gray-500">
+          여러 장 업로드 가능, 순서대로 노출됩니다. (자동 압축 적용)
+        </p>
       </div>
-      {imageUrl && (
-        <div className="relative h-40 overflow-hidden rounded-xl border border-gray-200">
-          <Image src={imageUrl} alt="상품 미리보기" fill sizes="(max-width: 768px) 100vw, 640px" unoptimized className="object-cover" />
+      {imageUrls.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500">업로드된 이미지 {imageUrls.length}장</p>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {imageUrls.map((url, index) => (
+              <div key={`${url}-${index}`} className="relative h-24 overflow-hidden rounded-xl border border-gray-200">
+                <Image src={url} alt={`상품 미리보기 ${index + 1}`} fill sizes="200px" unoptimized className="object-cover" />
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -126,12 +148,12 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
   const [message, setMessage] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK'>('ALL')
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
   const [form, setForm] = useState({
     name: '',
     description: '',
-    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK',
+    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE',
     price_medal: 10,
     credit_amount: 1000,
     stock: '',
@@ -140,7 +162,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
-    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK',
+    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE',
     price_medal: 10,
     credit_amount: 1000,
     stock: '',
@@ -148,23 +170,34 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
     is_active: true,
   })
 
-  async function handleUpload(file: File | null, target: 'create' | 'edit') {
-    if (!file) return
-    const optimized = await compressImageFile(file)
-    const fd = new FormData()
-    fd.append('file', optimized)
+  async function handleUpload(files: File[], target: 'create' | 'edit') {
+    if (files.length === 0) return
     startTransition(async () => {
-      const result = await uploadShopProductImage(fd)
-      if (!result.url) {
-        setMessage(result.error ?? '이미지 업로드 실패')
-        return
+      const uploadedUrls: string[] = []
+      for (const file of files) {
+        const optimized = await compressImageFile(file)
+        const fd = new FormData()
+        fd.append('file', optimized)
+        const result = await uploadShopProductImage(fd)
+        if (!result.url) {
+          setMessage(result.error ?? '이미지 업로드 실패')
+          return
+        }
+        uploadedUrls.push(result.url)
       }
+
       if (target === 'create') {
-        setForm((prev) => ({ ...prev, image_url: result.url ?? '' }))
+        setForm((prev) => {
+          const merged = [...parseImageUrls(prev.image_url), ...uploadedUrls]
+          return { ...prev, image_url: joinImageUrls(merged) }
+        })
       } else {
-        setEditForm((prev) => ({ ...prev, image_url: result.url ?? '' }))
+        setEditForm((prev) => {
+          const merged = [...parseImageUrls(prev.image_url), ...uploadedUrls]
+          return { ...prev, image_url: joinImageUrls(merged) }
+        })
       }
-      setMessage('상품 이미지를 업로드했습니다.')
+      setMessage(`상품 이미지를 ${uploadedUrls.length}장 업로드했습니다.`)
     })
   }
 
@@ -189,9 +222,10 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
         <h3 className="text-base font-semibold text-gray-900">상품 등록</h3>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <input className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="상품명" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-          <select className="rounded-lg border border-gray-200 px-3 py-2 text-sm" value={form.product_type} onChange={(e) => setForm((p) => ({ ...p, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' }))}>
+          <select className="rounded-lg border border-gray-200 px-3 py-2 text-sm" value={form.product_type} onChange={(e) => setForm((p) => ({ ...p, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE' }))}>
             <option value="GOODS">굿즈</option>
-            <option value="CREDIT_PACK">V.Credit 전환팩</option>
+            <option value="CREDIT_PACK">V.Credit</option>
+            <option value="ALMAENG_STORE">알맹상점</option>
           </select>
           <input className="rounded-lg border border-gray-200 px-3 py-2 text-sm md:col-span-2" placeholder="설명" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
           <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="가격(Medal)" value={formatIntegerWithCommas(form.price_medal)} onChange={(e) => setForm((p) => ({ ...p, price_medal: Number(sanitizeIntegerInput(e.target.value) || 0) }))} />
@@ -201,7 +235,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
             borderTone="border-gray-200 bg-gray-50/30"
             fileTone="border-gray-200 file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
             disabled={isPending}
-            onSelectFile={(file) => void handleUpload(file, 'create')}
+            onSelectFiles={(files) => void handleUpload(files, 'create')}
             onClear={() => setForm((prev) => ({ ...prev, image_url: '' }))}
           />
           {form.product_type === 'CREDIT_PACK' && (
@@ -257,12 +291,13 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
           />
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'GOODS' | 'CREDIT_PACK')}
+            onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE')}
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
           >
             <option value="ALL">유형 전체</option>
             <option value="GOODS">굿즈</option>
-            <option value="CREDIT_PACK">V.Credit 전환팩</option>
+            <option value="CREDIT_PACK">V.Credit</option>
+            <option value="ALMAENG_STORE">알맹상점</option>
           </select>
           <select
             value={statusFilter}
@@ -282,6 +317,11 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
         <div className="space-y-3 md:hidden">
           {filteredProducts.map((p) => (
             <article key={p.product_id} className="rounded-xl border border-gray-200 bg-white p-4">
+              {(() => {
+                const previewUrls = parseImageUrls(p.image_url ?? '')
+                const previewUrl = previewUrls[0] ?? null
+                return (
+                  <>
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900">{p.name}</h4>
@@ -308,16 +348,19 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                   수정
                 </button>
               </div>
-              {p.image_url && (
+              {previewUrl && (
                 <div className="relative mt-3 h-32 overflow-hidden rounded-lg border border-gray-200">
-                  <Image src={p.image_url} alt={`${p.name} 썸네일`} fill sizes="(max-width: 768px) 100vw, 320px" unoptimized className="object-cover" />
+                  <Image src={previewUrl} alt={`${p.name} 썸네일`} fill sizes="(max-width: 768px) 100vw, 320px" unoptimized className="object-cover" />
                 </div>
+              )}
+              {previewUrls.length > 1 && (
+                <p className="mt-1 text-[11px] font-medium text-gray-500">이미지 {previewUrls.length}장 등록됨</p>
               )}
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-lg bg-gray-50 px-2 py-1.5">
                   <p className="text-gray-500">유형</p>
                   <p className="mt-1 font-semibold text-gray-800">
-                    {p.product_type === 'CREDIT_PACK' ? 'V.Credit 전환' : '굿즈'}
+                    {p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ALMAENG_STORE' ? '알맹상점' : '굿즈'}
                   </p>
                 </div>
                 <div className="rounded-lg bg-gray-50 px-2 py-1.5 text-right">
@@ -350,6 +393,9 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                   {p.is_active ? '판매중' : '비활성'}
                 </button>
               </div>
+                  </>
+                )
+              })()}
             </article>
           ))}
         </div>
@@ -371,18 +417,23 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
             {filteredProducts.map((p) => (
               <tr key={p.product_id}>
                 <td className="px-4 py-3">{p.name}</td>
-                <td className="px-4 py-3">{p.product_type === 'CREDIT_PACK' ? 'V.Credit 전환' : '굿즈'}</td>
+                <td className="px-4 py-3">{p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ALMAENG_STORE' ? '알맹상점' : '굿즈'}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{p.price_medal.toLocaleString()}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{(p.credit_amount ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{p.stock == null ? '무제한' : p.stock.toLocaleString()}</td>
                 <td className="px-4 py-3">
-                  {p.image_url ? (
+                  {(() => {
+                    const previewUrls = parseImageUrls(p.image_url ?? '')
+                    const previewUrl = previewUrls[0] ?? null
+                    if (!previewUrl) {
+                      return <span className="text-xs text-gray-400">없음</span>
+                    }
+                    return (
                     <div className="relative h-10 w-16 overflow-hidden rounded-md border border-gray-200">
-                      <Image src={p.image_url} alt={`${p.name} 썸네일`} fill sizes="64px" unoptimized className="object-cover" />
+                      <Image src={previewUrl} alt={`${p.name} 썸네일`} fill sizes="64px" unoptimized className="object-cover" />
                     </div>
-                  ) : (
-                    <span className="text-xs text-gray-400">없음</span>
-                  )}
+                    )
+                  })()}
                 </td>
                 <td className="px-4 py-3">
                   <button
@@ -453,11 +504,12 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
               className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
               value={editForm.product_type}
               onChange={(e) =>
-                setEditForm((prev) => ({ ...prev, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' }))
+                setEditForm((prev) => ({ ...prev, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE' }))
               }
             >
               <option value="GOODS">굿즈</option>
-              <option value="CREDIT_PACK">V.Credit 전환팩</option>
+              <option value="CREDIT_PACK">V.Credit</option>
+              <option value="ALMAENG_STORE">알맹상점</option>
             </select>
             <input
               className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm md:col-span-2"
@@ -486,7 +538,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
               borderTone="border-green-200 bg-green-100/30"
               fileTone="border-green-200 bg-white file:bg-green-100 file:text-green-800 hover:file:bg-green-200"
               disabled={isPending}
-              onSelectFile={(file) => void handleUpload(file, 'edit')}
+              onSelectFiles={(files) => void handleUpload(files, 'edit')}
               onClear={() => setEditForm((prev) => ({ ...prev, image_url: '' }))}
             />
             {editForm.product_type === 'CREDIT_PACK' && (

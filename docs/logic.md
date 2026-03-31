@@ -23,12 +23,16 @@
   - `People` 이벤트 승인 보상은 `V.Medal` 적립
   - `Culture` 이벤트 승인 보상은 `V.Credit` 적립
 - `V.Medal` 상점:
-  - 굿즈 구매 가능
-  - `V.Credit` 전환 상품 구매 가능
+  - 상품 분류는 `굿즈`, `V.Credit`, `알맹상점` 3가지로 운영
+  - `V.Credit` 분류 상품 구매 시 즉시 `V.Credit` 지급
 - `V.Credit` 출처 추적:
   - `credit_lots`에 `ACTIVITY`, `MEDAL_EXCHANGE`, `ADMIN_GRANT`로 lot 저장
   - 기부 시 오래된 lot부터 FIFO 차감
   - 차감 결과는 `donation_lot_allocations`에 저장
+- 상점 상품 이미지 저장 규칙(2026.03.31):
+  - `shop_products.image_url` 컬럼은 단일 URL뿐 아니라 **여러 URL을 줄바꿈으로 연결한 문자열**도 허용합니다.
+  - `/shop`에서는 줄바꿈(또는 쉼표) 기준으로 분리해 이미지 슬라이드로 보여줍니다.
+  - `/admin/shop-products` 업로드는 여러 파일 선택이 가능하며, 업로드된 URL을 줄바꿈으로 누적 저장합니다.
 - 매칭기부:
   - 일반 활동으로 적립된 `V.Credit` 기부는 매칭 제외
   - `V.Medal -> V.Credit` 전환 lot(`MEDAL_EXCHANGE`)에서 차감된 금액만 매칭 인정

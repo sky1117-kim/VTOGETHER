@@ -25,6 +25,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **건강 챌린지**: 시즌은 **`/admin/events/new`** 에서 People 이벤트와 함께 등록(체크박스). 정산·시즌 목록: `/admin/health-challenges` · 활동 심사: `/admin/verifications`. DB: `033-health-challenge.sql`, `034-health-challenge-event-id.sql`
 - **기부처 관리**: `/admin/donation-targets` — 목표 수정, 오프라인 성금 합산
 - **상점 상품 관리**: `/admin/shop-products` — 상점 상품 등록/활성화/가격·재고·설명 수정 + 상품 이미지 업로드(드래그앤드롭/자동압축) + 검색/필터
+- **상점 카드 UX 개선**: `/shop` — 상품 카드 높이 축소, 설명 `전체 내용 보기` 팝업, 상품별 다중 이미지 좌우 슬라이드 지원 (2026.03.31)
+- **상점 상품 분류 확장**: 상점 분류를 `굿즈` / `V.Credit` / `알맹상점` 3가지로 운영 (2026.03.31)
 - **숫자 입력 UX**: 주요 입력 폼에서 숫자 타이핑 시 천 단위 콤마 자동 표시 (`20000` → `20,000`, 저장 시 숫자로 변환)
 - **최근 접속 사용자**: `/admin/recent-users` — 마지막 접속 시각 기준 사용자 목록
 - **스켈레톤 UI**: 메인·마이·기부·관리자 페이지 로딩 시 콘텐츠 자리 표시용 스켈레톤 표시

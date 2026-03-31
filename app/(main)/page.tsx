@@ -8,7 +8,11 @@ import {
 } from '@/api/queries/ranking'
 import { getEventsWithRoundsForPublic } from '@/api/queries/events'
 import { getNotificationsForBell } from '@/api/queries/user'
-import { getActiveHealthChallengeDefinition, getHealthChallengeSubmittedTrackIdsThisMonth } from '@/api/queries/health-challenges'
+import {
+  getActiveHealthChallengeDefinition,
+  getHealthChallengeSubmittedTrackIdsThisMonth,
+  getHealthChallengeSubmittedTrackInfosThisMonth,
+} from '@/api/queries/health-challenges'
 import { DashboardSection } from '@/components/main/DashboardSection'
 import { DonationSection } from '@/components/main/DonationSection'
 import { CampaignsSection } from '@/components/main/CampaignsSection'
@@ -34,6 +38,7 @@ export default async function HomePage({ searchParams }: PageProps) {
     error: null,
   }
   let healthSubmittedTrackIds: Awaited<ReturnType<typeof getHealthChallengeSubmittedTrackIdsThisMonth>> = []
+  let healthSubmittedTrackInfos: Awaited<ReturnType<typeof getHealthChallengeSubmittedTrackInfosThisMonth>> = []
 
   try {
     const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes] = await Promise.all([
@@ -64,6 +69,11 @@ export default async function HomePage({ searchParams }: PageProps) {
 
   try {
     healthSubmittedTrackIds = await getHealthChallengeSubmittedTrackIdsThisMonth(user?.id ?? null)
+  } catch {
+    // ignore
+  }
+  try {
+    healthSubmittedTrackInfos = await getHealthChallengeSubmittedTrackInfosThisMonth(user?.id ?? null)
   } catch {
     // ignore
   }
@@ -120,7 +130,12 @@ export default async function HomePage({ searchParams }: PageProps) {
           isLoggedIn={!!user}
           healthChallenge={
             healthDefinition.season && healthDefinition.tracks.length
-              ? { season: healthDefinition.season, tracks: healthDefinition.tracks, submittedTrackIds: healthSubmittedTrackIds }
+              ? {
+                  season: healthDefinition.season,
+                  tracks: healthDefinition.tracks,
+                  submittedTrackIds: healthSubmittedTrackIds,
+                  submittedTrackInfos: healthSubmittedTrackInfos,
+                }
               : undefined
           }
         />

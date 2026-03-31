@@ -237,9 +237,9 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
   const modal = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden p-4 sm:p-6" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
-      {/* 큰 폼 기준 고정 크기 — 로딩↔로드 시 크기 변화 없음. 짧은 내용은 본문에서 중앙 배치 */}
+      {/* 높이는 내용 기준 + 상한만 둠. 고정 vh는 사진 첨부 후에도 아래에 빈 여백이 크게 남음 */}
       <div
-        className="relative z-10 flex h-[75vh] min-h-[560px] max-h-[820px] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-2xl"
+        className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 고정 */}
@@ -260,8 +260,8 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
           </div>
         </div>
 
-        {/* 본문: 스크롤 가능, 짧은 내용일 땐 flex로 중앙 배치 */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-6 pt-4">
+        {/* 본문: flex-1 없이 max-height로만 스크롤 → 짧은 폼에서 하단 빈 공백 방지 */}
+        <div className="min-h-0 min-w-0 max-h-[min(75vh,calc(92vh-14rem))] overflow-y-auto p-6 pt-4">
         {loading && (
           <div className="space-y-6" aria-busy="true" aria-label="이벤트 정보 불러오는 중">
             <Skeleton className="h-5 w-3/4 max-w-xs rounded" />

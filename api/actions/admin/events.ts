@@ -56,6 +56,9 @@ export type EventRow = {
   /** 레거시 단일 보상. null이면 event_rewards 사용(복수 보상) */
   reward_type: 'V_CREDIT' | 'COUPON' | 'CHOICE' | null
   reward_amount: number | null
+  /** event_rewards 기반 표시용 보상 종류/수량 */
+  reward_preview_kind?: 'V_CREDIT' | 'V_MEDAL' | null
+  reward_preview_amount?: number | null
   image_url: string | null
   status: 'ACTIVE' | 'PAUSED' | 'ENDED'
   frequency_limit?: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | null
@@ -79,7 +82,37 @@ export async function getEventsForAdmin(): Promise<{
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
     if (error) return { data: null, error: error.message }
-    return { data: (data ?? []) as EventRow[], error: null }
+
+    const rows = (data ?? []) as EventRow[]
+    const eventIds = rows.map((r) => r.event_id)
+    if (!eventIds.length) return { data: rows, error: null }
+
+    const { data: rewardsData } = await supabase
+      .from('event_rewards')
+      .select('event_id, reward_kind, amount, display_order')
+      .in('event_id', eventIds)
+      .is('deleted_at', null)
+      .order('display_order', { ascending: true })
+
+    const rewardMap = new Map<string, { kind: 'V_CREDIT' | 'V_MEDAL' | null; amount: number | null }>()
+    for (const reward of rewardsData ?? []) {
+      const kind = reward.reward_kind === 'V_CREDIT' || reward.reward_kind === 'V_MEDAL' ? reward.reward_kind : null
+      if (!kind) continue
+      if (!rewardMap.has(reward.event_id)) {
+        rewardMap.set(reward.event_id, { kind, amount: reward.amount ?? null })
+      }
+    }
+
+    const merged = rows.map((row) => {
+      const reward = rewardMap.get(row.event_id)
+      return {
+        ...row,
+        reward_preview_kind: reward?.kind ?? null,
+        reward_preview_amount: reward?.amount ?? null,
+      }
+    })
+
+    return { data: merged, error: null }
   } catch (e) {
     return { data: null, error: e instanceof Error ? e.message : '이벤트 목록 조회 실패' }
   }

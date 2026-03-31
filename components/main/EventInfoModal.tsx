@@ -84,17 +84,17 @@ export function EventInfoModal({
       {/* 배경 딤: 뒤 콘텐츠와 겹치지 않도록 전체 덮기 */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
       <div
-        className="relative z-10 flex max-h-[90vh] min-h-[360px] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-modal sm:min-h-[400px]"
+        className="relative z-10 flex max-h-[88vh] min-h-[320px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-modal sm:min-h-[360px]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 고정 (상단) */}
-        <div className="flex-shrink-0 border-b border-gray-100 bg-gradient-to-br from-green-50 to-white p-6 pb-5">
+        <div className="flex-shrink-0 border-b border-gray-100 bg-gradient-to-br from-green-50 to-white p-4 pb-4 sm:p-5 sm:pb-4">
           {event?.image_url?.trim() && (
-            <div className="mb-4 overflow-hidden rounded-xl bg-gray-100">
+            <div className="mb-3 overflow-hidden rounded-xl bg-gray-100">
               <img
                 src={event.image_url}
                 alt=""
-                className="h-40 w-full object-cover"
+                className="h-28 w-full object-cover sm:h-32"
               />
             </div>
           )}
@@ -103,7 +103,7 @@ export function EventInfoModal({
               <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
                 {(event?.category === 'PEOPLE' || event?.category === 'CULTURE') ? 'People' : 'V.Together'}
               </span>
-              <h3 className="mt-2 text-xl font-bold text-gray-900">{event?.title ?? '—'}</h3>
+              <h3 className="mt-2 text-lg font-bold text-gray-900 sm:text-xl">{event?.title ?? '—'}</h3>
             </div>
             <button
               type="button"
@@ -117,14 +117,14 @@ export function EventInfoModal({
         </div>
 
         {/* 본문만 스크롤 */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
             이벤트 상세 안내
           </p>
           {/* 에디터(RichTextEditor)와 동일: 패딩·줄간격·단락/목록 스페이싱·글자색/배경색(hex) 적용 */}
           <div
             ref={descriptionRef}
-            className="event-description rte-content min-h-0 w-full break-keep whitespace-pre-wrap rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-base leading-normal text-gray-900 outline-none [&_a]:text-green-600 [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:leading-normal [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:leading-normal"
+            className="event-description rte-content min-h-0 w-full break-keep whitespace-pre-wrap rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-sm leading-relaxed text-gray-900 outline-none sm:text-[15px] [&_a]:text-green-600 [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:leading-relaxed [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:leading-relaxed"
           >
             {isHtml ? (
               <>
@@ -146,7 +146,7 @@ export function EventInfoModal({
 
         {/* 푸터 고정 (하단) */}
         {(event?.type === 'SEASONAL' && event?.rounds && event.rounds.length > 0) || (isLoggedIn && event) ? (
-          <div className="flex-shrink-0 border-t border-gray-100 bg-white p-6 pt-4">
+          <div className="flex-shrink-0 border-t border-gray-100 bg-white p-4 pt-3 sm:p-5 sm:pt-4">
             {event?.type === 'SEASONAL' && event.rounds && event.rounds.length > 0 && (
               <>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -190,7 +190,7 @@ export function EventInfoModal({
                   <button
                     type="button"
                     onClick={() => onVerify(event.event_id)}
-                    className="w-full rounded-xl bg-green-600 py-3 text-sm font-bold text-white transition hover:bg-green-700 btn-press"
+                    className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 btn-press"
                   >
                     인증하기
                   </button>

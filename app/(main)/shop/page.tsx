@@ -60,6 +60,15 @@ export default async function ShopPage() {
             BEST/NEW 뱃지로 인기 상품 빠르게 확인
           </div>
         </div>
+        <div className="relative mt-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-[12px] leading-6 text-slate-100 backdrop-blur-sm">
+          <p className="font-semibold text-emerald-100">
+            일부 상품은 제로웨이스트 숍 알맹상점의 제품으로 구성되어 있습니다.
+          </p>
+          <p className="mt-1.5 text-[11px] text-slate-200">
+            알맹상점은 ‘껍데기는 줄이고, 알맹이만 소비하자’는 취지로 시작된 친환경 브랜드로, 불필요한 포장재를 최소화하고
+            재사용·재활용이 가능한 제품을 선보이며 지속가능한 소비 문화를 제안하고 있습니다.
+          </p>
+        </div>
       </section>
 
       <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

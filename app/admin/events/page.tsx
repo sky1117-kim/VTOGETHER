@@ -18,6 +18,28 @@ const STATUS_LABEL: Record<string, string> = {
   ENDED: '종료',
 }
 
+function formatRewardLabel(event: {
+  reward_type: string | null
+  reward_amount: number | null
+  reward_preview_kind?: 'V_CREDIT' | 'V_MEDAL' | null
+  reward_preview_amount?: number | null
+}) {
+  if (event.reward_preview_kind && event.reward_preview_amount != null) {
+    return event.reward_preview_kind === 'V_MEDAL'
+      ? `${event.reward_preview_amount} 메달`
+      : `${event.reward_preview_amount} 크레딧`
+  }
+
+  if (event.reward_type === 'V_CREDIT' || event.reward_type === 'POINTS') {
+    return event.reward_amount != null ? `${event.reward_amount} 크레딧` : '크레딧'
+  }
+  if (event.reward_type === 'V_MEDAL') {
+    return event.reward_amount != null ? `${event.reward_amount} 메달` : '메달'
+  }
+
+  return '보상 미설정'
+}
+
 export default async function AdminEventsPage() {
   const { data: events, error } = await getEventsForAdmin()
   const list = events ?? []
@@ -119,18 +141,19 @@ export default async function AdminEventsPage() {
                       {e.title}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                     {CATEGORY_LABEL[e.category] ?? e.category}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                     {TYPE_LABEL[e.type] ?? e.type}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {e.reward_type == null
-                      ? '자동 지급 (설정된 보상 기준)'
-                      : (e.reward_type === 'V_CREDIT' || (e as { reward_type?: string }).reward_type === 'POINTS') && e.reward_amount != null
-                        ? `${e.reward_amount}C`
-                        : e.reward_type}
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {formatRewardLabel(e as {
+                      reward_type: string | null
+                      reward_amount: number | null
+                      reward_preview_kind?: 'V_CREDIT' | 'V_MEDAL' | null
+                      reward_preview_amount?: number | null
+                    })}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -145,7 +168,7 @@ export default async function AdminEventsPage() {
                       {STATUS_LABEL[e.status] ?? e.status}
                     </span>
                   </td>
-                  <td className="px-4 pr-2 py-3 text-sm text-gray-500">
+                  <td className="px-4 pr-2 py-3 text-sm text-gray-500 whitespace-nowrap">
                     {new Date(e.created_at).toLocaleDateString('ko-KR')}
                   </td>
                   <td className="pl-2 pr-4 py-3 align-middle">

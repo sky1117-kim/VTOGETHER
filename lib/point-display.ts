@@ -25,6 +25,9 @@ export const COMPLIMENT_EVENT_LABEL = '칭찬 챌린지'
 /** 일반 이벤트 적립 건 배지: 보상 지급 완료 */
 export const GENERAL_EVENT_BADGE_LABEL = '보상 지급 완료'
 
+/** 건강 챌린지 종목 레벨 달성 (예: 런닝 레벨 2 달성) */
+export const HEALTH_CHALLENGE_BADGE_LABEL = '건강 챌린지'
+
 /** 적립 내역 배지 스타일 구분 */
 export type EarnedBadgeVariant = 'general' | 'received' | 'gave'
 
@@ -60,6 +63,11 @@ export function getEarnedDisplay(
   }
   if (d.startsWith('칭찬을 함') || d.startsWith('칭찬챌린지 (발신)')) {
     return { badge: COMPLIMENT_BADGE_LABEL.gave, text: COMPLIMENT_EVENT_LABEL, variant: 'gave' }
+  }
+
+  // 건강 챌린지: "런닝 레벨 2 달성" (종목명 + 달성 레벨)
+  if (/\s레벨\s\d+\s달성$/.test(d)) {
+    return { badge: HEALTH_CHALLENGE_BADGE_LABEL, text: d, variant: 'general' }
   }
 
   // 일반 이벤트: "이벤트명 N구간 승인되어 10,000 C 적립" → 이벤트명 N구간 · 보상 지급 완료

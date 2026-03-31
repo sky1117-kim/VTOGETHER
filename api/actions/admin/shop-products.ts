@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-type ProductType = 'GOODS' | 'CREDIT_PACK'
+type ProductType = 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
 
 async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const auth = await createClient()

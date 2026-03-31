@@ -38,6 +38,16 @@ export type HealthMonthlySubmissionState = {
   reason: 'NONE' | 'PENDING' | 'APPROVED'
 }
 
+export type HealthSubmittedTrackInfo = {
+  track_id: string
+  status: 'PENDING' | 'APPROVED'
+  activity_date: string
+  distance_km: number | null
+  speed_kmh: number | null
+  elevation_m: number | null
+  created_at: string
+}
+
 function isMissingCriteriaAttachmentColumnError(message?: string | null): boolean {
   if (!message) return false
   return message.includes('criteria_attachment_url')
@@ -273,6 +283,14 @@ export async function getHealthChallengeMonthlySubmissionState(
 export async function getHealthChallengeSubmittedTrackIdsThisMonth(
   userId: string | null
 ): Promise<string[]> {
+  const infos = await getHealthChallengeSubmittedTrackInfosThisMonth(userId)
+  return infos.map((x) => x.track_id)
+}
+
+/** 이번 달 종목별 최신 제출 정보(PENDING/APPROVED) */
+export async function getHealthChallengeSubmittedTrackInfosThisMonth(
+  userId: string | null
+): Promise<HealthSubmittedTrackInfo[]> {
   if (!userId) return []
   try {
     const { year, month } = getSeoulYearMonth()
@@ -293,16 +311,33 @@ export async function getHealthChallengeSubmittedTrackIdsThisMonth(
 
     const { data: rows, error } = await supabase
       .from('health_challenge_activity_logs')
-      .select('track_id')
+      .select('track_id, status, activity_date, distance_km, speed_kmh, elevation_m, created_at')
       .eq('season_id', season.season_id)
       .eq('user_id', userId)
       .is('deleted_at', null)
       .gte('activity_date', startYmd)
       .lte('activity_date', endYmd)
       .in('status', ['PENDING', 'APPROVED'])
+      .order('created_at', { ascending: false })
 
     if (error || !rows?.length) return []
-    return [...new Set(rows.map((r) => r.track_id))]
+
+    // 같은 종목 다중 제출이 있어도 카드에는 최신 1건만 표시
+    const latestByTrack = new Map<string, HealthSubmittedTrackInfo>()
+    for (const row of rows) {
+      if (latestByTrack.has(row.track_id)) continue
+      if (row.status !== 'PENDING' && row.status !== 'APPROVED') continue
+      latestByTrack.set(row.track_id, {
+        track_id: row.track_id,
+        status: row.status,
+        activity_date: row.activity_date,
+        distance_km: row.distance_km != null ? Number(row.distance_km) : null,
+        speed_kmh: row.speed_kmh != null ? Number(row.speed_kmh) : null,
+        elevation_m: row.elevation_m != null ? Number(row.elevation_m) : null,
+        created_at: row.created_at,
+      })
+    }
+    return [...latestByTrack.values()]
   } catch {
     return []
   }

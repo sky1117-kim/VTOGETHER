@@ -7,7 +7,7 @@ import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { uploadEventVerificationPhoto } from '@/api/actions/events'
 import { submitHealthActivityLogsBatch, type HealthActivityEntryInput } from '@/api/actions/health-challenges'
 import { HEALTH_CHALLENGE_MIN_PHOTOS_PER_ENTRY } from '@/constants/health-challenges'
-import type { HealthTrackPublic, HealthSeasonPublic } from '@/api/queries/health-challenges'
+import type { HealthTrackPublic, HealthSeasonPublic, HealthSubmittedTrackInfo } from '@/api/queries/health-challenges'
 import { formatDecimalWithCommas, sanitizeDecimalInput } from '@/lib/number-format'
 
 type LocalEntry = {
@@ -54,6 +54,7 @@ type HealthChallengeVerifyModalProps = {
   tracks: HealthTrackPublic[]
   /** 하위호환 props (더 이상 선택 제한에는 사용하지 않음) */
   submittedTrackIds: string[]
+  submittedTrackInfos: HealthSubmittedTrackInfo[]
 }
 
 export function HealthChallengeVerifyModal({
@@ -64,6 +65,7 @@ export function HealthChallengeVerifyModal({
   season,
   tracks,
   submittedTrackIds,
+  submittedTrackInfos,
 }: HealthChallengeVerifyModalProps) {
   const router = useRouter()
   const [entries, setEntries] = useState<LocalEntry[]>(() => [emptyEntry()])
@@ -77,6 +79,7 @@ export function HealthChallengeVerifyModal({
   // 같은 제출 화면 안에서는 같은 종목 중복 선택을 막습니다.
   const selectedTrackIds = new Set(entries.map((e) => e.track_id).filter(Boolean))
   const submittedTrackIdSet = new Set(submittedTrackIds)
+  const submittedInfoByTrackId = new Map(submittedTrackInfos.map((x) => [x.track_id, x]))
 
   const modalScrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -223,10 +226,24 @@ export function HealthChallengeVerifyModal({
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {tracks.map((t) => {
         const isSubmitted = submittedTrackIdSet.has(t.track_id)
+        const submittedInfo = submittedInfoByTrackId.get(t.track_id)
         const isSelectedInThisModal = selectedTrackIds.has(t.track_id)
         const isDisabled = isSubmitted || isSelectedInThisModal
         const unit = trackUnit(t.metric)
         const th = [...t.thresholds].sort((a, b) => a.level - b.level)
+        const submissionStatusLabel =
+          submittedInfo?.status === 'APPROVED'
+            ? '승인 완료'
+            : submittedInfo?.status === 'PENDING'
+              ? '승인 대기중'
+              : '이미 제출'
+        const submittedValues = submittedInfo
+          ? [
+              submittedInfo.distance_km != null ? `거리 ${submittedInfo.distance_km}km` : null,
+              submittedInfo.speed_kmh != null ? `속도 ${submittedInfo.speed_kmh}km/h` : null,
+              submittedInfo.elevation_m != null ? `고도 ${submittedInfo.elevation_m}m` : null,
+            ].filter(Boolean) as string[]
+          : []
         return (
           <button
             key={t.track_id}
@@ -262,15 +279,23 @@ export function HealthChallengeVerifyModal({
                 </div>
               </div>
               {isSubmitted ? (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                  이미 제출
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${
+                    submittedInfo?.status === 'APPROVED'
+                      ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
+                      : 'border-amber-200 bg-amber-100 text-amber-900'
+                  }`}
+                >
+                  {submissionStatusLabel}
                 </span>
               ) : isSelectedInThisModal ? (
-                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-600">
+                <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
                   선택됨
                 </span>
               ) : (
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">선택</span>
+                <span className="rounded-full border border-sky-200 bg-sky-100 px-2.5 py-1 text-[10px] font-extrabold text-sky-900">
+                  선택
+                </span>
               )}
             </div>
             <ul className="mt-3 space-y-1 text-xs text-gray-700">
@@ -282,9 +307,24 @@ export function HealthChallengeVerifyModal({
               ))}
             </ul>
             {isSubmitted && (
-              <p className="mt-2 text-[11px] font-medium text-amber-700">
-                이번 달 이미 제출되어 인증 대기중(또는 승인 완료)이라 선택할 수 없습니다.
-              </p>
+              <div className="mt-2 space-y-1">
+                <p className="text-[11px] font-medium text-amber-700">
+                  이번 달 이미 제출되어 선택할 수 없습니다.
+                </p>
+                {submittedInfo && (
+                  <>
+                    <p className="text-[10px] text-gray-500">
+                      제출일: {new Date(submittedInfo.created_at).toLocaleDateString('ko-KR')}
+                    </p>
+                    {submittedValues.length > 0 && (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-2 py-1.5">
+                        <p className="text-[10px] font-semibold text-emerald-800">내 제출값</p>
+                        <p className="mt-0.5 text-[11px] font-bold text-emerald-900">{submittedValues.join(' · ')}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </button>
         )
@@ -300,7 +340,7 @@ export function HealthChallengeVerifyModal({
     >
       <div className="absolute inset-0 bg-black/50" onClick={close} aria-hidden />
       <div
-        className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+        className="relative z-10 flex w-full max-w-2xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
         onClick={(ev) => ev.stopPropagation()}
       >
         <div className="flex-shrink-0 border-b border-gray-100 px-5 py-4">
@@ -320,8 +360,12 @@ export function HealthChallengeVerifyModal({
           ) : null}
         </div>
 
-        <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div ref={modalScrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-6">
+        {/* flex-1 금지: 짧은 폼에서 스크롤 영역이 늘어나 푸터 아래 하얀 빈 공간이 생김 */}
+        <form onSubmit={onSubmit} className="flex min-h-0 flex-col overflow-hidden">
+          <div
+            ref={modalScrollRef}
+            className="max-h-[min(70vh,calc(90vh-12rem))] min-h-0 overflow-y-auto space-y-6 px-5 py-4"
+          >
             {formError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</div>}
             {formOk && <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{formOk}</div>}
             {submittedTrackTitles.length > 0 && (

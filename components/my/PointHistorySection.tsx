@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getEarnedDisplay } from '@/lib/point-display'
 
@@ -87,6 +88,16 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
     const isPlus = amount > 0
     const earnedDisplay = isEarned ? getEarnedDisplay(t.description) : null
 
+    const eventSubmissionLink =
+      isEarned && t.related_type === 'EVENT' && t.related_id ? (
+        <Link
+          href={`/my#event-submission-${t.related_id}`}
+          className="mt-1 inline-block text-xs font-semibold text-emerald-700 underline-offset-2 hover:underline"
+        >
+          인증 제출 내역 보기
+        </Link>
+      ) : null
+
     return (
       <div
         id={`transaction-${t.transaction_id}`}
@@ -123,6 +134,7 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
               minute: '2-digit',
             })}
           </p>
+          {eventSubmissionLink}
         </div>
         <p
           className={`shrink-0 text-lg font-bold ${

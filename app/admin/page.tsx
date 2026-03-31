@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Gift, Heart, ClipboardList, Target, ChevronRight, Users } from 'lucide-react'
+import { Gift, Heart, ClipboardList, Target, ChevronRight, Sparkles } from 'lucide-react'
 import { getCurrentUser } from '@/api/actions/auth'
 import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod, getEventEarnedStats } from '@/api/actions/admin'
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
@@ -127,18 +127,18 @@ export default async function AdminPage() {
         </Link>
         <Link
           href="/admin/donation-targets"
-          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+          className="flex min-h-[124px] items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-6 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
         >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
             <Target className="size-6" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-gray-500">목표 달성률</p>
-            <p className="text-xl font-bold tabular-nums text-gray-900">
+            <p className="mt-1 text-2xl font-black tabular-nums tracking-tight text-gray-900">
               {dashboardStats.error ? '—' : `${dashboardStats.progress.toFixed(1)}%`}
             </p>
             {!dashboardStats.error && dashboardStats.totalTarget > 0 && (
-              <p className="mt-0.5 text-xs text-gray-500">
+              <p className="mt-1.5 text-xs leading-relaxed text-gray-500">
                 목표 {formatPoints(dashboardStats.totalTarget)} · 완료 {dashboardStats.completedCount}개
               </p>
             )}
@@ -166,53 +166,62 @@ export default async function AdminPage() {
       </section>
 
       {/* 이벤트 적립 현황: People/Culture 및 매칭 */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-gray-800">이벤트 적립 현황</h3>
-        <p className="mb-4 text-xs text-gray-500">
-          People은 V.Medal, Culture는 V.Credit 기준으로 집계합니다. 매칭금은 Medal 전환 Credit 기부분만 반영합니다.
-        </p>
+      <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+        <div className="flex items-start justify-between gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-4">
+          <div>
+            <h3 className="text-sm font-bold text-emerald-900">이벤트 적립 현황</h3>
+            <p className="mt-1 text-xs text-emerald-700/90">
+              People은 V.Medal, Culture는 V.Credit 기준으로 집계합니다. 매칭금은 Medal 전환 Credit 기부분만 반영합니다.
+            </p>
+          </div>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-emerald-600 shadow-sm">
+            <Sparkles className="size-4.5" />
+          </div>
+        </div>
+        <div className="p-5">
         {eventEarnedStats.error ? (
           <p className="text-sm text-red-500">{eventEarnedStats.error}</p>
         ) : (
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">People V.Medal</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
+          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <dt className="text-xs font-semibold text-slate-600">People V.Medal</dt>
+              <dd className="mt-1.5 text-2xl font-black tabular-nums tracking-tight text-slate-900">
                 {formatMedals(eventEarnedStats.peopleMedalEarned)}
               </dd>
-              <p className="mt-0.5 text-xs text-gray-500">People 이벤트 기본 보상</p>
+              <p className="mt-1 text-[11px] text-slate-500">People 이벤트 기본 보상</p>
             </div>
-            <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">Culture V.Credit</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-gray-900">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <dt className="text-xs font-semibold text-slate-600">Culture V.Credit</dt>
+              <dd className="mt-1.5 text-2xl font-black tabular-nums tracking-tight text-slate-900">
                 {formatPoints(eventEarnedStats.cultureCreditEarned)}
               </dd>
-              <p className="mt-0.5 text-xs text-gray-500">Culture 이벤트 기본 보상</p>
+              <p className="mt-1 text-[11px] text-slate-500">Culture 이벤트 기본 보상</p>
             </div>
-            <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-4">
-              <dt className="text-xs font-medium text-amber-700">매칭금</dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <dt className="text-xs font-semibold text-amber-700">매칭금</dt>
+              <dd className="mt-1.5 text-2xl font-black tabular-nums tracking-tight text-amber-800">
                 {formatPoints(eventEarnedStats.matchingAmount)}
               </dd>
-              <p className="mt-0.5 text-xs text-amber-600">Medal 전환 기부분과 동일</p>
+              <p className="mt-1 text-[11px] text-amber-700/90">Medal 전환 기부분과 동일</p>
             </div>
-            <div className="rounded-lg border border-green-100 bg-green-50/50 p-4">
-              <dt className="text-xs font-medium text-gray-500">전체 사용자 적립</dt>
-              <dd className="mt-1 space-y-0.5 text-sm font-bold tabular-nums text-gray-900">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <dt className="text-xs font-semibold text-emerald-700">전체 사용자 적립</dt>
+              <dd className="mt-1.5 space-y-0.5 text-sm font-bold tabular-nums text-emerald-900">
                 <p>{formatPoints(eventEarnedStats.totalCreditEarned)}</p>
                 <p>{formatMedals(eventEarnedStats.totalMedalEarned)}</p>
               </dd>
-              <p className="mt-0.5 text-xs text-gray-500">V.Credit + V.Medal</p>
+              <p className="mt-1 text-[11px] text-emerald-700/80">V.Credit + V.Medal</p>
             </div>
-            <div className="rounded-lg border-2 border-green-200 bg-green-50 p-4 sm:col-span-2">
-              <dt className="text-xs font-bold text-green-700">전체 모인금액</dt>
-              <dd className="mt-1 text-2xl font-bold tabular-nums text-green-800">
+            <div className="rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 sm:col-span-2 lg:col-span-4">
+              <dt className="text-xs font-bold tracking-wide text-emerald-800">전체 모인금액</dt>
+              <dd className="mt-1.5 text-3xl font-black tabular-nums tracking-tight text-emerald-900">
                 {formatPoints(eventEarnedStats.totalCollected)}
               </dd>
-              <p className="mt-0.5 text-xs text-green-600">이벤트 Credit + 매칭금 (기부 가능 재원)</p>
+              <p className="mt-1 text-xs font-medium text-emerald-700">이벤트 Credit + 매칭금 (기부 가능 재원)</p>
             </div>
           </dl>
         )}
+        </div>
       </section>
 
       {/* 차트: MAU · 기부처별 · 기간별 · 등급별 */}

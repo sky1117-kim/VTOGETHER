@@ -6,7 +6,7 @@ import { EventVerifyModal } from './EventVerifyModal'
 import { EventInfoModal } from './EventInfoModal'
 import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/events'
 import { HealthChallengeVerifyModal } from './HealthChallengeVerifyModal'
-import type { HealthSeasonPublic, HealthTrackPublic } from '@/api/queries/health-challenges'
+import type { HealthSeasonPublic, HealthSubmittedTrackInfo, HealthTrackPublic } from '@/api/queries/health-challenges'
 
 type Tab = 'ALL' | 'Culture' | 'People'
 
@@ -52,7 +52,12 @@ interface CampaignsSectionProps {
   /** 로그인 여부 (true면 '추후 적용 예정' 문구 숨김, 인증하기 버튼 활성) */
   isLoggedIn?: boolean
   /** 활성 건강 챌린지(현재 진행 중인 시즌/종목). People 이벤트 인증하기에서 사용 */
-  healthChallenge?: { season: HealthSeasonPublic; tracks: HealthTrackPublic[]; submittedTrackIds: string[] }
+  healthChallenge?: {
+    season: HealthSeasonPublic
+    tracks: HealthTrackPublic[]
+    submittedTrackIds: string[]
+    submittedTrackInfos: HealthSubmittedTrackInfo[]
+  }
 }
 
 function normalizeAlwaysParticipation(raw: unknown): { allowed: boolean; reason?: string } | null {
@@ -328,6 +333,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
           season={healthChallenge.season}
           tracks={healthChallenge.tracks}
           submittedTrackIds={healthChallenge.submittedTrackIds}
+          submittedTrackInfos={healthChallenge.submittedTrackInfos}
           onSuccess={() => {
             // 모달 내부에서 close + refresh도 수행하지만, 카드 상태 반영을 위해 한 번 더 갱신
             router.refresh()

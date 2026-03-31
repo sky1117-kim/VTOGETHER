@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { UserEventSubmissionRow } from '@/api/queries/user'
 
 const INITIAL_SHOW = 5
@@ -17,15 +17,39 @@ interface EventParticipationSectionProps {
 /** 마이페이지: 이벤트 인증 참여 내역 (반려 시 사유 표시) */
 export function EventParticipationSection({ submissions }: EventParticipationSectionProps) {
   const [showAll, setShowAll] = useState(false)
+  const [hashHighlightId, setHashHighlightId] = useState<string | null>(null)
   const displayed = showAll ? submissions : submissions.slice(0, INITIAL_SHOW)
   const hasMore = submissions.length > INITIAL_SHOW
 
+  // 포인트 내역 등에서 /my#event-submission-{id} 로 온 경우 목록 펼침 후 해당 카드로 스크롤
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.location.hash.replace(/^#/, '')
+    if (!raw.startsWith('event-submission-')) return
+    const sid = raw.replace(/^event-submission-/, '')
+    if (submissions.some((s) => s.submission_id === sid)) {
+      setShowAll(true)
+      setHashHighlightId(raw)
+    }
+  }, [submissions])
+
+  useEffect(() => {
+    if (!hashHighlightId || typeof window === 'undefined') return
+    requestAnimationFrame(() => {
+      const el = document.getElementById(hashHighlightId)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }, [hashHighlightId, showAll])
+
   if (submissions.length === 0) {
     return (
-      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
+      <div
+        id="event-submissions"
+        className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm scroll-mt-24"
+      >
         <h2 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">EVENT</span>
-          이벤트 참여 내역
+          이벤트 인증 제출 내역
         </h2>
         <p className="text-sm text-gray-500">아직 참여한 이벤트 인증이 없습니다.</p>
       </div>
@@ -33,19 +57,28 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
   }
 
   return (
-    <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
+    <div
+      id="event-submissions"
+      className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm scroll-mt-24"
+    >
       <h2 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">EVENT</span>
-        이벤트 참여 내역
+        이벤트 인증 제출 내역
       </h2>
       <p className="mb-4 text-sm text-gray-500">
         인증 제출 상태와 반려 사유를 확인할 수 있습니다.
       </p>
       <ul className="max-h-[320px] space-y-3 overflow-y-auto md:max-h-[400px]">
-        {displayed.map((s) => (
+        {displayed.map((s) => {
+          const rowId = `event-submission-${s.submission_id}`
+          const isHashHighlight = hashHighlightId === rowId
+          return (
           <li
             key={s.submission_id}
-            className="rounded-xl border border-gray-100 bg-gray-50/50 p-4"
+            id={rowId}
+            className={`scroll-mt-24 rounded-xl border bg-gray-50/50 p-4 ${
+              isHashHighlight ? 'border-green-300 bg-green-50/50' : 'border-gray-100'
+            }`}
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -77,7 +110,8 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
               제출일 {new Date(s.created_at).toLocaleDateString('ko-KR')}
             </p>
           </li>
-        ))}
+          )
+        })}
       </ul>
       {hasMore && !showAll && (
         <button
