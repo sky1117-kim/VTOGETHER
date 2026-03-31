@@ -25,7 +25,7 @@ export default async function ShopPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-6xl px-4 pb-12 pt-2 sm:px-6 lg:px-8">
       <section className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-8 shadow-soft-lg">
         <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-emerald-300/20 blur-2xl" />

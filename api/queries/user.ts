@@ -169,7 +169,7 @@ export async function getUserEventSubmissions(
   }))
 }
 
-/** 마이페이지용: 나에게 보낸 칭찬(peer_user_id = 나, 승인된 건만). 칭찬 내용(메시지) 포함 */
+/** 마이페이지용: 나에게 보낸 칭찬(단일/다중 수신자 모두, 승인된 건만). 칭찬 내용(메시지) 포함 */
 export type ReceivedComplimentRow = {
   submission_id: string
   event_id: string
@@ -189,7 +189,7 @@ export async function getReceivedCompliments(
 ): Promise<ReceivedComplimentRow[]> {
   const supabase = await createClient()
 
-  const { data: subs, error: subsError } = await supabase
+  const { data: directSubs, error: directErr } = await supabase
     .from('event_submissions')
     .select('submission_id, event_id, user_id, verification_data, is_anonymous, created_at')
     .eq('peer_user_id', userId)
@@ -198,7 +198,33 @@ export async function getReceivedCompliments(
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (subsError || !subs?.length) return []
+  const { data: multiSubs, error: multiErr } = await supabase
+    .from('event_submissions')
+    .select('submission_id, event_id, user_id, verification_data, is_anonymous, created_at')
+    .contains('verification_data', { peer_user_ids: [userId] })
+    .eq('status', 'APPROVED')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (directErr && multiErr) return []
+
+  type ReceivedSub = {
+    submission_id: string
+    event_id: string
+    user_id: string
+    verification_data: unknown
+    is_anonymous: boolean | null
+    created_at: string
+  }
+  const mergedMap = new Map<string, ReceivedSub>()
+  for (const s of directSubs ?? []) mergedMap.set(s.submission_id, s)
+  for (const s of multiSubs ?? []) mergedMap.set(s.submission_id, s)
+  const subs = Array.from(mergedMap.values())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, limit)
+
+  if (!subs.length) return []
 
   const eventIds = [...new Set(subs.map((s) => s.event_id))]
   const senderIds = [...new Set((subs as { user_id?: string }[]).map((s) => s.user_id).filter(Boolean))] as string[]

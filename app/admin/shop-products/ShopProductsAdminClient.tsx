@@ -9,6 +9,7 @@ import {
   uploadShopProductImage,
 } from '@/api/actions/admin/shop-products'
 import { useRouter } from 'next/navigation'
+import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
 
 type ProductRow = {
   product_id: string
@@ -112,7 +113,7 @@ function ProductImageUploadBox({
       </div>
       {imageUrl && (
         <div className="relative h-40 overflow-hidden rounded-xl border border-gray-200">
-          <Image src={imageUrl} alt="상품 미리보기" fill sizes="(max-width: 768px) 100vw, 640px" className="object-cover" />
+          <Image src={imageUrl} alt="상품 미리보기" fill sizes="(max-width: 768px) 100vw, 640px" unoptimized className="object-cover" />
         </div>
       )}
     </div>
@@ -193,8 +194,8 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
             <option value="CREDIT_PACK">V.Credit 전환팩</option>
           </select>
           <input className="rounded-lg border border-gray-200 px-3 py-2 text-sm md:col-span-2" placeholder="설명" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
-          <input type="number" min={1} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="가격(Medal)" value={form.price_medal} onChange={(e) => setForm((p) => ({ ...p, price_medal: Number(e.target.value) }))} />
-          <input type="number" min={0} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="재고(비우면 무제한)" value={form.stock} onChange={(e) => setForm((p) => ({ ...p, stock: e.target.value }))} />
+          <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="가격(Medal)" value={formatIntegerWithCommas(form.price_medal)} onChange={(e) => setForm((p) => ({ ...p, price_medal: Number(sanitizeIntegerInput(e.target.value) || 0) }))} />
+          <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="재고(비우면 무제한)" value={formatIntegerWithCommas(form.stock)} onChange={(e) => setForm((p) => ({ ...p, stock: sanitizeIntegerInput(e.target.value) }))} />
           <ProductImageUploadBox
             imageUrl={form.image_url}
             borderTone="border-gray-200 bg-gray-50/30"
@@ -204,7 +205,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
             onClear={() => setForm((prev) => ({ ...prev, image_url: '' }))}
           />
           {form.product_type === 'CREDIT_PACK' && (
-            <input type="number" min={1} className="rounded-lg border border-gray-200 px-3 py-2 text-sm md:col-span-2" placeholder="지급할 V.Credit" value={form.credit_amount} onChange={(e) => setForm((p) => ({ ...p, credit_amount: Number(e.target.value) }))} />
+            <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm md:col-span-2" placeholder="지급할 V.Credit" value={formatIntegerWithCommas(form.credit_amount)} onChange={(e) => setForm((p) => ({ ...p, credit_amount: Number(sanitizeIntegerInput(e.target.value) || 0) }))} />
           )}
         </div>
         <button
@@ -219,7 +220,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 product_type: form.product_type,
                 price_medal: form.price_medal,
                 credit_amount: form.product_type === 'CREDIT_PACK' ? form.credit_amount : null,
-                stock: form.stock.trim() === '' ? null : Number(form.stock),
+                stock: form.stock.trim() === '' ? null : Number(sanitizeIntegerInput(form.stock)),
                 image_url: form.image_url.trim() || null,
               })
               if (!result.success) return setMessage(result.error ?? '등록 실패')
@@ -309,7 +310,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
               </div>
               {p.image_url && (
                 <div className="relative mt-3 h-32 overflow-hidden rounded-lg border border-gray-200">
-                  <Image src={p.image_url} alt={`${p.name} 썸네일`} fill sizes="(max-width: 768px) 100vw, 320px" className="object-cover" />
+                  <Image src={p.image_url} alt={`${p.name} 썸네일`} fill sizes="(max-width: 768px) 100vw, 320px" unoptimized className="object-cover" />
                 </div>
               )}
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -377,7 +378,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 <td className="px-4 py-3">
                   {p.image_url ? (
                     <div className="relative h-10 w-16 overflow-hidden rounded-md border border-gray-200">
-                      <Image src={p.image_url} alt={`${p.name} 썸네일`} fill sizes="64px" className="object-cover" />
+                      <Image src={p.image_url} alt={`${p.name} 썸네일`} fill sizes="64px" unoptimized className="object-cover" />
                     </div>
                   ) : (
                     <span className="text-xs text-gray-400">없음</span>
@@ -465,20 +466,20 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
               onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
             />
             <input
-              type="number"
-              min={1}
+              type="text"
+              inputMode="numeric"
               className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
               placeholder="가격(Medal)"
-              value={editForm.price_medal}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, price_medal: Number(e.target.value) }))}
+              value={formatIntegerWithCommas(editForm.price_medal)}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, price_medal: Number(sanitizeIntegerInput(e.target.value) || 0) }))}
             />
             <input
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
               className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
               placeholder="재고(비우면 무제한)"
-              value={editForm.stock}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, stock: e.target.value }))}
+              value={formatIntegerWithCommas(editForm.stock)}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, stock: sanitizeIntegerInput(e.target.value) }))}
             />
             <ProductImageUploadBox
               imageUrl={editForm.image_url}
@@ -490,12 +491,12 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
             />
             {editForm.product_type === 'CREDIT_PACK' && (
               <input
-                type="number"
-                min={1}
+                type="text"
+                inputMode="numeric"
                 className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm md:col-span-2"
                 placeholder="지급할 V.Credit"
-                value={editForm.credit_amount}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, credit_amount: Number(e.target.value) }))}
+                value={formatIntegerWithCommas(editForm.credit_amount)}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, credit_amount: Number(sanitizeIntegerInput(e.target.value) || 0) }))}
               />
             )}
           </div>
@@ -512,7 +513,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                     product_type: editForm.product_type,
                     price_medal: editForm.price_medal,
                     credit_amount: editForm.product_type === 'CREDIT_PACK' ? editForm.credit_amount : null,
-                    stock: editForm.stock.trim() === '' ? null : Number(editForm.stock),
+                    stock: editForm.stock.trim() === '' ? null : Number(sanitizeIntegerInput(editForm.stock)),
                     image_url: editForm.image_url.trim() || null,
                     is_active: editForm.is_active,
                   })

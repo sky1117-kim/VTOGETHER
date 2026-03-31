@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { addOfflineDonation } from '@/api/actions/admin/donation-targets'
+import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
 
 interface OfflineDonationFormProps {
   targetId: string
@@ -16,7 +17,7 @@ export function OfflineDonationForm({ targetId, targetName }: OfflineDonationFor
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setMessage(null)
-    const num = parseInt(amount.replace(/,/g, ''), 10)
+    const num = parseInt(sanitizeIntegerInput(amount), 10)
     if (Number.isNaN(num) || num < 1) {
       setMessage({ type: 'error', text: '1 이상의 금액을 입력하세요.' })
       return
@@ -38,8 +39,8 @@ export function OfflineDonationForm({ targetId, targetName }: OfflineDonationFor
         <input
           type="text"
           inputMode="numeric"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
+          value={formatIntegerWithCommas(amount)}
+          onChange={(e) => setAmount(sanitizeIntegerInput(e.target.value))}
           placeholder="금액"
           className="w-28 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-800 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
         />

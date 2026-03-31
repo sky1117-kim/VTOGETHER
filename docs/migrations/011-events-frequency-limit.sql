@@ -7,4 +7,4 @@ ALTER TABLE events
   ADD COLUMN IF NOT EXISTS frequency_limit TEXT
   CHECK (frequency_limit IS NULL OR frequency_limit IN ('ONCE', 'DAILY', 'WEEKLY', 'MONTHLY'));
 
-COMMENT ON COLUMN events.frequency_limit IS 'ALWAYS 타입 전용: 참여 빈도. ONCE=1회만, DAILY=일1회, WEEKLY=주1회, MONTHLY=월1회';
+COMMENT ON COLUMN events.frequency_limit IS 'ALWAYS 타입 전용: 참여 빈도. ONCE=1회만, DAILY=일 1회, WEEKLY=주 1회, MONTHLY=월 1회';

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { updateDonationTargetAmount } from '@/api/actions/admin/donation-targets'
+import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
 
 interface TargetAmountEditProps {
   targetId: string
@@ -16,7 +17,7 @@ export function TargetAmountEdit({ targetId, targetName, currentTargetAmount }: 
 
   async function handleSave() {
     setMessage(null)
-    const num = parseInt(value.replace(/,/g, ''), 10)
+    const num = parseInt(sanitizeIntegerInput(value), 10)
     if (Number.isNaN(num) || num < 0) {
       setMessage({ type: 'error', text: '0 이상의 숫자를 입력하세요.' })
       return
@@ -37,8 +38,8 @@ export function TargetAmountEdit({ targetId, targetName, currentTargetAmount }: 
         <input
           type="text"
           inputMode="numeric"
-          value={value}
-          onChange={(e) => setValue(e.target.value.replace(/\D/g, ''))}
+          value={formatIntegerWithCommas(value)}
+          onChange={(e) => setValue(sanitizeIntegerInput(e.target.value))}
           onKeyDown={(e) => e.key === 'Enter' && handleSave()}
           placeholder="10,000,000"
           className="w-32 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-800 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"

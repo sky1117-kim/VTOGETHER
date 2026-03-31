@@ -63,10 +63,7 @@ export function ShopProductList({
     return copied
   }, [products, sortBy])
 
-  const gridClass =
-    visibleProducts.length <= 2
-      ? 'grid gap-2.5 sm:grid-cols-2 lg:grid-cols-2'
-      : 'grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4'
+  const gridClass = 'grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3'
 
   return (
     <div className="space-y-4">
@@ -97,7 +94,10 @@ export function ShopProductList({
         ))}
       </section>
       {showSkeleton ? (
-        <div className="animate-fade-up grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4" style={{ animationDelay: '0.16s' }}>
+        <div
+          className="animate-fade-up grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
+          style={{ animationDelay: '0.16s' }}
+        >
           {Array.from({ length: 6 }).map((_, idx) => (
             <div
               key={`shop-skeleton-${idx}`}
@@ -125,13 +125,14 @@ export function ShopProductList({
               className="animate-fade-up group flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-green-200 hover:shadow-xl hover:shadow-slate-100"
               style={{ animationDelay: `${180 + idx * 60}ms` }}
             >
-              <div className="relative mb-2.5 aspect-[16/9] w-full overflow-hidden rounded-[1rem] border border-slate-100 bg-slate-50">
+              <div className="relative mb-3 aspect-[4/3] w-full overflow-hidden rounded-[1rem] border border-slate-100 bg-slate-50">
                 {p.image_url?.trim() ? (
                   <Image
                     src={p.image_url}
                     alt={`${p.name} 상품 이미지`}
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                    unoptimized
                     className="object-cover transition duration-500 group-hover:scale-105"
                   />
                 ) : (
@@ -155,11 +156,11 @@ export function ShopProductList({
                   {p.stock == null ? '재고 무제한' : `재고 ${p.stock.toLocaleString()}개`}
                 </div>
               </div>
-              <div className="flex flex-col">
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <h3 className="text-[15px] font-extrabold leading-tight text-slate-900">{p.name}</h3>
+              <div className="flex h-full flex-col">
+                <div className="mb-1.5 flex items-start justify-between gap-2">
+                  <h3 className="min-h-11 text-lg font-black leading-snug tracking-tight text-slate-900">{p.name}</h3>
                   <span
-                    className={`rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${
+                    className={`rounded-md border px-2 py-0.5 text-[10px] font-extrabold ${
                       p.product_type === 'CREDIT_PACK'
                         ? 'border-green-200 bg-green-50 text-green-700'
                         : 'border-blue-200 bg-blue-50 text-blue-700'
@@ -168,28 +169,30 @@ export function ShopProductList({
                     {p.product_type === 'CREDIT_PACK' ? 'V.Credit 전환' : '굿즈'}
                   </span>
                 </div>
-                <p className="mb-2 min-h-7 text-[10px] font-medium text-slate-500">{p.description ?? '설명 없음'}</p>
-                <div className="mb-2.5 space-y-0.5 text-sm">
-                  <div className="flex items-center">
-                    <span className="w-[58px] text-[11px] font-bold text-slate-500">가격:</span>
-                    <span className="text-[12px] font-black text-purple-600">{p.price_medal.toLocaleString()} M</span>
+                <div className="mb-2 h-px w-full bg-slate-200/70" />
+                <p className="mb-3 min-h-20 text-sm font-medium leading-6 text-slate-600 break-words">
+                  {p.description ?? '설명 없음'}
+                </p>
+                <div className="mt-auto mb-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">가격</span>
+                    <span className="text-lg font-black tracking-tight text-purple-600">
+                      {p.price_medal.toLocaleString()} M
+                    </span>
                   </div>
                   {p.product_type === 'CREDIT_PACK' && (
-                    <div className="flex items-center">
-                      <span className="w-[58px] text-[11px] font-bold text-slate-500">지급:</span>
-                      <span className="text-[11px] font-bold text-slate-800">{(p.credit_amount ?? 0).toLocaleString()} C</span>
+                    <div className="mt-1 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500">지급</span>
+                      <span className="text-sm font-extrabold text-slate-900">{(p.credit_amount ?? 0).toLocaleString()} C</span>
                     </div>
                   )}
-                  <div className="flex items-center">
-                    <span className="w-[58px] text-[11px] font-bold text-slate-500">누적 구매:</span>
-                    <span className="text-[11px] font-bold text-slate-800">{(p.order_count ?? 0).toLocaleString()}건</span>
-                  </div>
                 </div>
                 {currentMedals < p.price_medal && (
-                  <p className="mb-2 text-center text-[10px] font-bold tracking-tight text-orange-500">
+                  <p className="mb-2 min-h-4 text-center text-[11px] font-bold tracking-tight text-orange-500">
                     보유 메달이 부족해 현재 구매할 수 없습니다.
                   </p>
                 )}
+                {currentMedals >= p.price_medal && <div className="mb-2 min-h-4" />}
                 <button
                   type="button"
                   disabled={disabled}
@@ -205,7 +208,7 @@ export function ShopProductList({
                       router.refresh()
                     })
                   }}
-                  className="w-full rounded-xl bg-green-600 px-3 py-2 text-[12px] font-bold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  className="w-full rounded-xl bg-green-600 px-3 py-2.5 text-[13px] font-extrabold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   {soldOut ? '품절' : isPending ? '처리 중...' : '구매하기'}
                 </button>

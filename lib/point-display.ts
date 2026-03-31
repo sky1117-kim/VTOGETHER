@@ -1,13 +1,15 @@
 /**
  * 포인트 적립 내역 표시용: 칭찬 챌린지 "받음 vs 함" 구분
- * DB description: "칭찬을 받음: ..." / "칭찬을 함: ..."
+ * DB description:
+ * - 구형: "칭찬을 받음: ..." / "칭찬을 함: ..."
+ * - 신형: "칭찬챌린지 (수신): ..." / "칭찬챌린지 (발신): ..."
  */
 export type ComplimentBadge = 'received' | 'gave' | null
 
 export function getComplimentBadge(description: string | null): ComplimentBadge {
   const d = description?.trim() ?? ''
-  if (d.startsWith('칭찬을 받음')) return 'received'
-  if (d.startsWith('칭찬을 함')) return 'gave'
+  if (d.startsWith('칭찬을 받음') || d.startsWith('칭찬챌린지 (수신)')) return 'received'
+  if (d.startsWith('칭찬을 함') || d.startsWith('칭찬챌린지 (발신)')) return 'gave'
   return null
 }
 
@@ -53,10 +55,10 @@ export function getEarnedDisplay(
   const maxLen = options?.maxTextLength
 
   // 칭찬 패턴을 먼저 체크 (일반 패턴보다 우선)
-  if (d.startsWith('칭찬을 받음')) {
+  if (d.startsWith('칭찬을 받음') || d.startsWith('칭찬챌린지 (수신)')) {
     return { badge: COMPLIMENT_BADGE_LABEL.received, text: COMPLIMENT_EVENT_LABEL, variant: 'received' }
   }
-  if (d.startsWith('칭찬을 함')) {
+  if (d.startsWith('칭찬을 함') || d.startsWith('칭찬챌린지 (발신)')) {
     return { badge: COMPLIMENT_BADGE_LABEL.gave, text: COMPLIMENT_EVENT_LABEL, variant: 'gave' }
   }
 

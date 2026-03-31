@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { grantPoints } from '@/api/actions/admin'
 import type { UserRow } from '@/api/actions/admin'
 import { Search } from 'lucide-react'
+import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
 
 interface GrantPointsFormProps {
   users: UserRow[]
@@ -40,7 +41,7 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
       setMessage({ type: 'error', text: '대상 사용자를 검색해서 선택해주세요.' })
       return
     }
-    const num = parseInt(amount, 10)
+    const num = parseInt(sanitizeIntegerInput(amount), 10)
     if (Number.isNaN(num) || num < 1) {
       setMessage({ type: 'error', text: '1 이상의 숫자를 입력해주세요.' })
       return
@@ -154,10 +155,10 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
           ))}
         </div>
         <input
-          type="number"
-          min={1}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          type="text"
+          inputMode="numeric"
+          value={formatIntegerWithCommas(amount)}
+          onChange={(e) => setAmount(sanitizeIntegerInput(e.target.value))}
           placeholder="직접 입력"
           className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-2 text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
         />

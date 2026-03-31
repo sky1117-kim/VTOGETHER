@@ -175,7 +175,7 @@ export function EventInfoModal({
                   <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
                     {FREQUENCY_TAG_LABEL[event.frequency_limit] ?? `${event.frequency_limit} 가능`}
                   </span>
-                  {event.alwaysParticipation && !event.alwaysParticipation.allowed && (
+                  {event.alwaysParticipation?.allowed === false && (
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
                       {ALREADY_SUBMITTED_TAG_LABEL[event.frequency_limit] ?? '이미 제출함'}
                     </span>
