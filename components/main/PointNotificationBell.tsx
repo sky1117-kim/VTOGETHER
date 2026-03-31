@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Bell } from 'lucide-react'
+import { Bell, BellDot } from 'lucide-react'
 import Link from 'next/link'
 import type { NotificationItem } from '@/api/queries/user'
 import { getEarnedDisplay } from '@/lib/point-display'
@@ -21,6 +21,26 @@ function setLastReadAt(userId: string, iso: string) {
 
 function getNotificationDate(n: NotificationItem): string {
   return n.created_at
+}
+
+// 알림 시간을 한국어 상대시간으로 표시하고, 오래된 항목은 날짜로 보여줍니다.
+function formatRelativeTime(isoDate: string): string {
+  const target = new Date(isoDate).getTime()
+  if (Number.isNaN(target)) return ''
+
+  const now = Date.now()
+  const diffMs = now - target
+  const diffSec = Math.max(0, Math.floor(diffMs / 1000))
+
+  if (diffSec < 60) return '방금 전'
+  if (diffSec < 60 * 60) return `${Math.floor(diffSec / 60)}분 전`
+  if (diffSec < 60 * 60 * 24) return `${Math.floor(diffSec / (60 * 60))}시간 전`
+  if (diffSec < 60 * 60 * 24 * 7) return `${Math.floor(diffSec / (60 * 60 * 24))}일 전`
+
+  return new Date(isoDate).toLocaleDateString('ko-KR', {
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 interface PointNotificationBellProps {
@@ -46,6 +66,7 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
     const readAt = lastReadAt ? new Date(lastReadAt).getTime() : 0
     return new Date(getNotificationDate(n)).getTime() > readAt
   }).length
+  const shouldKeepVisualHeight = notifications.length <= 1
 
   const handleOpen = () => {
     if (isOpen) {
@@ -54,7 +75,7 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
     }
     if (buttonRef.current) {
       const padding = 12
-      const defaultPopupWidth = 400
+      const defaultPopupWidth = 336
       const cardEl = buttonRef.current.closest<HTMLElement>('[data-my-status-card]')
       if (cardEl && variant === 'dark') {
         const cardRect = cardEl.getBoundingClientRect()
@@ -106,17 +127,17 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
         ref={buttonRef}
         type="button"
         onClick={handleOpen}
-        className={`relative rounded-lg p-2 transition ${
+        className={`relative flex h-9 w-9 items-center justify-center rounded-full transition ${
           variant === 'dark'
             ? 'border border-white/40 bg-white/10 text-white hover:bg-white/20'
-            : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
         }`}
         aria-label={unreadCount > 0 ? `새 알림 ${unreadCount}건` : '적립 알림'}
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="h-[18px] w-[18px]" strokeWidth={2.1} />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
-            {unreadCount > 99 ? '99' : unreadCount}
+          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
@@ -124,10 +145,10 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
         typeof document !== 'undefined' &&
         createPortal(
           <>
-            {/* 알림 창: 그림자로 자연스럽게 구분 */}
+            {/* 알림 창: 포털 스타일로 가볍고 또렷한 드롭다운 */}
             <div
               ref={popupRef}
-              className={`fixed z-[9999] min-h-[280px] max-h-[70vh] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${popupPosition.width == null ? 'w-[min(400px,calc(100vw-24px))]' : ''}`}
+              className={`fixed z-[9999] max-h-[66vh] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_14px_38px_rgba(2,6,23,0.16)] ${popupPosition.width == null ? 'w-[min(336px,calc(100vw-20px))]' : ''}`}
               style={{
                 top: popupPosition.top,
                 left: popupPosition.left,
@@ -135,67 +156,94 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* 헤더·본문·푸터 좌우 패딩 통일 (px-4)로 선 정렬 */}
-              <div className="border-b border-gray-200 bg-gray-50 px-4 py-4">
-                <h3 className="text-base font-bold text-gray-900">알림</h3>
+              {/* 헤더: 포털형 상단 바 */}
+              <div className="border-b border-gray-100 bg-white px-3.5 py-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-gray-900">
+                    <BellDot className="h-4 w-4 text-blue-600" />
+                    알림
+                  </h3>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600">
+                      새 알림 {unreadCount}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="max-h-[calc(70vh-120px)] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
+              <div
+                className={`max-h-[calc(66vh-94px)] overflow-y-auto overflow-x-hidden bg-gray-50/70 p-1.5 [scrollbar-gutter:stable] ${
+                  shouldKeepVisualHeight ? 'min-h-[220px]' : ''
+                }`}
+              >
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-gray-500">
-                    최근 알림이 없습니다.
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-12 text-center text-sm text-gray-500">
+                    최근 알림이 없어요.
                   </div>
                 ) : (
-                  <ul className="divide-y divide-gray-100">
-                    {notifications.map((n) => {
+                  <ul className="rounded-xl border border-gray-200 bg-white">
+                    {notifications.map((n, idx) => {
                       const earned = getEarnedDisplay(n.description, { maxTextLength: 24 })
+                      const isUnread = lastReadAt
+                        ? new Date(getNotificationDate(n)).getTime() > new Date(lastReadAt).getTime()
+                        : true
                       return (
                         <li key={n.transaction_id}>
                           <Link
                             href={`/my?highlight=${n.transaction_id}#point-history`}
                             onClick={() => setIsOpen(false)}
-                            className="block px-4 py-4 transition hover:bg-gray-50"
+                            className={`block px-3 py-2.5 transition ${
+                              isUnread
+                                ? 'bg-blue-50/70 hover:bg-blue-100/80'
+                                : 'hover:bg-gray-100'
+                            }`}
                           >
-                            <div className="flex items-baseline justify-between gap-3">
-                              <p className="min-w-0 flex-1 truncate text-base font-medium text-gray-800 leading-snug">
-                                {earned.text}
-                              </p>
-                              <span className="shrink-0 text-base font-bold text-green-600">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  {/* 안 읽은 항목은 제목 앞 점으로 빠르게 구분 */}
+                                  {isUnread && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" aria-hidden />}
+                                  <p className="truncate text-sm font-semibold text-gray-800 leading-snug">
+                                    {earned.text}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-600">
                                 +{n.amount.toLocaleString()} {n.currency_type === 'V_MEDAL' ? 'M' : 'C'}
                               </span>
                             </div>
-                            {earned.badge && (
-                              <span
-                                className={`mt-1.5 block w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                  earned.variant === 'received'
-                                    ? 'bg-violet-100 text-violet-700'
-                                    : earned.variant === 'gave'
-                                      ? 'bg-emerald-100 text-emerald-700'
-                                      : 'bg-green-100 text-green-700'
-                                }`}
-                              >
-                                {earned.badge}
-                              </span>
-                            )}
-                            <p className="mt-1 text-sm text-gray-500">
-                              {new Date(n.created_at).toLocaleDateString('ko-KR', {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
+                            <div className="mt-1.5 flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                {earned.badge && (
+                                  <span
+                                    className={`inline-block w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                      earned.variant === 'received'
+                                        ? 'bg-violet-100 text-violet-700'
+                                        : earned.variant === 'gave'
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : 'bg-green-100 text-green-700'
+                                    }`}
+                                  >
+                                    {earned.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="shrink-0 text-[11px] text-gray-500">
+                                {formatRelativeTime(n.created_at)}
+                              </p>
+                            </div>
                           </Link>
+                          {idx < notifications.length - 1 && <div className="mx-3 h-px bg-gray-200" aria-hidden />}
                         </li>
                       )
                     })}
                   </ul>
                 )}
               </div>
-              <div className="border-t border-gray-200 bg-gray-50 px-4 py-4">
+              <div className="border-t border-gray-100 bg-white px-2.5 py-2">
                 <Link
                   href="/my"
                   onClick={() => setIsOpen(false)}
-                  className="block rounded-xl bg-green-600 py-3 text-center text-sm font-bold text-white transition hover:bg-green-700"
+                  className="block rounded-lg bg-[#00b859] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#009e4d]"
                 >
                   전체 내역 보기
                 </Link>
