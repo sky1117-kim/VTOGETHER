@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { purchaseShopProduct } from '@/api/actions/shop'
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 
 type ShopProduct = {
   product_id: string
@@ -44,6 +45,7 @@ export function ShopProductList({
   const [showSkeleton, setShowSkeleton] = useState(true)
   const [imageIndexByProductId, setImageIndexByProductId] = useState<Record<string, number>>({})
   const [touchStartXByProductId, setTouchStartXByProductId] = useState<Record<string, number>>({})
+  useBodyScrollLock(!!expandedDescriptionProductId)
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSkeleton(false), 320)
@@ -344,11 +346,11 @@ export function ShopProductList({
       )}
       {expandedDescriptionProductId && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/45 p-4 pb-24 pt-20 sm:items-center sm:pb-4 sm:pt-4"
           onClick={() => setExpandedDescriptionProductId(null)}
         >
           <div
-            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+            className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {(() => {
@@ -357,12 +359,43 @@ export function ShopProductList({
               const imageUrls = parseProductImageUrls(product.image_url)
               const imageCount = imageUrls.length
               const modalImageIndex = Math.min(expandedImageIndex, Math.max(imageCount - 1, 0))
+              const soldOut = product.stock != null && product.stock <= 0
+              const disabled = isPending || soldOut || currentMedals < product.price_medal
+
+              // 모달 푸터에서도 즉시 교환할 수 있게 기존 구매 로직을 재사용합니다.
+              const handleModalPurchase = () => {
+                setMessage(null)
+                startTransition(async () => {
+                  const result = await purchaseShopProduct(product.product_id)
+                  if (!result.success) {
+                    setMessage(result.error ?? '구매 실패')
+                    return
+                  }
+                  setMessage(`${product.name} 교환이 완료되었습니다.`)
+                  setExpandedDescriptionProductId(null)
+                  router.refresh()
+                })
+              }
               return (
                 <>
-                  <h3 className="text-lg font-black text-slate-900">{product.name}</h3>
-                  {imageCount > 0 && (
-                    <div className="mt-3">
-                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-5 py-4 sm:px-6">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold tracking-[0.14em] text-slate-500">PRODUCT DETAIL</p>
+                      <h3 className="mt-1 truncate text-lg font-black tracking-tight text-slate-900 sm:text-xl">{product.name}</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedDescriptionProductId(null)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-base font-bold leading-none text-slate-600 transition hover:bg-slate-100"
+                      aria-label="모달 닫기"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+                    {imageCount > 0 && (
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                         <div
                           className="flex h-full w-full transition-transform duration-500 ease-out"
                           style={{ transform: `translateX(-${modalImageIndex * 100}%)` }}
@@ -373,7 +406,7 @@ export function ShopProductList({
                                 src={url}
                                 alt={`${product.name} 확대 이미지 ${idx + 1}`}
                                 fill
-                                sizes="(max-width: 768px) 100vw, 640px"
+                                sizes="(max-width: 768px) 100vw, 820px"
                                 unoptimized
                                 className="object-cover"
                               />
@@ -404,19 +437,51 @@ export function ShopProductList({
                           </>
                         )}
                       </div>
+                    )}
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold tracking-wide text-slate-500">필요 메달</span>
+                        <p className="inline-flex items-baseline gap-1.5 text-emerald-900">
+                          <span className="text-[26px] font-black leading-none tracking-tight tabular-nums">
+                            {product.price_medal.toLocaleString()}
+                          </span>
+                          <span className="rounded-md border border-emerald-200 bg-emerald-100 px-1.5 py-0.5 text-[11px] font-bold leading-none">
+                            Medal
+                          </span>
+                        </p>
+                      </div>
+                      <p className="mt-2 text-[11px] font-medium text-slate-500">
+                        {product.stock == null ? '재고 무제한 상품' : `남은 수량 ${product.stock.toLocaleString()}개`}
+                      </p>
                     </div>
-                  )}
-                  <p className="mt-3 max-h-[40vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                    {product.description ?? '설명 없음'}
-                  </p>
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedDescriptionProductId(null)}
-                      className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
-                    >
-                      닫기
-                    </button>
+
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                      {product.description ?? '설명 없음'}
+                    </p>
+                  </div>
+
+                  <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+                    {currentMedals < product.price_medal && (
+                      <p className="mb-2 text-[11px] font-bold text-orange-500">보유 메달이 부족해 현재 교환할 수 없습니다.</p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedDescriptionProductId(null)}
+                        className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        닫기
+                      </button>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={handleModalPurchase}
+                        className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-extrabold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        {soldOut ? '품절' : isPending ? '처리 중...' : '교환하기'}
+                      </button>
+                    </div>
                   </div>
                 </>
               )
