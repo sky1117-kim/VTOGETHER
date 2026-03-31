@@ -185,8 +185,8 @@ export async function submitEventSubmission(
       const val = verificationData[m.method_id]
       if (m.method_type === 'PHOTO') {
         const urls = Array.isArray(val) ? val.filter((u): u is string => typeof u === 'string' && !!u.trim()) : []
-        if (urls.length < 2) {
-          return { success: false, error: '사진을 2장 이상 제출해주세요.' }
+        if (urls.length < 1) {
+          return { success: false, error: '사진을 1장 이상 제출해주세요.' }
         }
       } else if (m.method_type === 'PEER_SELECT') {
         let selectedCount = 0

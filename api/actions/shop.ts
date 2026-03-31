@@ -69,11 +69,15 @@ export async function getShopProducts(): Promise<{
   }
 }
 
-export async function purchaseShopProduct(productId: string): Promise<{
+export async function purchaseShopProduct(productId: string, quantity = 1): Promise<{
   success: boolean
   error: string | null
 }> {
   try {
+    const safeQuantity = Math.max(1, Math.floor(quantity))
+    if (!Number.isFinite(safeQuantity) || safeQuantity > 99) {
+      return { success: false, error: '수량이 올바르지 않습니다.' }
+    }
     const supabase = await createClient()
     const {
       data: { user },
@@ -96,42 +100,45 @@ export async function purchaseShopProduct(productId: string): Promise<{
       .is('deleted_at', null)
       .single()
     if (productErr || !product || !product.is_active) return { success: false, error: '구매 가능한 상품이 아닙니다.' }
-    if (product.stock != null && product.stock <= 0) return { success: false, error: '재고가 부족합니다.' }
-    if ((me.current_medals ?? 0) < product.price_medal) return { success: false, error: 'V.Medal이 부족합니다.' }
+    if (product.stock != null && product.stock < safeQuantity) return { success: false, error: '재고가 부족합니다.' }
+    const totalPaymentMedal = product.price_medal * safeQuantity
+    if ((me.current_medals ?? 0) < totalPaymentMedal) return { success: false, error: 'V.Medal이 부족합니다.' }
 
     const { error: debitErr } = await admin
       .from('users')
-      .update({ current_medals: (me.current_medals ?? 0) - product.price_medal })
+      .update({ current_medals: (me.current_medals ?? 0) - totalPaymentMedal })
       .eq('user_id', user.id)
     if (debitErr) return { success: false, error: 'V.Medal 차감 실패' }
 
     if (product.stock != null) {
-      await admin.from('shop_products').update({ stock: product.stock - 1 }).eq('product_id', product.product_id)
+      await admin.from('shop_products').update({ stock: product.stock - safeQuantity }).eq('product_id', product.product_id)
     }
 
-    const creditGranted = product.product_type === 'CREDIT_PACK' ? Number(product.credit_amount ?? 0) : 0
-    const { error: orderErr } = await admin.from('shop_orders').insert({
+    const creditGrantedPerUnit = product.product_type === 'CREDIT_PACK' ? Number(product.credit_amount ?? 0) : 0
+    const totalCreditGranted = creditGrantedPerUnit * safeQuantity
+    const orderPayload = Array.from({ length: safeQuantity }, () => ({
       user_id: user.id,
       product_id: product.product_id,
       product_snapshot_name: product.name,
       product_type: product.product_type,
       payment_medal: product.price_medal,
-      credit_granted: creditGranted,
+      credit_granted: creditGrantedPerUnit,
       status: 'COMPLETED',
-    })
+    }))
+    const { error: orderErr } = await admin.from('shop_orders').insert(orderPayload)
     if (orderErr) return { success: false, error: `주문 저장 실패: ${orderErr.message}` }
 
     await admin.from('point_transactions').insert({
       user_id: user.id,
       type: 'USED',
-      amount: -product.price_medal,
+      amount: -totalPaymentMedal,
       currency_type: 'V_MEDAL',
       related_id: product.product_id,
       related_type: 'SHOP_PURCHASE',
-      description: `상점 구매: ${product.name}`,
+      description: `상점 구매: ${product.name} x${safeQuantity}`,
     })
 
-    if (creditGranted > 0) {
+    if (totalCreditGranted > 0) {
       const { data: userRow } = await admin
         .from('users')
         .select('current_points')
@@ -139,23 +146,23 @@ export async function purchaseShopProduct(productId: string): Promise<{
         .is('deleted_at', null)
         .single()
       const currentPoints = userRow?.current_points ?? 0
-      await admin.from('users').update({ current_points: currentPoints + creditGranted }).eq('user_id', user.id)
+      await admin.from('users').update({ current_points: currentPoints + totalCreditGranted }).eq('user_id', user.id)
       await admin.from('credit_lots').insert({
         user_id: user.id,
         source_type: 'MEDAL_EXCHANGE',
-        initial_amount: creditGranted,
-        remaining_amount: creditGranted,
+        initial_amount: totalCreditGranted,
+        remaining_amount: totalCreditGranted,
         related_id: product.product_id,
-        description: `V.Medal 전환 구매: ${product.name}`,
+        description: `V.Medal 전환 구매: ${product.name} x${safeQuantity}`,
       })
       await admin.from('point_transactions').insert({
         user_id: user.id,
         type: 'EARNED',
-        amount: creditGranted,
+        amount: totalCreditGranted,
         currency_type: 'V_CREDIT',
         related_id: product.product_id,
         related_type: 'SHOP_EXCHANGE',
-        description: `V.Medal 전환: ${product.name}`,
+        description: `V.Medal 전환: ${product.name} x${safeQuantity}`,
       })
     }
 

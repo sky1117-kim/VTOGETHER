@@ -20,6 +20,15 @@ type ShopProduct = {
   is_best: boolean
 }
 
+type PurchaseTarget = {
+  productId: string
+  name: string
+  priceMedal: number
+  stock: number | null
+  productType: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+  creditAmount: number | null
+}
+
 function parseProductImageUrls(raw: string | null): string[] {
   if (!raw) return []
   return raw
@@ -45,7 +54,9 @@ export function ShopProductList({
   const [showSkeleton, setShowSkeleton] = useState(true)
   const [imageIndexByProductId, setImageIndexByProductId] = useState<Record<string, number>>({})
   const [touchStartXByProductId, setTouchStartXByProductId] = useState<Record<string, number>>({})
-  useBodyScrollLock(!!expandedDescriptionProductId)
+  const [purchaseTarget, setPurchaseTarget] = useState<PurchaseTarget | null>(null)
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1)
+  useBodyScrollLock(!!expandedDescriptionProductId || !!purchaseTarget)
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSkeleton(false), 320)
@@ -77,6 +88,41 @@ export function ShopProductList({
   }, [products, sortBy, productTypeFilter])
 
   const gridClass = 'grid items-start gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3'
+  const purchaseTotalMedal = purchaseTarget ? purchaseTarget.priceMedal * purchaseQuantity : 0
+  const purchaseTotalCredit =
+    purchaseTarget?.productType === 'CREDIT_PACK'
+      ? Math.max(0, Number(purchaseTarget.creditAmount ?? 0) * purchaseQuantity)
+      : 0
+  const purchaseMaxQuantity = purchaseTarget
+    ? Math.max(
+        1,
+        Math.min(
+          purchaseTarget.stock == null ? 99 : Math.max(1, Math.min(99, purchaseTarget.stock)),
+          purchaseTarget.priceMedal <= 0 ? 99 : Math.max(1, Math.min(99, Math.floor(currentMedals / purchaseTarget.priceMedal))),
+        ),
+      )
+    : 1
+
+  const openPurchaseModal = (target: PurchaseTarget) => {
+    setPurchaseQuantity(1)
+    setPurchaseTarget(target)
+  }
+
+  const handleConfirmPurchase = () => {
+    if (!purchaseTarget) return
+    setMessage(null)
+    startTransition(async () => {
+      const result = await purchaseShopProduct(purchaseTarget.productId, purchaseQuantity)
+      if (!result.success) {
+        setMessage(result.error ?? '구매 실패')
+        return
+      }
+      setMessage(`${purchaseTarget.name} ${purchaseQuantity}개 교환이 완료되었습니다.`)
+      setPurchaseTarget(null)
+      setExpandedDescriptionProductId(null)
+      router.refresh()
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -323,15 +369,13 @@ export function ShopProductList({
                   disabled={disabled}
                   onClick={(e) => {
                     e.stopPropagation()
-                    setMessage(null)
-                    startTransition(async () => {
-                      const result = await purchaseShopProduct(p.product_id)
-                      if (!result.success) {
-                        setMessage(result.error ?? '구매 실패')
-                        return
-                      }
-                      setMessage(`${p.name} 교환이 완료되었습니다.`)
-                      router.refresh()
+                    openPurchaseModal({
+                      productId: p.product_id,
+                      name: p.name,
+                      priceMedal: p.price_medal,
+                      stock: p.stock,
+                      productType: p.product_type,
+                      creditAmount: p.credit_amount,
                     })
                   }}
                   className="mb-0 w-full rounded-xl bg-emerald-600 px-3 py-1.5 text-[12px] font-extrabold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
@@ -362,20 +406,6 @@ export function ShopProductList({
               const soldOut = product.stock != null && product.stock <= 0
               const disabled = isPending || soldOut || currentMedals < product.price_medal
 
-              // 모달 푸터에서도 즉시 교환할 수 있게 기존 구매 로직을 재사용합니다.
-              const handleModalPurchase = () => {
-                setMessage(null)
-                startTransition(async () => {
-                  const result = await purchaseShopProduct(product.product_id)
-                  if (!result.success) {
-                    setMessage(result.error ?? '구매 실패')
-                    return
-                  }
-                  setMessage(`${product.name} 교환이 완료되었습니다.`)
-                  setExpandedDescriptionProductId(null)
-                  router.refresh()
-                })
-              }
               return (
                 <>
                   <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-5 py-4 sm:px-6">
@@ -476,7 +506,16 @@ export function ShopProductList({
                       <button
                         type="button"
                         disabled={disabled}
-                        onClick={handleModalPurchase}
+                        onClick={() =>
+                          openPurchaseModal({
+                            productId: product.product_id,
+                            name: product.name,
+                            priceMedal: product.price_medal,
+                            stock: product.stock,
+                            productType: product.product_type,
+                            creditAmount: product.credit_amount,
+                          })
+                        }
                         className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-extrabold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       >
                         {soldOut ? '품절' : isPending ? '처리 중...' : '교환하기'}
@@ -492,6 +531,109 @@ export function ShopProductList({
       {!showSkeleton && visibleProducts.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm font-semibold text-slate-500">
           조건에 맞는 상품이 없습니다.
+        </div>
+      )}
+      {purchaseTarget && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+          onClick={() => setPurchaseTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-black tracking-tight text-slate-900">교환 수량 선택</h3>
+            <p className="mt-1 text-sm text-slate-600">{purchaseTarget.name}</p>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-500">개당 메달</span>
+                <span className="font-extrabold text-emerald-800">{purchaseTarget.priceMedal.toLocaleString()} Medal</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-500">총 결제 메달</span>
+                <span className="font-black text-slate-900">{purchaseTotalMedal.toLocaleString()} Medal</span>
+              </div>
+              {purchaseTarget.productType === 'CREDIT_PACK' && (
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className="font-semibold text-slate-500">총 교환 V.Credit</span>
+                  <span className="font-black text-indigo-700">{purchaseTotalCredit.toLocaleString()} Credit</span>
+                </div>
+              )}
+              <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                <span>보유 메달</span>
+                <span>{currentMedals.toLocaleString()} Medal</span>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label htmlFor="purchase-quantity" className="text-sm font-semibold text-slate-700">
+                수량
+              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPurchaseQuantity((prev) => Math.max(1, prev - 1))}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-lg font-black text-slate-700 transition hover:bg-slate-100"
+                  aria-label="수량 감소"
+                >
+                  -
+                </button>
+                <div className="flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-extrabold text-slate-900">
+                  {purchaseQuantity.toLocaleString()} 개
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseQuantity((prev) => Math.min(purchaseMaxQuantity, prev + 1))}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-lg font-black text-slate-700 transition hover:bg-slate-100"
+                  aria-label="수량 증가"
+                >
+                  +
+                </button>
+              </div>
+              <input
+                id="purchase-quantity"
+                type="number"
+                min={1}
+                max={purchaseMaxQuantity}
+                value={purchaseQuantity}
+                onChange={(e) => {
+                  const nextValue = Number(e.target.value)
+                  if (!Number.isFinite(nextValue)) {
+                    setPurchaseQuantity(1)
+                    return
+                  }
+                  setPurchaseQuantity(Math.max(1, Math.min(purchaseMaxQuantity, Math.floor(nextValue))))
+                }}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 focus:border-emerald-400 focus:outline-none"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                {purchaseTarget.stock == null ? '최대 99개까지 선택할 수 있습니다.' : `재고 기준 최대 ${purchaseTarget.stock.toLocaleString()}개`}
+              </p>
+            </div>
+
+            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+              정말로 교환하시겠어요? 확인을 누르면 즉시 처리됩니다.
+            </p>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPurchaseTarget(null)}
+                className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={isPending || purchaseTotalMedal > currentMedals}
+                onClick={handleConfirmPurchase}
+                className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-extrabold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                {isPending ? '처리 중...' : '확인하고 교환'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

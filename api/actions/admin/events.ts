@@ -316,6 +316,7 @@ export async function createEvent(
   input: CreateEventInput,
   _createdBy: string
 ): Promise<{ eventId: string | null; error: string | null }> {
+  void _createdBy
   const auth = await requireAdmin()
   if (!auth.ok) return { eventId: null, error: auth.error }
   const { title, category, type, reward_policy, rewards, verification_methods } = input

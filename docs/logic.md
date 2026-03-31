@@ -21,7 +21,7 @@
 - 재화는 `V.Credit` + `V.Medal` 2종으로 운영합니다.
 - 이벤트 보상 정책:
   - `People` 이벤트 승인 보상은 `V.Medal` 적립
-  - `Culture` 이벤트 승인 보상은 `V.Credit` 적립
+  - `V.Together` 이벤트 승인 보상은 `V.Credit` 적립
 - `V.Medal` 상점:
   - 상품 분류는 `굿즈`, `V.Credit`, `알맹상점` 3가지로 운영
   - `V.Credit` 분류 상품 구매 시 즉시 `V.Credit` 지급
@@ -78,7 +78,8 @@
 
 - **데이터 모델**: 활동·정산은 `health_challenge_*` 테이블. **시즌은 `/admin/events/new`에서 People 이벤트와 함께 생성하거나**, 이벤트 상세 `/admin/events/[eventId]`의 「건강 챌린지 룰」에서 시즌을 새로 붙일 수 있습니다. `health_challenge_seasons.event_id`로 이벤트와 1:1(034). **4종목(걷기·러닝·하이킹·라이딩)의 1회 최소 조건·월 누적 L1~L3·시즌 기간·ACTIVE 여부는 동일 이벤트 수정 페이지에서 편집**합니다.
 - **메인**: 활성 시즌이 있으면 메인 「이벤트 & 챌린지」블록 **안**(필터 아래, 이벤트 카드 그리드 위)에 `#health-challenge`로 노출. 한 번에 **여러 건** 인증을 제출할 수 있고, **종목(블록)마다 사진을 여러 장** 첨부할 수 있습니다(`photo_urls` JSON 배열).
-- **제출 정책(2026.03.30)**: 건강 챌린지는 **같은 달에 종목별 1회 제출**합니다. 제출 시 입력하는 값은 해당 종목의 **월 누적 달성 수치**이며, 승인 후 월 합계(예: 40km) 기준으로 레벨을 판정합니다.
+- **제출 정책(2026.03.31 업데이트)**: 건강 챌린지는 한 번의 제출에서 **같은 달의 여러 활동일을 달력으로 다중 선택**할 수 있습니다. 같은 달에 같은 종목을 여러 번 제출할 수 있지만, **같은 종목 + 같은 활동일** 조합은 중복 제출할 수 없습니다.
+- **중복 방지 안전장치(2026.03.31)**: 서버 사전검증 외에 DB 유니크 인덱스(`season_id, user_id, track_id, activity_date` + `deleted_at IS NULL` + `status IN (PENDING, APPROVED)`)를 함께 두어 동시 제출 레이스에서도 중복 행이 생기지 않게 막습니다.
 - **심사**: `/admin/verifications`에서 활동 로그 승인 시 해당 활동일이 속한 **연·월** 롤업에 거리(km) 또는 고도(m)를 더하고, 종목 임계값으로 `achieved_level`(0~3)을 다시 계산합니다.
 - **월말 정산**: `/admin/health-challenges` 또는 인증 심사 화면에서 연·월 선택 후 실행. 사용자별 **종목 달성 레벨의 합**만큼 V.Medal 지급(레벨 1당 1M), **합계 상한 12M**(4종목×L3). `point_transactions`에 `related_type=HEALTH_CHALLENGE_SETTLEMENT`로 남깁니다. 동일 시즌·연·월·사용자에 이미 정산 레코드가 있으면(유니크) 재지급하지 않습니다.
 - **기본 종목·L1~L3**: 시즌 생성 시 서버가 기획표 기준 4종목·임계값을 자동 채웁니다(마이그레이션 시드 없음).
@@ -95,7 +96,7 @@
   - **객관식(CHOICE) 인증**: 관리자가 선택지를 2개 이상 입력. 참여자는 그 중 하나를 선택. `event_verification_methods.options` JSONB에 선택지 문자열 배열 저장.
   - **숫자(VALUE) 인증**: 숫자만 입력 가능 (단답/장문 옵션 없음). 제목(label)은 거리/속도/시간 등 항목명 선택 또는 직접 입력. `event_verification_methods.unit`: 단위 (예: km/h, km). 심사 화면에서 "거리: 34 km"처럼 표시.
   - **숫자 입력 표시 규칙**: 웹 입력창에서는 타이핑 중 천 단위 콤마를 자동 표시 (`20000` → `20,000`). 서버 전송/검증 시에는 콤마를 제거한 순수 숫자로 변환.
-  - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. **2장 이상 필수** 제출. `verification_data`에 URL 배열로 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
+  - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. **최소 1장 필수** 제출. `verification_data`에 URL 배열로 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
   - **칭찬 챌린지 동료 선택 확장 (2026.03.30)**: `PEER_SELECT` 인증은 단일 대상만이 아니라 **여러 명 동료 선택**을 지원. 제출 데이터는 `verification_data[method_id]`에 `{ peer_user_ids: string[], organization_name: string }` 형태로 저장하고, `peer_user_id` 컬럼에는 기존 하위호환을 위해 첫 번째 선택 동료를 함께 저장. 관리자 심사 화면에서는 "조직명 + 대표 동료 + 외 n명" 형태로 미리보기.
   - **동료 선택 인원 정책 (2026.03.30)**: `PEER_SELECT` 항목의 `options`에 `SINGLE` 또는 `MULTIPLE` 저장. 관리자 등록 화면에서 항목별 선택(개인형/조직형) 가능. 참여 모달과 서버 제출 검증은 이 값을 기준으로 1명 제한 또는 다중 선택 허용을 강제.
 

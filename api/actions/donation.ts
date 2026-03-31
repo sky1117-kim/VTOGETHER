@@ -14,8 +14,8 @@ const LEVEL_MEDAL_REWARD: Record<Exclude<UserLevel, 'ECO_KEEPER'>, number> = {
 }
 
 function getLevelByTotalDonated(totalDonated: number): UserLevel {
-  if (totalDonated >= 100001) return 'EARTH_HERO'
-  if (totalDonated >= 50001) return 'GREEN_MASTER'
+  if (totalDonated >= 150001) return 'EARTH_HERO'
+  if (totalDonated >= 100001) return 'GREEN_MASTER'
   return 'ECO_KEEPER'
 }
 

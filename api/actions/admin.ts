@@ -5,8 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getTotalDonationStats } from '@/api/queries/donation'
 
-const SITE_CONTENT_KEYS = ['hero_season_badge', 'hero_title', 'hero_subtitle'] as const
-export type SiteContentKey = (typeof SITE_CONTENT_KEYS)[number]
+export type SiteContentKey = 'hero_season_badge' | 'hero_title' | 'hero_subtitle'
 
 export type UserRow = {
   user_id: string

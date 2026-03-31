@@ -98,7 +98,7 @@ export function DonationSection({
           <div className="glass rounded-2xl p-12 text-center shadow-soft">
             <p className="text-gray-500">등록된 기부처가 없습니다.</p>
           </div>
-        ) : targets.map((target, idx) => {
+        ) : targets.map((target) => {
           const percent =
             target.target_amount > 0
               ? Math.min((target.current_amount / target.target_amount) * 100, 100)

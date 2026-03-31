@@ -83,7 +83,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
         setSuccessPayload({ targetName: target.name, amount, levelUp: result.levelUp ?? null })
         router.refresh()
       }
-    } catch (err) {
+    } catch {
       setError('기부 처리 중 오류가 발생했습니다')
     } finally {
       setIsSubmitting(false)

@@ -11,6 +11,7 @@ interface TargetAmountEditProps {
 }
 
 export function TargetAmountEdit({ targetId, targetName, currentTargetAmount }: TargetAmountEditProps) {
+  void targetName
   const [value, setValue] = useState(String(currentTargetAmount))
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)

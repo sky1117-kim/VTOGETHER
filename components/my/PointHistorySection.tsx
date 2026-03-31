@@ -29,22 +29,16 @@ interface PointHistorySectionProps {
 }
 
 const INITIAL_SHOW = 10
+type MedalFilter = 'ALL' | 'EARNED' | 'PURCHASE'
+type CreditFilter = 'ALL' | 'EARNED' | 'DONATED'
 
 export function PointHistorySection({ transactions }: PointHistorySectionProps) {
   const searchParams = useSearchParams()
   const highlightId = searchParams.get('highlight')
-  const [medalFilter, setMedalFilter] = useState<'ALL' | 'EARNED' | 'PURCHASE'>('ALL')
-  const [creditFilter, setCreditFilter] = useState<'ALL' | 'EARNED' | 'DONATED'>('ALL')
+  const [medalFilter, setMedalFilter] = useState<MedalFilter>('ALL')
+  const [creditFilter, setCreditFilter] = useState<CreditFilter>('ALL')
   const [medalShowAll, setMedalShowAll] = useState(!!highlightId)
   const [creditShowAll, setCreditShowAll] = useState(!!highlightId)
-
-  // 필터 변경 시 더보기 상태 초기화 (highlight 있으면 유지)
-  useEffect(() => {
-    if (!highlightId) {
-      setMedalShowAll(false)
-      setCreditShowAll(false)
-    }
-  }, [medalFilter, creditFilter, highlightId])
 
   // highlight 건이 있으면 해당 건으로 스크롤
   useEffect(() => {
@@ -169,8 +163,8 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
     badge: string
     badgeClassName: string
     filter: string
-    setFilter: (value: any) => void
-    filterOptions: { value: any; label: string }[]
+    setFilter: (value: string) => void
+    filterOptions: { value: string; label: string }[]
     emptyText: string
     displayedRows: PointTransactionRow[]
     hasMore: boolean
@@ -226,7 +220,10 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
           badge: 'V.MEDAL',
           badgeClassName: 'bg-[#00b859]/15 text-[#00b859]',
           filter: medalFilter,
-          setFilter: setMedalFilter,
+          setFilter: (value) => {
+            setMedalFilter(value as MedalFilter)
+            if (!highlightId) setMedalShowAll(false)
+          },
           filterOptions: [
             { value: 'ALL' as const, label: '전체' },
             { value: 'EARNED' as const, label: '적립된 내역' },
@@ -246,7 +243,10 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
           badge: 'V.CREDIT',
           badgeClassName: 'bg-amber-100 text-amber-700',
           filter: creditFilter,
-          setFilter: setCreditFilter,
+          setFilter: (value) => {
+            setCreditFilter(value as CreditFilter)
+            if (!highlightId) setCreditShowAll(false)
+          },
           filterOptions: [
             { value: 'ALL' as const, label: '전체' },
             { value: 'DONATED' as const, label: '기부한 내역' },

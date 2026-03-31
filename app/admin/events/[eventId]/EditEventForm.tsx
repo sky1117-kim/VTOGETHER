@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -225,7 +226,7 @@ export function EditEventForm({ eventId, event, rewards = [] }: EditEventFormPro
       {amountRewards.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
           <p className="mb-3 text-sm font-bold text-gray-700">
-            보상 수량 ({event.category === 'PEOPLE' ? 'People -> V.Medal' : 'Culture -> V.Credit'})
+            보상 수량 ({event.category === 'PEOPLE' ? 'People -> V.Medal' : 'V.Together -> V.Credit'})
           </p>
           <p className="mb-3 text-xs text-gray-500">
             이미 지급된 보상은 기존 금액 그대로이며, 이후 인증 통과분부터 새 금액이 적용됩니다.

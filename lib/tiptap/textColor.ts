@@ -10,8 +10,6 @@ export type TextColorValue =
   | 'purple'
   | (string & {}) // hex 등 커스텀 값 허용
 
-const PRESET_NAMES = ['black', 'gray', 'red', 'orange', 'green', 'blue', 'purple'] as const
-
 /** 텍스트 색상 마크. data-color로 저장(프리셋 이름 또는 #hex). 모달에서도 동일 스타일 적용 */
 export const TextColor = Mark.create({
   name: 'textColor',

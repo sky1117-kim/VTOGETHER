@@ -53,7 +53,7 @@
 ## Phase 4: V.Medal / 상점 / 매칭기부
 
 - [x] `users.current_medals`, `credit_lots`, `donation_lot_allocations`, `shop_products`, `shop_orders` 스키마 추가 (2026.03.26)
-- [x] People=V.Medal, Culture=V.Credit 이벤트 보상 분기 반영 (2026.03.26)
+- [x] People=V.Medal, V.Together=V.Credit 이벤트 보상 분기 반영 (2026.03.26)
 - [x] 사용자 상점 `/shop` 및 구매 액션 추가 (굿즈/크레딧 전환) (2026.03.26)
 - [x] 관리자 상점 상품 관리 `/admin/shop-products` 추가 (등록/활성화) (2026.03.26)
 - [x] 기부 시 Credit lot FIFO 차감 + 출처 할당 저장 반영 (2026.03.26)

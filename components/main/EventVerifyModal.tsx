@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
@@ -11,7 +12,6 @@ import { formatDecimalWithCommas, sanitizeDecimalInput } from '@/lib/number-form
 
 type PeerSelectPayload = {
   peer_user_ids: string[]
-  organization_name: string
 }
 
 function isMultiPeerSelectMode(method: { options?: string[] | null }): boolean {
@@ -23,6 +23,10 @@ const METHOD_LABEL: Record<string, string> = {
   TEXT: '텍스트',
   VALUE: '숫자',
   PEER_SELECT: '동료 선택',
+}
+
+function resolveInputPlaceholder(method: VerificationMethodRow, fallback = '입력하세요') {
+  return method.placeholder?.trim() || method.instruction?.trim() || fallback
 }
 
 const inputClass =
@@ -60,7 +64,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
   const [peerSearch, setPeerSearch] = useState('')
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
-  /** PHOTO 인증 방식: method_id별 업로드된 사진 URL 배열 (2장 이상 필수) */
+  /** PHOTO 인증 방식: method_id별 업로드된 사진 URL 배열 (최소 1장 필수) */
   const [photoUrlsByMethod, setPhotoUrlsByMethod] = useState<Record<string, string[]>>({})
   /** 칭찬 챌린지(PEER_SELECT) 시 익명으로 칭찬 보내기 선택 여부 */
   const [isAnonymous, setIsAnonymous] = useState(false)
@@ -69,16 +73,15 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
 
   const parsePeerSelectPayload = (methodId: string): PeerSelectPayload => {
     const raw = formData[methodId]
-    if (!raw) return { peer_user_ids: [], organization_name: '' }
+    if (!raw) return { peer_user_ids: [] }
     try {
       const parsed = JSON.parse(raw) as Partial<PeerSelectPayload>
       const peer_user_ids = Array.isArray(parsed.peer_user_ids)
         ? parsed.peer_user_ids.filter((v): v is string => typeof v === 'string' && !!v.trim())
         : []
-      const organization_name = typeof parsed.organization_name === 'string' ? parsed.organization_name : ''
-      return { peer_user_ids, organization_name }
+      return { peer_user_ids }
     } catch {
-      return { peer_user_ids: [], organization_name: '' }
+      return { peer_user_ids: [] }
     }
   }
 
@@ -193,7 +196,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
         peerUserIds.push(...peerSelect.peer_user_ids)
       } else if (m.method_type === 'PHOTO') {
         const urls = photoUrlsByMethod[m.method_id] ?? []
-        if (urls.length < 2) missing.push('사진 (2장 이상)')
+        if (urls.length < 1) missing.push('사진')
         verificationData[m.method_id] = urls
       } else {
         const value = formData[m.method_id]?.trim() ?? ''
@@ -370,9 +373,12 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       return (
                         <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                           <label className="mb-2 block text-sm font-bold text-gray-800">
-                            {m.label?.trim() || m.instruction?.trim() || '사진을 첨부해 주세요'}
-                            <span className="ml-1 font-normal text-amber-600">(2장 이상 필수)</span>
+                            {m.label?.trim() || METHOD_LABEL[m.method_type]}
+                            <span className="ml-1 font-normal text-amber-600">(최소 1장 필수)</span>
                           </label>
+                          {m.instruction?.trim() && (
+                            <p className="mb-2 text-xs text-gray-500">{m.instruction.trim()}</p>
+                          )}
                           <div className="space-y-2">
                             {urls.map((url, i) => (
                               <div key={url} className="flex items-center gap-2">
@@ -402,7 +408,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                           )}
                           {urls.length > 0 && (
                             <p className="mt-2 text-xs font-medium text-green-600">
-                              ✓ {urls.length}장 첨부됨 {urls.length < 2 && '(2장 이상 필요)'}
+                              ✓ {urls.length}장 첨부됨
                             </p>
                           )}
                         </div>
@@ -443,7 +449,10 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                               }))
                             }}
                             className={`${inputClass} ${valueError ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : ''}`}
-                            placeholder={m.unit ? `숫자 입력 (콤마·소수점 가능) ${m.unit}` : '숫자 입력 (콤마·소수점 가능)'}
+                            placeholder={resolveInputPlaceholder(
+                              m,
+                              m.unit ? `숫자 입력 (콤마·소수점 가능) ${m.unit}` : '숫자 입력 (콤마·소수점 가능)'
+                            )}
                           />
                           {valueError && (
                             <p className="mt-2 text-sm font-medium text-red-600">{valueError}</p>
@@ -469,15 +478,19 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                       const peerLabel = (u: PeerSelectionUserRow) =>
                         [u.name || '이름 없음', u.dept_name, u.email].filter(Boolean).join(' · ')
                       // 제목(label): 관리자가 설정한 값 사용. 비우면 방식명(동료 선택) fallback
-                      const displayLabel = (m.label?.trim() || METHOD_LABEL[m.method_type])
+                      const displayLabel = m.label?.trim() || METHOD_LABEL[m.method_type]
+                      const peerSearchPlaceholder = resolveInputPlaceholder(
+                        m,
+                        isMultiMode ? '구성원을 검색해 여러 명 선택하세요' : '구성원을 검색해 1명을 선택하세요'
+                      )
                       return (
                         <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                           <label className="mb-2 block text-sm font-bold text-gray-800">
                             {displayLabel}
-                            {m.instruction?.trim() && (
-                              <span className="ml-1 font-normal text-gray-500">— {m.instruction.trim()}</span>
-                            )}
                           </label>
+                          {m.instruction?.trim() && (
+                            <p className="mb-2 text-xs text-gray-500">{m.instruction.trim()}</p>
+                          )}
                           {(() => {
                             const peerSelect = parsePeerSelectPayload(m.method_id)
                             const selectedPeers = filtered.filter((u) =>
@@ -485,21 +498,6 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                             )
                             return (
                               <>
-                                <div className="mb-3">
-                                  <label className="mb-1 block text-xs font-medium text-gray-600">추천 조직명 (선택)</label>
-                                  <input
-                                    type="text"
-                                    value={peerSelect.organization_name}
-                                    onChange={(e) =>
-                                      updatePeerSelectPayload(m.method_id, (prev) => ({
-                                        ...prev,
-                                        organization_name: e.target.value,
-                                      }))
-                                    }
-                                    placeholder="예: 전략기획팀 / ESG 운영실"
-                                    className={inputClass}
-                                  />
-                                </div>
                                 <input
                                   type="text"
                                   value={peerSearch}
@@ -520,11 +518,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                     // 연속 선택 UX: 엔터로 추가 후 바로 다음 검색 가능하도록 입력어를 비웁니다.
                                     setPeerSearch('')
                                   }}
-                                  placeholder={
-                                    isMultiMode
-                                      ? '이름·이메일·부서로 검색해 여러 명 선택하세요'
-                                      : '이름·이메일·부서로 검색해 1명을 선택하세요'
-                                  }
+                                  placeholder={peerSearchPlaceholder}
                                   className={inputClass}
                                   autoComplete="off"
                                 />
@@ -550,14 +544,14 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                 {!hasSearch ? (
                                   <p className="mt-2 text-xs text-gray-500">
                                     {isMultiMode
-                                      ? '검색어를 입력하면 동료 목록이 나타나며 여러 명을 선택할 수 있습니다.'
-                                      : '검색어를 입력하면 동료 목록이 나타나며 개인형은 1명만 선택됩니다.'}
+                                      ? '검색어를 입력하면 구성원 목록이 나타납니다.'
+                                      : '검색어를 입력하면 구성원 목록이 나타납니다.'}
                                   </p>
                                 ) : (
                                   <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">
                                     {list.length === 0 ? (
                                       <p className="px-4 py-3 text-sm text-amber-600">
-                                        검색 결과가 없습니다. 이름·이메일·부서를 입력해보세요.
+                                        검색 결과가 없습니다.
                                       </p>
                                     ) : (
                                       <ul className="py-1">
@@ -614,8 +608,11 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                     return (
                         <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                         <label className="mb-2 block text-sm font-bold text-gray-800">
-                          {(m.label?.trim() || m.instruction?.trim() || m.placeholder?.trim()) ?? '입력하세요'}
+                          {m.label?.trim() || METHOD_LABEL[m.method_type]}
                         </label>
+                        {m.instruction?.trim() && (
+                          <p className="mb-2 text-xs text-gray-500">{m.instruction.trim()}</p>
+                        )}
                         {isChoice ? (
                           <div className="space-y-2">
                             {choiceOptions.map((opt) => (
@@ -648,7 +645,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                               }))
                             }
                             className={inputClass}
-                            placeholder={m.placeholder ?? '입력하세요'}
+                            placeholder={resolveInputPlaceholder(m)}
                           />
                         ) : (
                           <textarea
@@ -658,7 +655,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                             }
                             rows={3}
                             className={inputClass}
-                            placeholder={m.placeholder ?? '입력하세요'}
+                            placeholder={resolveInputPlaceholder(m)}
                           />
                         )}
                       </div>
@@ -668,6 +665,22 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
               </div>
             )}
           </form>
+        )}
+
+        {/* 예외 안전 가드: 데이터 상태가 비정상일 때 빈 화면 대신 안내를 표시 */}
+        {!loading && !success && !data && (
+          <div className="flex min-h-[240px] flex-col items-center justify-center gap-4">
+            <p className="text-sm text-gray-600">
+              인증 정보를 불러오지 못했습니다. 다시 시도해주세요.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              닫기
+            </button>
+          </div>
         )}
         </div>
 

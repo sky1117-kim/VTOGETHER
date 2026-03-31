@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -8,7 +9,7 @@ import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/ev
 import { HealthChallengeVerifyModal } from './HealthChallengeVerifyModal'
 import type { HealthSeasonPublic, HealthSubmittedTrackInfo, HealthTrackPublic } from '@/api/queries/health-challenges'
 
-type Tab = 'ALL' | 'Culture' | 'People'
+type Tab = 'ALL' | 'V.Together' | 'People'
 
 /** DB에서 내려오는 이벤트 (getEventsWithRoundsForPublic) */
 export type PublicEvent = {
@@ -24,9 +25,9 @@ export type PublicEvent = {
 }
 
 const CATEGORY_DISPLAY: Record<string, Tab> = {
-  CULTURE: 'Culture',
+  CULTURE: 'V.Together',
   PEOPLE: 'People',
-  V_TOGETHER: 'Culture', // 레거시: 마이그레이션 032 전 데이터
+  V_TOGETHER: 'V.Together', // 레거시: 마이그레이션 032 전 데이터
 }
 
 const CATEGORY_ICON: Record<string, string> = {
@@ -115,7 +116,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
 
   const events = rawEvents.map((e) => ({
     id: e.event_id,
-    category: CATEGORY_DISPLAY[e.category] ?? 'Culture',
+    category: CATEGORY_DISPLAY[e.category] ?? 'V.Together',
     title: e.title,
     desc: toPlainTextSummary(e.short_description ?? e.description) || '참여하고 포인트를 획득하세요.',
     icon: CATEGORY_ICON[e.category] ?? '🎯',
@@ -153,7 +154,7 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
           <p className="mt-1 text-gray-500">참여하고 포인트를 획득하세요.</p>
         </div>
         <div className="flex flex-wrap gap-2 rounded-xl bg-white/60 p-1.5 shadow-soft backdrop-blur-sm">
-          {(['ALL', 'Culture', 'People'] as const).map((tab) => (
+          {(['ALL', 'V.Together', 'People'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleFilterChange(tab)}
@@ -187,19 +188,21 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
               onKeyDown={(e) => e.key === 'Enter' && setInfoModalEvent(rawEvents.find((e) => e.event_id === c.id) ?? null)}
               className="card-hover glass flex cursor-pointer flex-col rounded-2xl p-5 shadow-soft"
             >
-              <div className="mb-4 flex items-center gap-4">
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                  {c.image_url?.trim() ? (
+              <div className="mb-4">
+                {c.image_url?.trim() ? (
+                  <div className="mb-3 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
                     <img
                       src={c.image_url}
                       alt=""
-                      className="h-full w-full object-cover"
+                      className="h-24 w-full object-cover object-center"
                     />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center text-2xl">{c.icon}</span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
+                  </div>
+                ) : (
+                  <div className="mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-gray-100 text-2xl">
+                    {c.icon}
+                  </div>
+                )}
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold leading-tight">{c.title}</h3>
                     <span

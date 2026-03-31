@@ -62,6 +62,12 @@ const supabaseHost = (() => {
 
 const nextConfig: NextConfig = {
   output: 'standalone', // Cloud Run 등 컨테이너 배포용 최소 빌드
+  experimental: {
+    // Server Action 기본 본문 제한(1MB) 초과 에러 방지
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },

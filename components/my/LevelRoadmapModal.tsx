@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
@@ -14,9 +14,9 @@ interface LevelRoadmapModalProps {
 }
 
 const levelThresholds: Record<Level, { min: number; max: number; next: number | null; label: string; icon: string }> = {
-  ECO_KEEPER: { min: 10000, max: 50000, next: 50001, label: 'Eco Keeper', icon: '🌱' },   // 새싹
-  GREEN_MASTER: { min: 50001, max: 100000, next: 100001, label: 'Green Master', icon: '🌳' }, // 나무
-  EARTH_HERO: { min: 100001, max: Infinity, next: null, label: 'Earth Hero', icon: '🌍' },  // 지구
+  ECO_KEEPER: { min: 0, max: 100000, next: 100001, label: 'Eco Keeper', icon: '🌱' },   // 새싹
+  GREEN_MASTER: { min: 100001, max: 150000, next: 150001, label: 'Green Master', icon: '🌳' }, // 나무
+  EARTH_HERO: { min: 150001, max: Infinity, next: null, label: 'Earth Hero', icon: '🌍' },  // 지구
 }
 
 // 제일 어려운 레벨부터 낮은 레벨까지 순서 (역순)
@@ -55,16 +55,10 @@ const LEVEL_COLORS: Record<Level, { progress: string; text: string; bg: string; 
 
 export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRoadmapModalProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   useBodyScrollLock(isOpen)
   const current = levelThresholds[level]
   const nextLevel = level === 'ECO_KEEPER' ? 'GREEN_MASTER' : level === 'GREEN_MASTER' ? 'EARTH_HERO' : null
-  const prevMax = level === 'ECO_KEEPER' ? 10000 : level === 'GREEN_MASTER' ? 50001 : 100001
   const range = nextLevel ? (levelThresholds[nextLevel].min - current.min) : 0
   const progressInRange = nextLevel ? Math.min(Math.max((totalDonated - current.min) / range, 0), 1) : 1
   const progressPercent = Math.round(progressInRange * 100)
@@ -75,7 +69,7 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
       onClick={() => setIsOpen(false)}
     >
       <div
-        className="my-auto max-h-[90vh] w-full max-w-sm shrink-0 overflow-y-auto rounded-[32px] bg-white shadow-2xl"
+        className="my-auto w-full max-w-sm shrink-0 rounded-[32px] bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 상단: 등급별 그라데이션 (Eco Keeper=회색/남색, Green Master=초록, Earth Hero=보라) */}
@@ -102,14 +96,18 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
                   }}
                 />
               )}
-              <p className={`relative z-10 mb-2 text-center text-sm font-bold ${level === 'ECO_KEEPER' ? 'text-slate-200' : 'text-green-100'}`}>
+              <p className={`relative z-10 mb-2 text-center text-sm font-bold ${
+                level === 'ECO_KEEPER' ? 'text-slate-200' : level === 'EARTH_HERO' ? 'text-violet-100' : 'text-green-100'
+              }`}>
                 MY ESG LEVEL
               </p>
               <div className="relative z-10 mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-full border-4 border-white/30 bg-white/20 backdrop-blur-sm">
                 <span className="text-5xl">{current.icon}</span>
               </div>
               <h2 className="relative z-10 text-center text-2xl font-bold">{current.label}</h2>
-              <p className={`relative z-10 text-center text-base font-bold sm:text-lg ${level === 'ECO_KEEPER' ? 'text-slate-200' : 'text-green-100'}`}>
+              <p className={`relative z-10 text-center text-base font-bold sm:text-lg ${
+                level === 'ECO_KEEPER' ? 'text-slate-200' : level === 'EARTH_HERO' ? 'text-violet-100' : 'text-green-100'
+              }`}>
                 누적 기부: <span className="text-xl font-bold text-white sm:text-2xl">{totalDonated.toLocaleString()}</span> C
               </p>
             </div>
@@ -207,7 +205,7 @@ export function LevelRoadmapModal({ level, totalDonated = 0, children }: LevelRo
       <div onClick={() => setIsOpen(true)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setIsOpen(true)}>
         {children}
       </div>
-      {mounted && typeof document !== 'undefined' && modalContent && createPortal(modalContent, document.body)}
+      {typeof document !== 'undefined' && modalContent && createPortal(modalContent, document.body)}
     </>
   )
 }

@@ -92,7 +92,7 @@ export default async function MyPage() {
           <div className="space-y-6 xl:col-span-8">
             <PointHistorySection transactions={transactions} />
           </div>
-          <aside className="space-y-6 xl:col-span-4">
+          <aside className="space-y-6 xl:col-span-4 xl:pt-14">
             <EventParticipationSection submissions={eventSubmissions} />
             <ReceivedComplimentsSection compliments={receivedCompliments} />
           </aside>

@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -834,7 +835,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
             }`}
           >
             <span className="block text-sm font-bold text-gray-900">일반 이벤트</span>
-            <span className="mt-1 block text-xs text-gray-500">Culture / People · 인증 방식 직접 구성</span>
+            <span className="mt-1 block text-xs text-gray-500">V.Together / People · 인증 방식 직접 구성</span>
           </button>
           <button
             type="button"
@@ -1117,7 +1118,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
               </select>
             )}
             <p className="mt-2 text-xs font-medium text-emerald-700">
-              자동 보상 안내: {category === 'PEOPLE' ? 'People 선택 시 V.Medal 지급' : 'Culture 선택 시 V.Credit 지급'}
+              자동 보상 안내: {category === 'PEOPLE' ? 'People 선택 시 V.Medal 지급' : 'V.Together 선택 시 V.Credit 지급'}
             </p>
           </div>
           <div>
@@ -1193,7 +1194,7 @@ export function CreateEventForm({ createdBy, existingEvents = [] }: CreateEventF
           <div>
             <label className={labelClass}>자동 보상 재화</label>
             <div className="mt-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-700">
-              {category === 'PEOPLE' ? 'People -> V.Medal 자동 지급' : 'Culture -> V.Credit 자동 지급'}
+              {category === 'PEOPLE' ? 'People -> V.Medal 자동 지급' : 'V.Together -> V.Credit 자동 지급'}
             </div>
             <label className={`${labelClass} mt-3`}>보상 수량 *</label>
             <input

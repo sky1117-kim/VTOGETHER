@@ -66,9 +66,6 @@ export default async function AdminPage() {
   const weekAgo = new Date(now)
   weekAgo.setDate(weekAgo.getDate() - 7)
   const weekAgoIso = weekAgo.toISOString()
-  const thirtyDaysAgo = new Date(now)
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  const thirtyDaysAgoIso = thirtyDaysAgo.toISOString()
   const activeToday = userList.filter((u) => (u.last_active_at ?? '') >= todayStart).length
   const activeThisWeek = userList.filter((u) => (u.last_active_at ?? '') >= weekAgoIso).length
 
@@ -165,13 +162,13 @@ export default async function AdminPage() {
         </Link>
       </section>
 
-      {/* 이벤트 적립 현황: People/Culture 및 매칭 */}
+      {/* 이벤트 적립 현황: People/V.Together 및 매칭 */}
       <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
         <div className="flex items-start justify-between gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-4">
           <div>
             <h3 className="text-sm font-bold text-emerald-900">이벤트 적립 현황</h3>
             <p className="mt-1 text-xs text-emerald-700/90">
-              People은 V.Medal, Culture는 V.Credit 기준으로 집계합니다. 매칭금은 Medal 전환 Credit 기부분만 반영합니다.
+              People은 V.Medal, V.Together는 V.Credit 기준으로 집계합니다. 매칭금은 Medal 전환 Credit 기부분만 반영합니다.
             </p>
           </div>
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-emerald-600 shadow-sm">
@@ -191,11 +188,11 @@ export default async function AdminPage() {
               <p className="mt-1 text-[11px] text-slate-500">People 이벤트 기본 보상</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <dt className="text-xs font-semibold text-slate-600">Culture V.Credit</dt>
+              <dt className="text-xs font-semibold text-slate-600">V.Together V.Credit</dt>
               <dd className="mt-1.5 text-2xl font-black tabular-nums tracking-tight text-slate-900">
                 {formatPoints(eventEarnedStats.cultureCreditEarned)}
               </dd>
-              <p className="mt-1 text-[11px] text-slate-500">Culture 이벤트 기본 보상</p>
+              <p className="mt-1 text-[11px] text-slate-500">V.Together 이벤트 기본 보상</p>
             </div>
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <dt className="text-xs font-semibold text-amber-700">매칭금</dt>

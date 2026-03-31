@@ -18,16 +18,6 @@ export type RoundParticipantStatus =
 
 export type FrequencyLimit = 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | null
 
-interface RoundRow {
-  round_id: string
-  event_id: string
-  round_number: number
-  start_date: string
-  end_date: string
-  submission_deadline: string | null
-  reward_amount: number | null
-}
-
 interface SubmissionRow {
   submission_id: string
   round_id: string | null

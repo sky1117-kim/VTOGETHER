@@ -67,7 +67,7 @@ export async function submitHealthActivityLogsBatch(
     const trackIds = [...new Set(entries.map((e) => e.track_id))]
     const { data: existingRows, error: existingErr } = await supabase
       .from('health_challenge_activity_logs')
-      .select('track_id')
+      .select('track_id, activity_date')
       .eq('season_id', season.season_id)
       .eq('user_id', user.id)
       .in('status', ['PENDING', 'APPROVED'])
@@ -79,23 +79,10 @@ export async function submitHealthActivityLogsBatch(
     if (existingErr) {
       return { success: false, submitted: 0, error: existingErr.message }
     }
-    const existingTrackIds = new Set((existingRows ?? []).map((r) => r.track_id))
-    if (existingTrackIds.size > 0) {
-      return {
-        success: false,
-        submitted: 0,
-        error: '같은 달에는 종목별 누적 인증을 1회만 제출할 수 있습니다.',
-      }
-    }
-
-    // 동일 요청(payload) 내부에서도 track_id 중복 제출은 차단
-    if (trackIds.length !== entries.length) {
-      return {
-        success: false,
-        submitted: 0,
-        error: '한 번의 제출에서 같은 종목을 중복으로 넣을 수 없습니다.',
-      }
-    }
+    // 같은 달이라도 "같은 종목 + 같은 활동일"만 중복 차단합니다.
+    const existingTrackDateKeys = new Set(
+      (existingRows ?? []).map((r) => `${r.track_id}::${r.activity_date}`)
+    )
 
     const { data: tracks, error: tErr } = await supabase
       .from('health_challenge_tracks')
@@ -132,6 +119,7 @@ export async function submitHealthActivityLogsBatch(
       status: 'PENDING'
     }> = []
 
+    const payloadTrackDateKeys = new Set<string>()
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i]
       const photos = (e.photo_urls ?? []).filter((u) => typeof u === 'string' && u.trim())
@@ -147,6 +135,22 @@ export async function submitHealthActivityLogsBatch(
       if (!isActivityDateInSeasonRange(ad, season.starts_at, season.ends_at)) {
         return { success: false, submitted: 0, error: `${i + 1}번째 인증: 활동일이 챌린지 기간 안이 아닙니다.` }
       }
+      const trackDateKey = `${e.track_id}::${ad}`
+      if (existingTrackDateKeys.has(trackDateKey)) {
+        return {
+          success: false,
+          submitted: 0,
+          error: `${i + 1}번째 인증: 같은 종목·같은 활동일은 이미 제출되어 있습니다.`,
+        }
+      }
+      if (payloadTrackDateKeys.has(trackDateKey)) {
+        return {
+          success: false,
+          submitted: 0,
+          error: `${i + 1}번째 인증: 같은 종목·같은 활동일이 중복되어 있습니다.`,
+        }
+      }
+      payloadTrackDateKeys.add(trackDateKey)
 
       const rule = trackMap.get(e.track_id)
       if (!rule) {
@@ -179,6 +183,17 @@ export async function submitHealthActivityLogsBatch(
 
     const { error: insErr } = await supabase.from('health_challenge_activity_logs').insert(rows)
     if (insErr) {
+      if (
+        insErr.code === '23505' &&
+        (insErr.message.includes('uq_health_logs_user_track_activity_active') ||
+          insErr.message.includes('health_challenge_activity_logs'))
+      ) {
+        return {
+          success: false,
+          submitted: 0,
+          error: '같은 종목·같은 활동일은 이미 제출되어 있습니다.',
+        }
+      }
       return { success: false, submitted: 0, error: insErr.message }
     }
 

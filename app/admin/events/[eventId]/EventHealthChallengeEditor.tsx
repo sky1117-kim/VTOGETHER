@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   createHealthSeason,
@@ -101,29 +101,6 @@ export function EventHealthChallengeEditor({
   )
   const [criteriaUrl, setCriteriaUrl] = useState(initial?.criteria_attachment_url ?? '')
   const [criteriaUploading, setCriteriaUploading] = useState(false)
-
-  const serverTracksSig = initial
-    ? initial.tracks
-        .map(
-          (t) =>
-            `${t.track_id ?? 'new'}:${t.title}:${t.min_distance_km}:${t.min_speed_kmh}:${t.min_elevation_m}:${t.level1}:${t.level2}:${t.level3}`
-        )
-        .join('|')
-    : ''
-
-  const serverHeaderSig = initial
-    ? `${initial.name}|${initial.startDate}|${initial.endDate}|${initial.status}|${initial.criteria_attachment_url ?? ''}`
-    : ''
-
-  useEffect(() => {
-    if (!initial) return
-    setSeasonName(initial.name)
-    setStartDate(initial.startDate)
-    setEndDate(initial.endDate)
-    setSeasonStatus(initial.status)
-    setCriteriaUrl(initial.criteria_attachment_url ?? '')
-    setTrackRows(rowsToForm(initial.tracks))
-  }, [initial?.season_id, serverHeaderSig, serverTracksSig])
 
   async function onCriteriaFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

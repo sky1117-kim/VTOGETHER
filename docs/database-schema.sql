@@ -87,12 +87,10 @@ IMMUTABLE
 SET search_path = ''
 AS $$
 BEGIN
-  IF donated_amount >= 100001 THEN
+  IF donated_amount >= 150001 THEN
     RETURN 'EARTH_HERO';
-  ELSIF donated_amount >= 50001 THEN
+  ELSIF donated_amount >= 100001 THEN
     RETURN 'GREEN_MASTER';
-  ELSIF donated_amount >= 10000 THEN
-    RETURN 'ECO_KEEPER';
   ELSE
     RETURN 'ECO_KEEPER';
   END IF;

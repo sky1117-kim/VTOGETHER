@@ -15,8 +15,8 @@ const levelConfig: Record<
   ECO_KEEPER: {
     label: 'Eco Keeper',
     emoji: '🌱',
-    color: 'text-[#007a3b]',
-    bgColor: 'bg-[#00b859]/15',
+    color: 'text-slate-600',
+    bgColor: 'bg-slate-100',
   },
   GREEN_MASTER: {
     label: 'Green Master',
@@ -28,8 +28,8 @@ const levelConfig: Record<
   EARTH_HERO: {
     label: 'Earth Hero',
     emoji: '🌍',
-    color: 'text-amber-800',
-    bgColor: 'bg-amber-100',
+    color: 'text-violet-700',
+    bgColor: 'bg-violet-100',
   },
 }
 

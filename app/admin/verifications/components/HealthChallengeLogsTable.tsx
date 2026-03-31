@@ -19,33 +19,83 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({})
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
 
-  const firstPendingLogIdByUser = new Map<string, string>()
+  type GroupedLogRow = {
+    group_id: string
+    log_ids: string[]
+    activity_dates: string[]
+    base: HealthActivityLogAdminRow
+  }
+
+  const groupedRows: GroupedLogRow[] = []
+  const groupedRowIndexByKey = new Map<string, number>()
   for (const row of rows) {
-    if (row.status !== 'PENDING') continue
-    if (!firstPendingLogIdByUser.has(row.user_id)) {
-      firstPendingLogIdByUser.set(row.user_id, row.log_id)
+    const metricKey = `${row.distance_km ?? ''}|${row.speed_kmh ?? ''}|${row.elevation_m ?? ''}`
+    const photosKey = [...(row.photo_urls ?? [])].sort().join('|')
+    // 같은 제출에서 만들어진 다중 활동일 로그는 created_at이 동일하므로, 해당 기준으로 한 줄로 묶습니다.
+    const groupKey = [
+      row.user_id,
+      row.track_id,
+      row.status,
+      row.created_at,
+      metricKey,
+      photosKey,
+    ].join('::')
+    const existingIndex = groupedRowIndexByKey.get(groupKey)
+    if (existingIndex == null) {
+      groupedRowIndexByKey.set(groupKey, groupedRows.length)
+      groupedRows.push({
+        group_id: row.log_id,
+        log_ids: [row.log_id],
+        activity_dates: [row.activity_date],
+        base: row,
+      })
+      continue
+    }
+    const existing = groupedRows[existingIndex]
+    existing.log_ids.push(row.log_id)
+    if (!existing.activity_dates.includes(row.activity_date)) {
+      existing.activity_dates.push(row.activity_date)
     }
   }
 
-  async function onApprove(logId: string) {
-    setBusyId(logId)
-    const r = await approveHealthActivityLog(logId)
-    setBusyId(null)
-    if (!r.success) {
-      alert(r.error ?? '승인 실패')
-      return
+  for (const g of groupedRows) {
+    g.activity_dates.sort()
+  }
+
+  const firstPendingLogIdByUser = new Map<string, string>()
+  for (const group of groupedRows) {
+    if (group.base.status !== 'PENDING') continue
+    if (!firstPendingLogIdByUser.has(group.base.user_id)) {
+      firstPendingLogIdByUser.set(group.base.user_id, group.group_id)
     }
+  }
+
+  async function onApprove(group: GroupedLogRow) {
+    setBusyId(group.group_id)
+    for (const logId of group.log_ids) {
+      const r = await approveHealthActivityLog(logId)
+      if (!r.success) {
+        setBusyId(null)
+        alert(r.error ?? '승인 실패')
+        return
+      }
+    }
+    setBusyId(null)
     router.refresh()
   }
 
-  async function onReject(logId: string) {
-    setBusyId(logId)
-    const r = await rejectHealthActivityLog(logId, rejectReason[logId])
-    setBusyId(null)
-    if (!r.success) {
-      alert(r.error ?? '반려 실패')
-      return
+  async function onReject(group: GroupedLogRow) {
+    setBusyId(group.group_id)
+    const reason = rejectReason[group.group_id]
+    for (const logId of group.log_ids) {
+      const r = await rejectHealthActivityLog(logId, reason)
+      if (!r.success) {
+        setBusyId(null)
+        alert(r.error ?? '반려 실패')
+        return
+      }
     }
+    setBusyId(null)
     router.refresh()
   }
 
@@ -88,8 +138,10 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <tr key={row.log_id} className={row.status !== 'PENDING' ? 'bg-gray-50/50 text-gray-600' : ''}>
+          {groupedRows.map((group) => {
+            const row = group.base
+            return (
+            <tr key={group.group_id} className={row.status !== 'PENDING' ? 'bg-gray-50/50 text-gray-600' : ''}>
               <td className="px-4 py-3">
                 <span
                   className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -108,7 +160,16 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
                 <div className="font-medium">{row.user_name ?? '—'}</div>
                 <div className="text-xs text-gray-500">{row.user_email}</div>
               </td>
-              <td className="px-4 py-3 whitespace-nowrap">{row.activity_date}</td>
+              <td className="px-4 py-3">
+                <div className="space-y-0.5">
+                  {group.activity_dates.map((date) => (
+                    <div key={date} className="whitespace-nowrap">{date}</div>
+                  ))}
+                </div>
+                {group.activity_dates.length > 1 && (
+                  <div className="mt-1 text-xs text-gray-500">{group.activity_dates.length}일 제출</div>
+                )}
+              </td>
               <td className="px-4 py-3 text-xs">
                 {row.distance_km != null && <div>거리 {row.distance_km} km</div>}
                 {row.speed_kmh != null && <div>속도 {row.speed_kmh} km/h</div>}
@@ -139,30 +200,30 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
                     <input
                       type="text"
                       placeholder="반려 사유 (선택)"
-                      value={rejectReason[row.log_id] ?? ''}
+                      value={rejectReason[group.group_id] ?? ''}
                       onChange={(e) =>
-                        setRejectReason((prev) => ({ ...prev, [row.log_id]: e.target.value }))
+                        setRejectReason((prev) => ({ ...prev, [group.group_id]: e.target.value }))
                       }
                       className={inputClass}
                     />
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        disabled={busyId === row.log_id || busyUserId === row.user_id}
-                        onClick={() => onApprove(row.log_id)}
+                        disabled={busyId === group.group_id || busyUserId === row.user_id}
+                        onClick={() => onApprove(group)}
                         className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
                       >
                         승인
                       </button>
                       <button
                         type="button"
-                        disabled={busyId === row.log_id || busyUserId === row.user_id}
-                        onClick={() => onReject(row.log_id)}
+                        disabled={busyId === group.group_id || busyUserId === row.user_id}
+                        onClick={() => onReject(group)}
                         className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
                       >
                         반려
                       </button>
-                      {firstPendingLogIdByUser.get(row.user_id) === row.log_id && (
+                      {firstPendingLogIdByUser.get(row.user_id) === group.group_id && (
                         <>
                           <button
                             type="button"
@@ -175,7 +236,7 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
                           <button
                             type="button"
                             disabled={busyUserId === row.user_id || !!busyId}
-                            onClick={() => onRejectAllForUser(row.user_id, rejectReason[row.log_id])}
+                            onClick={() => onRejectAllForUser(row.user_id, rejectReason[group.group_id])}
                             className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
                           >
                             이 사람 대기 전체 반려
@@ -189,7 +250,7 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
                 )}
               </td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     </div>

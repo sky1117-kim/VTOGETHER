@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { createPortal } from 'react-dom'
 import { useEffect, useRef } from 'react'
@@ -72,7 +73,7 @@ export function EventInfoModal({
   if (!isOpen) return null
 
   // 상세 소개문구: RichTextEditor(TipTap)는 HTML로 저장하므로, 태그가 있으면 HTML로 렌더 (에디터와 동일하게)
-  let raw = event?.description?.trim() || '참여하고 포인트를 획득하세요.'
+  const raw = event?.description?.trim() || '참여하고 포인트를 획득하세요.'
   const isHtml = /<[a-z][^>]*>/i.test(raw)
 
   // TipTap 에디터에서 Enter로 만든 빈 문단(<p></p>)은 getHTML() 시 <br>이 빠져 높이가 0으로 무너짐
@@ -101,7 +102,7 @@ export function EventInfoModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-                {(event?.category === 'PEOPLE' || event?.category === 'CULTURE') ? 'People' : 'V.Together'}
+                {event?.category === 'PEOPLE' ? 'People' : 'V.Together'}
               </span>
               <h3 className="mt-2 text-lg font-bold text-gray-900 sm:text-xl">{event?.title ?? '—'}</h3>
             </div>

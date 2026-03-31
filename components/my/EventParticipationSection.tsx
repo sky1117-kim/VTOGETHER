@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { UserEventSubmissionRow } from '@/api/queries/user'
 
 const INITIAL_SHOW = 5
@@ -17,21 +17,16 @@ interface EventParticipationSectionProps {
 /** 마이페이지: 이벤트 인증 참여 내역 (반려 시 사유 표시) */
 export function EventParticipationSection({ submissions }: EventParticipationSectionProps) {
   const [showAll, setShowAll] = useState(false)
-  const [hashHighlightId, setHashHighlightId] = useState<string | null>(null)
-  const displayed = showAll ? submissions : submissions.slice(0, INITIAL_SHOW)
-  const hasMore = submissions.length > INITIAL_SHOW
-
-  // 포인트 내역 등에서 /my#event-submission-{id} 로 온 경우 목록 펼침 후 해당 카드로 스크롤
-  useEffect(() => {
-    if (typeof window === 'undefined') return
+  const hashHighlightId = useMemo(() => {
+    if (typeof window === 'undefined') return null
     const raw = window.location.hash.replace(/^#/, '')
-    if (!raw.startsWith('event-submission-')) return
+    if (!raw.startsWith('event-submission-')) return null
     const sid = raw.replace(/^event-submission-/, '')
-    if (submissions.some((s) => s.submission_id === sid)) {
-      setShowAll(true)
-      setHashHighlightId(raw)
-    }
+    return submissions.some((s) => s.submission_id === sid) ? raw : null
   }, [submissions])
+  const shouldShowAll = showAll || !!hashHighlightId
+  const displayed = shouldShowAll ? submissions : submissions.slice(0, INITIAL_SHOW)
+  const hasMore = submissions.length > INITIAL_SHOW
 
   useEffect(() => {
     if (!hashHighlightId || typeof window === 'undefined') return
@@ -39,7 +34,7 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
       const el = document.getElementById(hashHighlightId)
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     })
-  }, [hashHighlightId, showAll])
+  }, [hashHighlightId, shouldShowAll])
 
   if (submissions.length === 0) {
     return (
@@ -113,7 +108,7 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
           )
         })}
       </ul>
-      {hasMore && !showAll && (
+      {hasMore && !shouldShowAll && (
         <button
           type="button"
           onClick={() => setShowAll(true)}

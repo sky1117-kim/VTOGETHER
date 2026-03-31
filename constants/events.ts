@@ -1,7 +1,7 @@
 /** 이벤트 등록/관리 화면에서 쓰는 선택 옵션 (라벨·값) */
 
 export const EVENT_CATEGORIES = [
-  { value: 'CULTURE' as const, label: 'Culture' },
+  { value: 'CULTURE' as const, label: 'V.Together' },
   { value: 'PEOPLE' as const, label: 'People' },
 ] as const
 

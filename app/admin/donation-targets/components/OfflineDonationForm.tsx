@@ -10,6 +10,7 @@ interface OfflineDonationFormProps {
 }
 
 export function OfflineDonationForm({ targetId, targetName }: OfflineDonationFormProps) {
+  void targetName
   const [amount, setAmount] = useState('')
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)

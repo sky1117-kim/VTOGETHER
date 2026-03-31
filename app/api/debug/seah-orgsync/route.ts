@@ -4,7 +4,7 @@
  * 프로덕션: 관리자 로그인 후 /api/debug/seah-orgsync?email=본인이메일
  */
 import { createClient } from '@/lib/supabase/server'
-import { fetchEmployees, fetchEmployeesDebug, getDeptNameByEmail } from '@/lib/seah-orgsync'
+import { fetchEmployeesDebug, getDeptNameByEmail } from '@/lib/seah-orgsync'
 import { NextResponse } from 'next/server'
 
 function getEmailFromEmployee(e: Record<string, unknown>): string | null {

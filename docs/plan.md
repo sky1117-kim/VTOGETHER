@@ -7,7 +7,7 @@
 - 재화를 `V.Credit` + `V.Medal`로 이원화합니다.
 - 이벤트 보상 정책을 고정합니다.
   - `People` 참여 보상: `V.Medal`
-  - `Culture` 참여 보상: `V.Credit`
+  - `V.Together` 참여 보상: `V.Credit`
 - `V.Medal` 상점을 추가합니다.
   - 굿즈 구매
   - `V.Credit` 전환 상품 구매
@@ -42,7 +42,7 @@
   - `updateShopProduct(input)`
   - `toggleShopProductActive(productId, isActive)`
 - 기존 액션 보강
-  - `api/actions/admin/verifications.ts`: People/Culture 보상 재화 분기
+- `api/actions/admin/verifications.ts`: People/V.Together 보상 재화 분기
   - `api/actions/events.ts`: 보상 선택 시 `V_MEDAL` 지원
   - `api/actions/donation.ts`: FIFO lot 차감 + 할당 기록
   - `api/actions/admin.ts`: lot 기반 매칭 집계

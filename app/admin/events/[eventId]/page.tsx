@@ -10,9 +10,9 @@ import { ExportEventExcelButton } from '../components/ExportEventExcelButton'
 import { EventHealthChallengeEditor } from './EventHealthChallengeEditor'
 
 const CATEGORY_LABEL: Record<string, string> = {
-  CULTURE: 'Culture',
+  CULTURE: 'V.Together',
   PEOPLE: 'People',
-  V_TOGETHER: 'Culture', // 레거시: 마이그레이션 032 전 데이터
+  V_TOGETHER: 'V.Together', // 레거시: 마이그레이션 032 전 데이터
 }
 const TYPE_LABEL: Record<string, string> = {
   ALWAYS: '상시',
@@ -111,21 +111,24 @@ export default async function AdminEventDetailPage({
       {event.category === 'PEOPLE' && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-6 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900">건강 챌린지 룰 (4종목)</h3>
-          <p className="mt-1 text-sm text-gray-600">
-            걷기·러닝·하이킹·라이딩을 한 시즌에 병행합니다. 1회 인증 최소 조건과 월 누적 L1~L3 목표를 여기서
-            바꿉니다. 시즌이 없으면 아래에서 먼저 만듭니다.
-          </p>
+          <p className="mt-1 text-sm text-gray-600">걷기·러닝·하이킹·라이딩 시즌의 1회 인증 최소 조건과 월 누적 L1~L3 목표를 수정합니다.</p>
           {healthLinked.error && (
             <p className="mt-2 text-sm text-red-600">{healthLinked.error}</p>
           )}
-          <div className="mt-4">
-            <EventHealthChallengeEditor
-              key={healthLinked.data?.season_id ?? 'no-health-season'}
-              eventId={eventId}
-              eventTitle={event.title}
-              initial={healthLinked.data}
-            />
-          </div>
+          {healthLinked.data ? (
+            <div className="mt-4">
+              <EventHealthChallengeEditor
+                key={healthLinked.data.season_id}
+                eventId={eventId}
+                eventTitle={event.title}
+                initial={healthLinked.data}
+              />
+            </div>
+          ) : (
+            <p className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
+              이 이벤트에 연결된 건강 챌린지 시즌이 없어 수정할 항목이 없습니다.
+            </p>
+          )}
         </div>
       )}
 

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { uploadEventVerificationPhoto } from '@/api/actions/events'
+import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
 import { submitHealthActivityLogsBatch, type HealthActivityEntryInput } from '@/api/actions/health-challenges'
 import { HEALTH_CHALLENGE_MIN_PHOTOS_PER_ENTRY } from '@/constants/health-challenges'
 import type { HealthSeasonPublic, HealthTrackPublic, HealthRollupRow } from '@/api/queries/health-challenges'
@@ -22,7 +23,8 @@ function seoulTodayYmd(): string {
 type LocalEntry = {
   localId: string
   track_id: string
-  activity_date: string
+  activity_dates: string[]
+  calendar_month: string
   distance_km: string
   speed_kmh: string
   elevation_m: string
@@ -30,15 +32,43 @@ type LocalEntry = {
 }
 
 function emptyEntry(presetTrackId?: string): LocalEntry {
+  const today = seoulTodayYmd()
   return {
     localId: crypto.randomUUID(),
     track_id: presetTrackId ?? '',
-    activity_date: seoulTodayYmd(),
+    activity_dates: [],
+    calendar_month: today.slice(0, 7),
     distance_km: '',
     speed_kmh: '',
     elevation_m: '',
     photo_urls: [],
   }
+}
+
+function getSeasonBounds(season: HealthSeasonPublic): { startYmd: string; endYmd: string } {
+  const startYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(season.starts_at))
+  const endYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(season.ends_at))
+  return { startYmd, endYmd }
+}
+
+function isYmdInRange(ymd: string, startYmd: string, endYmd: string): boolean {
+  return ymd >= startYmd && ymd <= endYmd
+}
+
+function buildMonthCells(month: string): Array<{ ymd: string; day: number } | null> {
+  const [y, m] = month.split('-').map(Number)
+  if (!y || !m) return []
+  const firstWeekday = new Date(y, m - 1, 1).getDay()
+  const lastDay = new Date(y, m, 0).getDate()
+  const cells: Array<{ ymd: string; day: number } | null> = []
+  for (let i = 0; i < firstWeekday; i++) cells.push(null)
+  for (let d = 1; d <= lastDay; d++) {
+    cells.push({
+      ymd: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+      day: d,
+    })
+  }
+  return cells
 }
 
 const inputClass =
@@ -73,6 +103,10 @@ export function HealthChallengePanel({
   const [uploadingEntryId, setUploadingEntryId] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [formOk, setFormOk] = useState<string | null>(null)
+  const modalScrollRef = useRef<HTMLDivElement | null>(null)
+  const photoPickerScrollTopRef = useRef<number | null>(null)
+  const fileInputByEntryRef = useRef<Record<string, HTMLInputElement | null>>({})
+  const { startYmd: seasonStartYmd, endYmd: seasonEndYmd } = getSeasonBounds(season)
 
   useBodyScrollLock(modalOpen)
 
@@ -108,34 +142,57 @@ export function HealthChallengePanel({
     setEntries((prev) => (prev.length <= 1 ? prev : prev.filter((e) => e.localId !== localId)))
   }
 
-  async function onPickPhotos(localId: string, files: FileList | null) {
-    if (!files?.length) return
+  async function onPickPhotos(localId: string, files: File[]) {
+    if (!files.length) return
     setUploadingEntryId(localId)
     setFormError(null)
     const urls: string[] = []
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const fd = new FormData()
-      fd.set('file', file)
-      const { url, error } = await uploadEventVerificationPhoto(fd)
-      if (error || !url) {
-        setFormError(error ?? '사진 업로드 실패')
-        setUploadingEntryId(null)
-        return
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        let result = await uploadEventPhotoClient(file)
+        if (result.error) {
+          const fd = new FormData()
+          fd.set('file', file)
+          result = await uploadEventVerificationPhoto(fd)
+        }
+        if (result.error || !result.url) {
+          setFormError(result.error ?? '사진 업로드 실패')
+          return
+        }
+        urls.push(result.url)
       }
-      urls.push(url)
+
+      setEntries((prev) =>
+        prev.map((e) => (e.localId === localId ? { ...e, photo_urls: [...e.photo_urls, ...urls] } : e)),
+      )
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '사진 업로드 중 오류가 발생했습니다.')
+    } finally {
+      setUploadingEntryId(null)
     }
-    const e = entries.find((x) => x.localId === localId)
-    if (e) {
-      updateEntry(localId, { photo_urls: [...e.photo_urls, ...urls] })
-    }
-    setUploadingEntryId(null)
   }
 
   function removePhoto(localId: string, url: string) {
     const e = entries.find((x) => x.localId === localId)
     if (!e) return
     updateEntry(localId, { photo_urls: e.photo_urls.filter((u) => u !== url) })
+  }
+
+  function rememberPhotoPickerScrollPosition() {
+    photoPickerScrollTopRef.current = modalScrollRef.current?.scrollTop ?? null
+  }
+
+  function restorePhotoPickerScrollPosition() {
+    const top = photoPickerScrollTopRef.current
+    if (top == null) return
+    // 파일 썸네일 렌더 이후 레이아웃이 한 번 더 바뀔 수 있어 2프레임 뒤 복원합니다.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        modalScrollRef.current?.scrollTo({ top, behavior: 'auto' })
+        photoPickerScrollTopRef.current = null
+      })
+    })
   }
 
   async function onSubmitModal(e: React.FormEvent) {
@@ -168,14 +225,21 @@ export function HealthChallengePanel({
       const speed_kmh = row.speed_kmh.trim() === '' ? null : parseFloat(sanitizeDecimalInput(row.speed_kmh))
       const elevation_m = row.elevation_m.trim() === '' ? null : parseFloat(sanitizeDecimalInput(row.elevation_m))
 
-      payload.push({
-        track_id: row.track_id,
-        activity_date: row.activity_date.trim(),
-        distance_km,
-        speed_kmh,
-        elevation_m,
-        photo_urls: row.photo_urls,
-      })
+      const dates = [...new Set(row.activity_dates)].sort()
+      if (dates.length === 0) {
+        setFormError(`${i + 1}번째 인증: 활동일을 1개 이상 선택하세요.`)
+        return
+      }
+      for (const activityDate of dates) {
+        payload.push({
+          track_id: row.track_id,
+          activity_date: activityDate.trim(),
+          distance_km,
+          speed_kmh,
+          elevation_m,
+          photo_urls: row.photo_urls,
+        })
+      }
     }
 
     setSubmitting(true)
@@ -204,7 +268,7 @@ export function HealthChallengePanel({
           >
             <div className="absolute inset-0 bg-black/50" onClick={closeModal} aria-hidden />
             <div
-              className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+              className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
               onClick={(ev) => ev.stopPropagation()}
             >
               <div className="flex-shrink-0 border-b border-gray-100 px-5 py-4">
@@ -213,8 +277,11 @@ export function HealthChallengePanel({
                   여러 번 활동했다면 &quot;인증 추가&quot;로 한 번에 여러 건 제출할 수 있습니다. 종목마다 사진을 여러 장 첨부할 수 있습니다.
                 </p>
               </div>
-              <form onSubmit={onSubmitModal} className="flex min-h-0 flex-1 flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-6">
+              <form onSubmit={onSubmitModal} className="flex min-h-0 flex-col">
+                <div
+                  ref={modalScrollRef}
+                  className="min-h-0 max-h-[min(72vh,calc(92vh-13rem))] overflow-y-auto px-5 py-4 space-y-6"
+                >
                   {formError && (
                     <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</div>
                   )}
@@ -259,13 +326,67 @@ export function HealthChallengePanel({
                         </div>
                         <div>
                           <label className="text-xs font-medium text-gray-500">활동일 *</label>
-                          <input
-                            type="date"
-                            value={row.activity_date}
-                            onChange={(e) => updateEntry(row.localId, { activity_date: e.target.value })}
-                            className={inputClass}
-                            required
-                          />
+                          <div className="mt-1 space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] text-gray-500">월 선택 후 날짜를 여러 개 클릭하세요.</span>
+                              <input
+                                type="month"
+                                value={row.calendar_month}
+                                min={seasonStartYmd.slice(0, 7)}
+                                max={seasonEndYmd.slice(0, 7)}
+                                onChange={(e) =>
+                                  updateEntry(row.localId, {
+                                    calendar_month: e.target.value,
+                                    activity_dates: row.activity_dates.filter((d) => d.startsWith(`${e.target.value}-`)),
+                                  })
+                                }
+                                className="rounded-lg border border-gray-200 px-2 py-1 text-xs"
+                              />
+                            </div>
+                            <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-gray-400">
+                              {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
+                                <span key={w}>{w}</span>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-7 gap-1">
+                              {buildMonthCells(row.calendar_month).map((cell, i) => {
+                                if (!cell) return <div key={`empty-${i}`} className="h-8" />
+                                const enabled = isYmdInRange(cell.ymd, seasonStartYmd, seasonEndYmd)
+                                const selected = row.activity_dates.includes(cell.ymd)
+                                return (
+                                  <button
+                                    key={cell.ymd}
+                                    type="button"
+                                    disabled={!enabled}
+                                    onClick={() => {
+                                      if (!enabled) return
+                                      const has = row.activity_dates.includes(cell.ymd)
+                                      const next = has
+                                        ? row.activity_dates.filter((d) => d !== cell.ymd)
+                                        : [...row.activity_dates, cell.ymd]
+                                      updateEntry(row.localId, { activity_dates: next.sort() })
+                                    }}
+                                    className={`h-8 rounded-md text-xs font-semibold ${
+                                      !enabled
+                                        ? 'cursor-not-allowed bg-gray-100 text-gray-300'
+                                        : selected
+                                          ? 'bg-emerald-600 text-white'
+                                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    {cell.day}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            {row.activity_dates.length > 0 ? (
+                              <p className="text-[11px] text-gray-600">
+                                선택됨: {row.activity_dates.sort().join(', ')}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-red-600">활동일을 1개 이상 선택하세요.</p>
+                            )}
+                          </div>
                         </div>
                         {track?.metric === 'DISTANCE_KM' && (
                           <>
@@ -336,20 +457,34 @@ export function HealthChallengePanel({
                               </div>
                             ))}
                           </div>
-                          <label className="mt-2 inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp,image/gif"
-                              multiple
-                              className="sr-only"
-                              disabled={uploadingEntryId === row.localId}
-                              onChange={(e) => {
-                                onPickPhotos(row.localId, e.target.files)
-                                e.target.value = ''
-                              }}
-                            />
+                          <input
+                            ref={(el) => {
+                              fileInputByEntryRef.current[row.localId] = el
+                            }}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            multiple
+                            className="hidden"
+                            disabled={uploadingEntryId === row.localId}
+                            onChange={async (e) => {
+                              const pickedFiles = Array.from(e.target.files ?? [])
+                              await onPickPhotos(row.localId, pickedFiles)
+                              e.target.value = ''
+                              restorePhotoPickerScrollPosition()
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (uploadingEntryId === row.localId) return
+                              rememberPhotoPickerScrollPosition()
+                              fileInputByEntryRef.current[row.localId]?.click()
+                            }}
+                            className="mt-2 inline-flex items-center rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={uploadingEntryId === row.localId}
+                          >
                             {uploadingEntryId === row.localId ? '업로드 중…' : '사진 파일 선택 (여러 장)'}
-                          </label>
+                          </button>
                         </div>
                       </div>
                     )

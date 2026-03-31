@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { uploadEventVerificationPhoto } from '@/api/actions/events'
+import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
 import { submitHealthActivityLogsBatch, type HealthActivityEntryInput } from '@/api/actions/health-challenges'
 import { HEALTH_CHALLENGE_MIN_PHOTOS_PER_ENTRY } from '@/constants/health-challenges'
 import type { HealthTrackPublic, HealthSeasonPublic, HealthSubmittedTrackInfo } from '@/api/queries/health-challenges'
@@ -13,7 +14,8 @@ import { formatDecimalWithCommas, sanitizeDecimalInput } from '@/lib/number-form
 type LocalEntry = {
   localId: string
   track_id: string
-  activity_date: string
+  activity_dates: string[]
+  calendar_month: string
   distance_km: string
   speed_kmh: string
   elevation_m: string
@@ -30,15 +32,43 @@ function seoulTodayYmd(): string {
 }
 
 function emptyEntry(presetTrackId?: string): LocalEntry {
+  const today = seoulTodayYmd()
   return {
     localId: crypto.randomUUID(),
     track_id: presetTrackId ?? '',
-    activity_date: seoulTodayYmd(),
+    activity_dates: [],
+    calendar_month: today.slice(0, 7),
     distance_km: '',
     speed_kmh: '',
     elevation_m: '',
     photo_urls: [],
   }
+}
+
+function getSeasonBounds(season: HealthSeasonPublic): { startYmd: string; endYmd: string } {
+  const startYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(season.starts_at))
+  const endYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(season.ends_at))
+  return { startYmd, endYmd }
+}
+
+function isYmdInRange(ymd: string, startYmd: string, endYmd: string): boolean {
+  return ymd >= startYmd && ymd <= endYmd
+}
+
+function buildMonthCells(month: string): Array<{ ymd: string; day: number } | null> {
+  const [y, m] = month.split('-').map(Number)
+  if (!y || !m) return []
+  const firstWeekday = new Date(y, m - 1, 1).getDay()
+  const lastDay = new Date(y, m, 0).getDate()
+  const cells: Array<{ ymd: string; day: number } | null> = []
+  for (let i = 0; i < firstWeekday; i++) cells.push(null)
+  for (let d = 1; d <= lastDay; d++) {
+    cells.push({
+      ymd: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+      day: d,
+    })
+  }
+  return cells
 }
 
 function trackUnit(metric: HealthTrackPublic['metric']): string {
@@ -82,6 +112,9 @@ export function HealthChallengeVerifyModal({
   const submittedInfoByTrackId = new Map(submittedTrackInfos.map((x) => [x.track_id, x]))
 
   const modalScrollRef = useRef<HTMLDivElement | null>(null)
+  const photoPickerScrollTopRef = useRef<number | null>(null)
+  const fileInputByEntryRef = useRef<Record<string, HTMLInputElement | null>>({})
+  const { startYmd: seasonStartYmd, endYmd: seasonEndYmd } = getSeasonBounds(season)
 
   const close = useCallback(() => {
     setFormError(null)
@@ -96,7 +129,7 @@ export function HealthChallengeVerifyModal({
   }
 
   function addEntry(presetTrackId?: string) {
-    // 종목별 월 1회 제출 정책에 맞춰 종목 블록은 최대 4개
+    // 4개 종목(걷기/러닝/하이킹/라이딩) 기준으로 종목 블록은 최대 4개
     if (entries.length >= 4) return
     setEntries((prev) => [...prev, emptyEntry(presetTrackId)])
   }
@@ -108,35 +141,64 @@ export function HealthChallengeVerifyModal({
   const inputClass =
     'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:ring-2 focus:ring-green-500/20'
 
-  async function onPickPhotos(localId: string, files: FileList | null) {
-    if (!files?.length) return
+  async function onPickPhotos(localId: string, files: File[]) {
+    if (!files.length) return
     setUploadingEntryId(localId)
     setFormError(null)
 
     const urls: string[] = []
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const fd = new FormData()
-      fd.set('file', file)
-      const { url, error } = await uploadEventVerificationPhoto(fd)
-      if (error || !url) {
-        setFormError(error ?? '사진 업로드 실패')
-        setUploadingEntryId(null)
-        return
+    let failedCount = 0
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        let result = await uploadEventPhotoClient(file)
+        if (result.error) {
+          const fd = new FormData()
+          fd.set('file', file)
+          result = await uploadEventVerificationPhoto(fd)
+        }
+        if (result.error || !result.url) {
+          failedCount += 1
+          continue
+        }
+        urls.push(result.url)
       }
-      urls.push(url)
-    }
 
-    setEntries((prev) =>
-      prev.map((e) => (e.localId === localId ? { ...e, photo_urls: [...e.photo_urls, ...urls] } : e)),
-    )
-    setUploadingEntryId(null)
+      if (urls.length > 0) {
+        setEntries((prev) =>
+          prev.map((e) => (e.localId === localId ? { ...e, photo_urls: [...e.photo_urls, ...urls] } : e)),
+        )
+      }
+      if (failedCount > 0) {
+        setFormError(`${failedCount}장 업로드에 실패했습니다. 형식(jpg/png/webp/gif)과 용량(5MB 이하)을 확인해주세요.`)
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '사진 업로드 중 오류가 발생했습니다.')
+    } finally {
+      setUploadingEntryId(null)
+    }
   }
 
   function removePhoto(localId: string, url: string) {
     const e = entries.find((x) => x.localId === localId)
     if (!e) return
     patchEntry(localId, { photo_urls: e.photo_urls.filter((u) => u !== url) })
+  }
+
+  function rememberPhotoPickerScrollPosition() {
+    photoPickerScrollTopRef.current = modalScrollRef.current?.scrollTop ?? null
+  }
+
+  function restorePhotoPickerScrollPosition() {
+    const top = photoPickerScrollTopRef.current
+    if (top == null) return
+    // 파일 썸네일 렌더 이후 레이아웃이 한 번 더 바뀔 수 있어 2프레임 뒤 복원합니다.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        modalScrollRef.current?.scrollTo({ top, behavior: 'auto' })
+        photoPickerScrollTopRef.current = null
+      })
+    })
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -161,7 +223,7 @@ export function HealthChallengeVerifyModal({
     const skippedIndices: number[] = []
     for (let i = 0; i < entries.length; i++) {
       const row = entries[i]
-      // 사진이 없는 인증은 "전체 제출"에 섞이지 않도록 제외(부분 제출 UX)
+      // 입력이 덜 된 인증은 "전체 제출"에 섞이지 않도록 제외(부분 제출 UX)
       if (!row.track_id.trim() || row.photo_urls.length < HEALTH_CHALLENGE_MIN_PHOTOS_PER_ENTRY) {
         skippedIndices.push(i + 1)
         continue
@@ -178,18 +240,25 @@ export function HealthChallengeVerifyModal({
       const speed_kmh = row.speed_kmh.trim() === '' ? null : parseFloat(sanitizeDecimalInput(row.speed_kmh))
       const elevation_m = row.elevation_m.trim() === '' ? null : parseFloat(sanitizeDecimalInput(row.elevation_m))
 
-      payload.push({
-        track_id: row.track_id,
-        activity_date: row.activity_date.trim(),
-        distance_km,
-        speed_kmh,
-        elevation_m,
-        photo_urls: row.photo_urls,
-      })
+      const dates = [...new Set(row.activity_dates)].sort()
+      if (dates.length === 0) {
+        skippedIndices.push(i + 1)
+        continue
+      }
+      for (const activityDate of dates) {
+        payload.push({
+          track_id: row.track_id,
+          activity_date: activityDate.trim(),
+          distance_km,
+          speed_kmh,
+          elevation_m,
+          photo_urls: row.photo_urls,
+        })
+      }
     }
 
     if (!payload.length) {
-      fail(`사진이 첨부된 인증 항목이 없습니다. (선택한 항목: ${skippedIndices.join(', ')})`)
+      fail(`제출 가능한 인증 항목이 없습니다. (입력 미완성 항목: ${skippedIndices.join(', ')})`)
       return
     }
 
@@ -204,7 +273,7 @@ export function HealthChallengeVerifyModal({
 
     if (skippedIndices.length > 0) {
       setFormOk(
-        `${r.submitted}건 제출했습니다. 사진이 없는 인증( ${skippedIndices.join(', ')}번째 )은 제외됩니다. 심사 후 누적에 반영됩니다.`,
+        `${r.submitted}건 제출했습니다. 입력이 미완성인 인증( ${skippedIndices.join(', ')}번째 )은 제외됩니다. 심사 후 누적에 반영됩니다.`,
       )
     } else {
       setFormOk(`${r.submitted}건 제출했습니다. 심사 후 누적에 반영됩니다.`)
@@ -217,9 +286,7 @@ export function HealthChallengeVerifyModal({
     }, 1200)
   }
 
-  const selectableTrackCount = tracks.filter(
-    (t) => !selectedTrackIds.has(t.track_id) && !submittedTrackIdSet.has(t.track_id),
-  ).length
+  const selectableTrackCount = tracks.filter((t) => !selectedTrackIds.has(t.track_id)).length
   const submittedTrackTitles = tracks.filter((t) => submittedTrackIdSet.has(t.track_id)).map((t) => t.title)
 
   const trackGrid = (
@@ -228,7 +295,7 @@ export function HealthChallengeVerifyModal({
         const isSubmitted = submittedTrackIdSet.has(t.track_id)
         const submittedInfo = submittedInfoByTrackId.get(t.track_id)
         const isSelectedInThisModal = selectedTrackIds.has(t.track_id)
-        const isDisabled = isSubmitted || isSelectedInThisModal
+        const isDisabled = isSelectedInThisModal
         const unit = trackUnit(t.metric)
         const th = [...t.thresholds].sort((a, b) => a.level - b.level)
         const submissionStatusLabel =
@@ -278,7 +345,11 @@ export function HealthChallengeVerifyModal({
                   )}
                 </div>
               </div>
-              {isSubmitted ? (
+              {isSelectedInThisModal ? (
+                <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
+                  선택됨
+                </span>
+              ) : isSubmitted ? (
                 <span
                   className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${
                     submittedInfo?.status === 'APPROVED'
@@ -287,10 +358,6 @@ export function HealthChallengeVerifyModal({
                   }`}
                 >
                   {submissionStatusLabel}
-                </span>
-              ) : isSelectedInThisModal ? (
-                <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
-                  선택됨
                 </span>
               ) : (
                 <span className="rounded-full border border-sky-200 bg-sky-100 px-2.5 py-1 text-[10px] font-extrabold text-sky-900">
@@ -309,7 +376,7 @@ export function HealthChallengeVerifyModal({
             {isSubmitted && (
               <div className="mt-2 space-y-1">
                 <p className="text-[11px] font-medium text-amber-700">
-                  이번 달 이미 제출되어 선택할 수 없습니다.
+                  기존 제출 이력이 있습니다. 같은 종목도 활동일이 다르면 다시 제출할 수 있습니다.
                 </p>
                 {submittedInfo && (
                   <>
@@ -340,13 +407,13 @@ export function HealthChallengeVerifyModal({
     >
       <div className="absolute inset-0 bg-black/50" onClick={close} aria-hidden />
       <div
-        className="relative z-10 flex w-full max-w-2xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+        className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
         onClick={(ev) => ev.stopPropagation()}
       >
         <div className="flex-shrink-0 border-b border-gray-100 px-5 py-4">
           <h3 className="text-lg font-bold text-gray-900">건강 챌린지 인증 제출</h3>
           <p className="mt-1 text-xs text-gray-500">
-            {season.name} · 종목별 월 1회 제출이며, 제출값은 해당 종목의 월 누적 달성 수치로 심사됩니다.
+            {season.name} · 같은 종목도 활동일이 다르면 제출할 수 있으며, 제출값은 해당 종목의 월 누적 달성 수치로 심사됩니다.
           </p>
           {season.criteria_attachment_url?.trim() ? (
             <a
@@ -360,17 +427,17 @@ export function HealthChallengeVerifyModal({
           ) : null}
         </div>
 
-        {/* flex-1 금지: 짧은 폼에서 스크롤 영역이 늘어나 푸터 아래 하얀 빈 공간이 생김 */}
+        {/* 폼 자체는 고정 높이를 차지하지 않고, 본문만 최대 높이에서 스크롤되게 유지 */}
         <form onSubmit={onSubmit} className="flex min-h-0 flex-col overflow-hidden">
           <div
             ref={modalScrollRef}
-            className="max-h-[min(70vh,calc(90vh-12rem))] min-h-0 overflow-y-auto space-y-6 px-5 py-4"
+            className="min-h-0 max-h-[min(72vh,calc(92vh-13rem))] overflow-y-auto space-y-6 px-5 py-4"
           >
             {formError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</div>}
             {formOk && <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{formOk}</div>}
             {submittedTrackTitles.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                이번 달 이미 제출한 종목: <strong>{submittedTrackTitles.join(', ')}</strong> (인증 대기중/승인 완료로 선택 불가)
+                기존 제출 이력 종목(참고): <strong>{submittedTrackTitles.join(', ')}</strong>
               </div>
             )}
 
@@ -378,10 +445,10 @@ export function HealthChallengeVerifyModal({
 
             {entries.map((row, idx) => {
               const track = tracks.find((t) => t.track_id === row.track_id)
+              const levelOneThreshold = track?.thresholds.find((x) => x.level === 1)?.target_value
               const availableTracksForRow = tracks.filter(
                 (t) =>
-                  (!selectedTrackIds.has(t.track_id) || t.track_id === row.track_id) &&
-                  (!submittedTrackIdSet.has(t.track_id) || t.track_id === row.track_id),
+                  !selectedTrackIds.has(t.track_id) || t.track_id === row.track_id,
               )
               return (
                 <div key={row.localId} className="rounded-xl border border-gray-100 bg-gray-50/80 p-4 space-y-3">
@@ -417,13 +484,67 @@ export function HealthChallengeVerifyModal({
 
                   <div>
                     <label className="text-xs font-medium text-gray-500">활동일 *</label>
-                    <input
-                      type="date"
-                      value={row.activity_date}
-                      onChange={(e) => patchEntry(row.localId, { activity_date: e.target.value })}
-                      className={inputClass}
-                      required
-                    />
+                    <div className="mt-1 space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-gray-500">월 선택 후 날짜를 여러 개 클릭하세요.</span>
+                        <input
+                          type="month"
+                          value={row.calendar_month}
+                          min={seasonStartYmd.slice(0, 7)}
+                          max={seasonEndYmd.slice(0, 7)}
+                          onChange={(e) =>
+                            patchEntry(row.localId, {
+                              calendar_month: e.target.value,
+                              activity_dates: row.activity_dates.filter((d) => d.startsWith(`${e.target.value}-`)),
+                            })
+                          }
+                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs"
+                        />
+                      </div>
+                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-gray-400">
+                        {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
+                          <span key={w}>{w}</span>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {buildMonthCells(row.calendar_month).map((cell, i) => {
+                          if (!cell) return <div key={`empty-${i}`} className="h-8" />
+                          const enabled = isYmdInRange(cell.ymd, seasonStartYmd, seasonEndYmd)
+                          const selected = row.activity_dates.includes(cell.ymd)
+                          return (
+                            <button
+                              key={cell.ymd}
+                              type="button"
+                              disabled={!enabled}
+                              onClick={() => {
+                                if (!enabled) return
+                                const has = row.activity_dates.includes(cell.ymd)
+                                const next = has
+                                  ? row.activity_dates.filter((d) => d !== cell.ymd)
+                                  : [...row.activity_dates, cell.ymd]
+                                patchEntry(row.localId, { activity_dates: next.sort() })
+                              }}
+                              className={`h-8 rounded-md text-xs font-semibold ${
+                                !enabled
+                                  ? 'cursor-not-allowed bg-gray-100 text-gray-300'
+                                  : selected
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                              }`}
+                            >
+                              {cell.day}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {row.activity_dates.length > 0 ? (
+                        <p className="text-[11px] text-gray-600">
+                          선택됨: {row.activity_dates.sort().join(', ')}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-red-600">활동일을 1개 이상 선택하세요.</p>
+                      )}
+                    </div>
                   </div>
 
                   {track?.metric === 'DISTANCE_KM' && (
@@ -435,7 +556,13 @@ export function HealthChallengeVerifyModal({
                           inputMode="decimal"
                           value={formatDecimalWithCommas(row.distance_km)}
                           onChange={(e) => patchEntry(row.localId, { distance_km: sanitizeDecimalInput(e.target.value) })}
-                          placeholder={track.min_distance_km != null ? `누적 거리 입력 (참고 ${track.min_distance_km}km)` : '누적 거리'}
+                          placeholder={
+                            levelOneThreshold != null
+                              ? `누적 거리 입력 (레벨 1 기준 ${levelOneThreshold}km)`
+                              : track.min_distance_km != null
+                                ? `누적 거리 입력 (레벨 1 기준 ${track.min_distance_km}km)`
+                                : '누적 거리'
+                          }
                           className={inputClass}
                         />
                       </div>
@@ -447,7 +574,7 @@ export function HealthChallengeVerifyModal({
                             inputMode="decimal"
                             value={formatDecimalWithCommas(row.speed_kmh)}
                             onChange={(e) => patchEntry(row.localId, { speed_kmh: sanitizeDecimalInput(e.target.value) })}
-                            placeholder={`참고 입력 (기준 ${track.min_speed_kmh}km/h)`}
+                            placeholder={`참고 입력 (레벨 1 기준 ${track.min_speed_kmh}km/h)`}
                             className={inputClass}
                           />
                         </div>
@@ -463,7 +590,13 @@ export function HealthChallengeVerifyModal({
                         inputMode="decimal"
                         value={formatDecimalWithCommas(row.elevation_m)}
                         onChange={(e) => patchEntry(row.localId, { elevation_m: sanitizeDecimalInput(e.target.value) })}
-                        placeholder={track.min_elevation_m != null ? `누적 고도 입력 (참고 ${track.min_elevation_m}m)` : '누적 고도'}
+                        placeholder={
+                          levelOneThreshold != null
+                            ? `누적 고도 입력 (레벨 1 기준 ${levelOneThreshold}m)`
+                            : track.min_elevation_m != null
+                              ? `누적 고도 입력 (레벨 1 기준 ${track.min_elevation_m}m)`
+                              : '누적 고도'
+                        }
                         className={inputClass}
                       />
                     </div>
@@ -490,20 +623,34 @@ export function HealthChallengeVerifyModal({
                       ))}
                     </div>
 
-                    <label className="mt-2 inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
-                        multiple
-                        className="sr-only"
-                        disabled={uploadingEntryId === row.localId}
-                        onChange={(e) => {
-                          onPickPhotos(row.localId, e.target.files)
-                          e.target.value = ''
-                        }}
-                      />
+                    <input
+                      ref={(el) => {
+                        fileInputByEntryRef.current[row.localId] = el
+                      }}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      multiple
+                      className="hidden"
+                      disabled={uploadingEntryId === row.localId}
+                      onChange={async (e) => {
+                        const pickedFiles = Array.from(e.target.files ?? [])
+                        await onPickPhotos(row.localId, pickedFiles)
+                        e.target.value = ''
+                        restorePhotoPickerScrollPosition()
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (uploadingEntryId === row.localId) return
+                        rememberPhotoPickerScrollPosition()
+                        fileInputByEntryRef.current[row.localId]?.click()
+                      }}
+                      className="mt-2 inline-flex items-center rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={uploadingEntryId === row.localId}
+                    >
                       {uploadingEntryId === row.localId ? '업로드 중…' : '사진 파일 선택 (여러 장)'}
-                    </label>
+                    </button>
                   </div>
                 </div>
               )

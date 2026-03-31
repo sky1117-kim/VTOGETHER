@@ -5,8 +5,8 @@ import { LevelRoadmapModal } from '@/components/my/LevelRoadmapModal'
 type Level = 'ECO_KEEPER' | 'GREEN_MASTER' | 'EARTH_HERO'
 
 const LEVEL_INFO: Record<Level, { label: string; icon: string; next: Level | null; nextMin: number }> = {
-  ECO_KEEPER: { label: 'Eco Keeper', icon: '🌱', next: 'GREEN_MASTER', nextMin: 50001 },   // 새싹
-  GREEN_MASTER: { label: 'Green Master', icon: '🌳', next: 'EARTH_HERO', nextMin: 100001 }, // 나무
+  ECO_KEEPER: { label: 'Eco Keeper', icon: '🌱', next: 'GREEN_MASTER', nextMin: 100001 },   // 새싹
+  GREEN_MASTER: { label: 'Green Master', icon: '🌳', next: 'EARTH_HERO', nextMin: 150001 }, // 나무
   EARTH_HERO: { label: 'Earth Hero', icon: '🌍', next: null, nextMin: 0 },                  // 지구
 }
 
@@ -34,7 +34,7 @@ function getNextLevelProgress(level: Level, totalDonated: number) {
   if (!info.next) return null
   const nextInfo = LEVEL_INFO[info.next]
   const remaining = Math.max(0, info.nextMin - totalDonated)
-  const currentLevelMin = level === 'ECO_KEEPER' ? 10000 : level === 'GREEN_MASTER' ? 50001 : 100001
+  const currentLevelMin = level === 'ECO_KEEPER' ? 0 : level === 'GREEN_MASTER' ? 100001 : 150001
   const range = info.nextMin - currentLevelMin
   const currentInRange = totalDonated - currentLevelMin
   const percent = range > 0 ? Math.min(100, Math.round((currentInRange / range) * 100)) : 0

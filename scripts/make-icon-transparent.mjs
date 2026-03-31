@@ -3,7 +3,7 @@
  * 사용: node scripts/make-icon-transparent.mjs
  */
 import sharp from 'sharp';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 

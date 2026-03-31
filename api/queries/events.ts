@@ -87,7 +87,7 @@ export async function getEventsWithRoundsForPublic(
     roundsByEvent.set(r.event_id, list)
   }
 
-  let submissionsByRound = new Map<string, { status: string; reward_received: boolean }>()
+  const submissionsByRound = new Map<string, { status: string; reward_received: boolean }>()
   if (userId) {
     const roundIds = (roundsRows ?? []).map((r) => r.round_id)
     if (roundIds.length > 0) {
