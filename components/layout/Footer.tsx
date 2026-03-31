@@ -1,17 +1,17 @@
-import Link from 'next/link'
-import { getCurrentUser } from '@/api/actions/auth'
+import Link from "next/link";
+import { getCurrentUser } from "@/api/actions/auth";
 
 export async function Footer() {
-  let isAdmin = false
+  let isAdmin = false;
   try {
-    const user = await getCurrentUser()
-    isAdmin = !!user?.is_admin
+    const user = await getCurrentUser();
+    isAdmin = !!user?.is_admin;
   } catch {
     // 인증 비활성화 시
   }
 
   return (
-    <footer className="mt-12 border-t border-gray-200/60 bg-white/70 py-10 backdrop-blur-md">
+    <footer className="relative z-0 mt-12 border-t border-gray-200 bg-white py-10 pb-24 sm:pb-10">
       <div className="mx-auto max-w-7xl px-4">
         <div className="mb-6 text-2xl font-bold tracking-tight text-gray-800">
           V.Together
@@ -19,7 +19,9 @@ export async function Footer() {
         <p className="mb-1 text-sm text-gray-600">
           VNTG ESG Management Platform
         </p>
-        <p className="mb-4 text-xs text-gray-500">© 2026 VNTG Corp. All rights reserved.</p>
+        <p className="mb-4 text-xs text-gray-500">
+          © 2026 VNTG Corp. All rights reserved.
+        </p>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
           {isAdmin && (
             <Link
@@ -44,5 +46,5 @@ export async function Footer() {
         </div>
       </div>
     </footer>
-  )
+  );
 }

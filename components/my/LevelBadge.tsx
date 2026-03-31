@@ -15,21 +15,21 @@ const levelConfig: Record<
   ECO_KEEPER: {
     label: 'Eco Keeper',
     emoji: '🌱',
-    color: 'text-slate-700',
-    bgColor: 'bg-slate-100',
+    color: 'text-[#007a3b]',
+    bgColor: 'bg-[#00b859]/15',
   },
   GREEN_MASTER: {
     label: 'Green Master',
     emoji: '🌳',
     color: 'text-white',
-    bgColor: 'bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600',
+    bgColor: 'bg-gradient-to-r from-[#009a4a] via-[#00b859] to-[#34d27a]',
     extraClass: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]',
   },
   EARTH_HERO: {
     label: 'Earth Hero',
     emoji: '🌍',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-100',
+    color: 'text-amber-800',
+    bgColor: 'bg-amber-100',
   },
 }
 
@@ -44,7 +44,7 @@ export function LevelBadge({ level, size = 'md', totalDonated }: LevelBadgeProps
   return (
     <LevelRoadmapModal level={level} totalDonated={totalDonated}>
       <button
-        className={`relative inline-flex overflow-hidden items-center gap-2 rounded-full font-medium transition-colors hover:opacity-90 ${config.bgColor} ${config.color} ${sizeClasses[size]} ${config.extraClass ?? ''}`}
+        className={`relative inline-flex overflow-hidden items-center gap-2 rounded-full border border-white/40 font-semibold transition-all hover:scale-[1.02] hover:opacity-95 ${config.bgColor} ${config.color} ${sizeClasses[size]} ${config.extraClass ?? ''}`}
       >
         {level === 'GREEN_MASTER' && (
           <span

@@ -55,7 +55,6 @@ body {
 }
 .page-bg > * {
   position: relative;
-  z-index: 1;
 }
 
 /* 글래스모피즘 – 유리 느낌 (하이라이트 + 블러 + 반투명) */

@@ -75,6 +75,9 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
   const creditDisplayed = creditShowAll ? creditFiltered : creditFiltered.slice(0, INITIAL_SHOW)
   const medalHasMore = medalFiltered.length > INITIAL_SHOW
   const creditHasMore = creditFiltered.length > INITIAL_SHOW
+  const filterBaseClass = 'rounded-xl px-4 py-2 text-sm font-semibold transition'
+  const filterActiveClass = 'bg-slate-900 text-white shadow-sm'
+  const filterInactiveClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200'
 
   const renderTransactionRow = (t: PointTransactionRow) => {
     const isEarned = t.type === 'EARNED'
@@ -92,7 +95,7 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
       isEarned && t.related_type === 'EVENT' && t.related_id ? (
         <Link
           href={`/my#event-submission-${t.related_id}`}
-          className="mt-1 inline-block text-xs font-semibold text-emerald-700 underline-offset-2 hover:underline"
+          className="mt-1 inline-block text-xs font-semibold text-[#00b859] underline-offset-2 hover:underline"
         >
           인증 제출 내역 보기
         </Link>
@@ -103,13 +106,15 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
         id={`transaction-${t.transaction_id}`}
         key={t.transaction_id}
         className={`flex items-center justify-between rounded-xl border px-4 py-3 scroll-mt-24 ${
-          highlightId === t.transaction_id ? 'border-green-300 bg-green-50/50' : 'border-gray-100'
+          highlightId === t.transaction_id
+            ? 'border-[#00b859]/40 bg-[#00b859]/10'
+            : 'border-slate-100 bg-white'
         }`}
       >
         <div className="min-w-0 flex-1">
           {isEarned && earnedDisplay?.badge ? (
             <>
-              <p className="font-medium text-gray-800">{earnedDisplay.text}</p>
+              <p className="font-semibold text-slate-800">{earnedDisplay.text}</p>
               <span
                 className={`mt-0.5 inline-block w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                   earnedDisplay.variant === 'received'
@@ -123,9 +128,9 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
               </span>
             </>
           ) : (
-            <p className="truncate font-medium text-gray-800">{displayDesc}</p>
+            <p className="truncate font-semibold text-slate-800">{displayDesc}</p>
           )}
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-slate-500">
             {new Date(t.created_at).toLocaleDateString('ko-KR', {
               year: 'numeric',
               month: 'long',
@@ -137,8 +142,8 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
           {eventSubmissionLink}
         </div>
         <p
-          className={`shrink-0 text-lg font-bold ${
-            isPlus ? 'text-green-600' : 'text-gray-700'
+          className={`shrink-0 text-lg font-extrabold ${
+            isPlus ? 'text-[#00b859]' : 'text-slate-700'
           }`}
         >
           {isPlus ? '+' : ''}
@@ -148,100 +153,113 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
     )
   }
 
+  const renderCard = ({
+    title,
+    badge,
+    badgeClassName,
+    filter,
+    setFilter,
+    filterOptions,
+    emptyText,
+    displayedRows,
+    hasMore,
+    onShowAll,
+  }: {
+    title: string
+    badge: string
+    badgeClassName: string
+    filter: string
+    setFilter: (value: any) => void
+    filterOptions: { value: any; label: string }[]
+    emptyText: string
+    displayedRows: PointTransactionRow[]
+    hasMore: boolean
+    onShowAll: () => void
+  }) => (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_16px_36px_-28px_rgba(2,6,23,0.55)]">
+      <h3 className="mb-3 inline-flex items-center gap-2 text-xl font-black text-slate-900">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${badgeClassName}`}>{badge}</span>
+        {title}
+      </h3>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {filterOptions.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setFilter(value)}
+            className={`${filterBaseClass} ${filter === value ? filterActiveClass : filterInactiveClass}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {displayedRows.length === 0 ? (
+        <p className="py-8 text-center text-slate-500">{emptyText}</p>
+      ) : (
+        <>
+          <div className="max-h-[320px] space-y-2 overflow-y-auto md:max-h-[420px]">
+            {displayedRows.map(renderTransactionRow)}
+          </div>
+          {hasMore && (
+            <button
+              type="button"
+              onClick={onShowAll}
+              className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              더보기
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+
   return (
-    <div id="point-history" className="scroll-mt-6 space-y-4">
-      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
-        <h3 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">V.MEDAL</span>
-          V.Medal 내역
-        </h3>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {[
+    <div id="point-history" className="scroll-mt-6">
+      <div className="mb-4">
+        <h2 className="text-2xl font-black tracking-tight text-slate-900">포인트 내역</h2>
+        <p className="mt-1 text-sm text-slate-500">V.Medal, V.Credit 적립/사용 기록을 확인할 수 있습니다.</p>
+      </div>
+      <div className="grid gap-4 2xl:grid-cols-2">
+        {renderCard({
+          title: 'V.Medal 내역',
+          badge: 'V.MEDAL',
+          badgeClassName: 'bg-[#00b859]/15 text-[#00b859]',
+          filter: medalFilter,
+          setFilter: setMedalFilter,
+          filterOptions: [
             { value: 'ALL' as const, label: '전체' },
             { value: 'EARNED' as const, label: '적립된 내역' },
             { value: 'PURCHASE' as const, label: '구매 내역' },
-          ].map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setMedalFilter(value)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                medalFilter === value
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-emerald-100/70 text-emerald-800 hover:bg-emerald-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {medalFiltered.length === 0 ? (
-          <p className="py-8 text-center text-gray-500">
-            {medalFilter === 'ALL' ? 'V.Medal 내역이 없습니다.' : `${medalFilter === 'EARNED' ? '적립된' : '구매'} V.Medal 내역이 없습니다.`}
-          </p>
-        ) : (
-          <>
-            <div className="max-h-[320px] space-y-2 overflow-y-auto md:max-h-[400px]">
-              {medalDisplayed.map(renderTransactionRow)}
-            </div>
-            {medalHasMore && !medalShowAll && (
-              <button
-                type="button"
-                onClick={() => setMedalShowAll(true)}
-                className="mt-3 w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
-              >
-                더보기
-              </button>
-            )}
-          </>
-        )}
-      </div>
+          ],
+          emptyText:
+            medalFilter === 'ALL'
+              ? 'V.Medal 내역이 없습니다.'
+              : `${medalFilter === 'EARNED' ? '적립된' : '구매'} V.Medal 내역이 없습니다.`,
+          displayedRows: medalDisplayed,
+          hasMore: medalHasMore && !medalShowAll,
+          onShowAll: () => setMedalShowAll(true),
+        })}
 
-      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white p-6 shadow-sm">
-        <h3 className="mb-3 inline-flex items-center gap-2 text-xl font-extrabold text-gray-900">
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">V.CREDIT</span>
-          V.Credit 내역
-        </h3>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {[
+        {renderCard({
+          title: 'V.Credit 내역',
+          badge: 'V.CREDIT',
+          badgeClassName: 'bg-amber-100 text-amber-700',
+          filter: creditFilter,
+          setFilter: setCreditFilter,
+          filterOptions: [
             { value: 'ALL' as const, label: '전체' },
             { value: 'DONATED' as const, label: '기부한 내역' },
             { value: 'EARNED' as const, label: '적립된 내역' },
-          ].map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setCreditFilter(value)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                creditFilter === value
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-emerald-100/70 text-emerald-800 hover:bg-emerald-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {creditFiltered.length === 0 ? (
-          <p className="py-8 text-center text-gray-500">
-            {creditFilter === 'ALL' ? 'V.Credit 내역이 없습니다.' : `${TYPE_LABEL[creditFilter]} V.Credit 내역이 없습니다.`}
-          </p>
-        ) : (
-          <>
-            <div className="max-h-[320px] space-y-2 overflow-y-auto md:max-h-[400px]">
-              {creditDisplayed.map(renderTransactionRow)}
-            </div>
-            {creditHasMore && !creditShowAll && (
-              <button
-                type="button"
-                onClick={() => setCreditShowAll(true)}
-                className="mt-3 w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
-              >
-                더보기
-              </button>
-            )}
-          </>
-        )}
+          ],
+          emptyText:
+            creditFilter === 'ALL'
+              ? 'V.Credit 내역이 없습니다.'
+              : `${TYPE_LABEL[creditFilter]} V.Credit 내역이 없습니다.`,
+          displayedRows: creditDisplayed,
+          hasMore: creditHasMore && !creditShowAll,
+          onShowAll: () => setCreditShowAll(true),
+        })}
       </div>
     </div>
   )
