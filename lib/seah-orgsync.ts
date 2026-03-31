@@ -7,6 +7,21 @@
 
 const SYSTEM_ID = 'VTOGETHER'
 const COMPANY_CODE = ['ORG_Seah']
+const EMPLOYEE_CACHE_TTL_MS = 10 * 60 * 1000 // 10분 캐시 (세아웍스 반복 호출 완화)
+
+type EmployeeCacheState = {
+  expiresAt: number
+  value: SeahEmployee[] | null
+}
+
+let employeeCache: EmployeeCacheState | null = null
+let inflightEmployeesPromise: Promise<SeahEmployee[] | null> | null = null
+
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  return normalized || null
+}
 
 /** 직원 API 응답 항목 (정의서 기준) */
 export interface SeahEmployee {
@@ -24,6 +39,7 @@ export interface SeahDepartment {
   org_code_name?: string
   parent_org_code?: string
   manager_id?: string
+  status_code?: string
 }
 
 /** Basic Auth 헤더 생성 (env 없으면 null, throw 안 함) */
@@ -38,6 +54,30 @@ function getBasicAuthHeader(): string | null {
 const REQUEST_BODY = {
   system_id: SYSTEM_ID,
   company_code: COMPANY_CODE,
+}
+
+function extractListFromSeahResponse(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw
+  if (!raw || typeof raw !== 'object') return []
+
+  const obj = raw as Record<string, unknown>
+  const dataNode =
+    (obj.DATA && typeof obj.DATA === 'object' ? (obj.DATA as Record<string, unknown>) : null) ??
+    (obj.data && typeof obj.data === 'object' ? (obj.data as Record<string, unknown>) : null)
+
+  const candidates = [
+    dataNode?.list,
+    dataNode?.items,
+    obj.list,
+    obj.items,
+    obj.result,
+    obj.employeeList,
+    obj.employees,
+  ]
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c
+  }
+  return []
 }
 
 /** 디버그용: API 호출 상세 결과 (실패 원인 파악) */
@@ -98,30 +138,7 @@ export async function fetchEmployeesDebug(): Promise<FetchEmployeesDebugResult> 
     }
 
     const obj = data as Record<string, unknown>
-    let list: unknown[] = []
-    if (Array.isArray(data)) {
-      list = data
-    } else if (obj) {
-      const candidates = [
-        obj.data,
-        obj.DATA, // 세아웍스 API: {"CODE":"CD_SUCCESS","DATA":{"list":[...]}}
-        obj.items,
-        obj.result,
-        obj.list,
-        obj.employeeList,
-        obj.employees,
-        (obj.data as Record<string, unknown>)?.list,
-        (obj.DATA as Record<string, unknown>)?.list,
-        (obj.data as Record<string, unknown>)?.items,
-        (obj.DATA as Record<string, unknown>)?.items,
-      ]
-      for (const c of candidates) {
-        if (Array.isArray(c)) {
-          list = c
-          break
-        }
-      }
-    }
+    const list: unknown[] = extractListFromSeahResponse(data)
     if (!Array.isArray(list)) {
       return {
         ok: false,
@@ -165,8 +182,28 @@ export async function fetchEmployeesDebug(): Promise<FetchEmployeesDebugResult> 
  * @returns 재직자(Y) 목록, 실패 시 null
  */
 export async function fetchEmployees(): Promise<SeahEmployee[] | null> {
-  const result = await fetchEmployeesDebug()
-  return result.ok ? result.employees ?? null : null
+  const now = Date.now()
+  if (employeeCache && employeeCache.expiresAt > now) {
+    return employeeCache.value
+  }
+
+  // 동일 시점 다중 요청은 하나의 네트워크 호출로 합치기
+  if (inflightEmployeesPromise) {
+    return inflightEmployeesPromise
+  }
+
+  inflightEmployeesPromise = (async () => {
+    const result = await fetchEmployeesDebug()
+    const value = result.ok ? result.employees ?? null : null
+    employeeCache = {
+      value,
+      expiresAt: Date.now() + EMPLOYEE_CACHE_TTL_MS,
+    }
+    inflightEmployeesPromise = null
+    return value
+  })()
+
+  return inflightEmployeesPromise
 }
 
 /** 직원 레코드에서 부서명 추출 (정의서: org_code_name, 실제 API는 다른 필드명일 수 있음) */
@@ -193,20 +230,21 @@ export async function getDeptNameByEmail(email: string): Promise<string | null> 
   const employees = await fetchEmployees()
   if (!employees?.length) return null
 
-  const normalizedEmail = email?.toLowerCase().trim()
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return null
   const localPart = normalizedEmail?.split('@')[0] ?? ''
 
   // 1) 정확히 일치
   let found = employees.find((e) => {
     const empEmail = getEmailFromEmployee(e)
-    return empEmail?.toLowerCase().trim() === normalizedEmail
+    return normalizeEmail(empEmail) === normalizedEmail
   })
 
   // 2) 로컬 파트(sky1117)로 시작하는 이메일 (도메인 차이 대응: @vntgcorp.com vs @vntg.co.kr)
   if (!found && localPart) {
     found = employees.find((e) => {
       const empEmail = getEmailFromEmployee(e)
-      const emp = (empEmail ?? '').toLowerCase().trim()
+      const emp = normalizeEmail(empEmail) ?? ''
       return emp.startsWith(localPart + '@') || emp === localPart
     })
   }
@@ -239,7 +277,7 @@ export async function fetchDepartments(): Promise<SeahDepartment[] | null> {
     }
 
     const data = await res.json()
-    const list = Array.isArray(data) ? data : data?.data ?? data?.items ?? []
+    const list = extractListFromSeahResponse(data)
     return Array.isArray(list) ? list : null
   } catch (err) {
     console.error('[SeahOrgsync] fetchDepartments 에러:', err)

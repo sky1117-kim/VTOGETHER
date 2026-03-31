@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getDeptNameByEmail } from '@/lib/seah-orgsync'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -13,17 +12,18 @@ export async function signOut() {
   redirect('/login')
 }
 
-/** 로그인 없이 테스트할 때 사용할 테스트 유저 ID (env에 설정하면 비로그인 시 이 유저로 동작) */
+/** 로그인 없이 테스트할 때 사용할 테스트 유저 ID (운영 환경에서는 비활성화) */
 const GUEST_TEST_USER_ID = (process.env.GUEST_TEST_USER_ID || '').trim()
-
 export async function getCurrentUser() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // 운영 환경에서는 테스트 게스트 우회를 절대 허용하지 않음
+  const allowGuestTestUser = process.env.NODE_ENV !== 'production'
   // 로그인 안 된 상태에서 테스트용 유저 ID가 설정되어 있으면 해당 유저로 동작
-  if (!user && GUEST_TEST_USER_ID) {
+  if (!user && allowGuestTestUser && GUEST_TEST_USER_ID) {
     const { data: guestData, error: guestError } = await supabase
       .from('users')
       .select('*')
@@ -88,18 +88,35 @@ export async function getCurrentUser() {
     .eq('user_id', user.id)
     .then(() => {}, () => {})
 
-  // 부서가 비어 있으면 세아웍스에서 백그라운드 동기화 (재로그인 불필요)
+  // 부서가 비어 있으면 세아웍스 스냅샷(seah_employees + seah_org_units)에서 보강
+  // 외부 API는 크론 배치가 담당하고, 서비스 경로는 DB 조회만 수행합니다.
   if (!userData.dept_name?.trim() && user.email) {
     void (async () => {
       try {
-        const deptName = await getDeptNameByEmail(user.email!)
+        const admin = createAdminClient()
+        const normalizedEmail = user.email!.trim().toLowerCase()
+        const { data: snap } = await admin
+          .from('seah_employees')
+          .select('org_code')
+          .eq('email', normalizedEmail)
+          .maybeSingle()
+
+        let deptName: string | null = null
+        if (snap?.org_code) {
+          const { data: unit } = await admin
+            .from('seah_org_units')
+            .select('org_name')
+            .eq('org_code', snap.org_code)
+            .maybeSingle()
+          deptName = unit?.org_name ?? null
+        }
+
         if (deptName) {
-          const admin = createAdminClient()
           await admin.from('users').update({ dept_name: deptName }).eq('user_id', user.id)
           revalidatePath('/', 'layout')
         }
       } catch {
-        // 실패해도 무시 (다음 접속 시 재시도)
+        // 스냅샷 테이블 미생성/조회 실패 시에도 본 기능은 정상 동작
       }
     })()
   }

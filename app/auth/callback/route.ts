@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getErrorMessage, sendGoogleChatAlert } from '@/lib/google-chat-alert'
 import { getPublicAppOrigin } from '@/lib/public-app-url'
-import { getDeptNameByEmail } from '@/lib/seah-orgsync'
 import { NextResponse } from 'next/server'
 
 /**
@@ -92,7 +91,33 @@ export async function GET(request: Request) {
 
       void (async () => {
         try {
-          const deptName = await getDeptNameByEmail(email)
+          // 이미 부서가 있으면 로그인 때마다 세아웍스 API를 다시 호출하지 않음
+          const { data: currentUserRow } = await admin
+            .from('users')
+            .select('dept_name')
+            .eq('user_id', userId)
+            .maybeSingle()
+
+          if (currentUserRow?.dept_name?.trim()) return
+
+          // 실시간 외부 API 호출 대신, 배치로 적재된 세아웍스 스냅샷에서 보강
+          const normalizedEmail = email.trim().toLowerCase()
+          const { data: emp } = await admin
+            .from('seah_employees')
+            .select('org_code')
+            .eq('email', normalizedEmail)
+            .maybeSingle()
+
+          let deptName: string | null = null
+          if (emp?.org_code) {
+            const { data: unit } = await admin
+              .from('seah_org_units')
+              .select('org_name')
+              .eq('org_code', emp.org_code)
+              .maybeSingle()
+            deptName = unit?.org_name ?? null
+          }
+
           if (deptName) {
             await admin.from('users').update({ dept_name: deptName }).eq('user_id', userId)
           }

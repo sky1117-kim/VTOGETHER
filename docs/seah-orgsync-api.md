@@ -50,12 +50,19 @@ SEAH_ORGSYNC_PASSWORD=이메일에서_받은_비밀번호
 2. **인증**: Basic Auth (Username + Password를 Base64 인코딩)
 3. **URL**: 사용자 조회 → `SEAH_ORGSYNC_USER_API_URL`, 조직도 조회 → `SEAH_ORGSYNC_ORG_API_URL`
 
-## 3. V.Together 연동 구현
+## 3. V.Together 연동 구현 (배치형 스냅샷)
 
-- **`lib/seah-orgsync.ts`**: API 클라이언트 (`fetchEmployees`, `getDeptNameByEmail`, `fetchDepartments`)
-- **`app/auth/callback/route.ts`**: 로그인 시 세아웍스 API로 부서 조회 → `users.dept_name` 자동 동기화
-- **부서 정보**: 로그인할 때마다 `users.dept_name` 자동 갱신
-- **프로필 사진**: API 정의서에 해당 필드 없음. 향후 추가 시 연동 예정
+- **스키마 분리:** `seah_org_units`(조직) + `seah_employees`(직원) 2테이블로 저장
+- **동기화 방식:** 외부 API는 `/api/cron/seah-orgsync`를 하루 1회 호출(크론)
+- **서비스 로직:** 기존 `users` 중심 유지, 필요 시 `users.email = seah_employees.email` 조인
+- **식별자:** `email` 소문자 정규화(`lower(email)`) 단일 고유키
+- **퇴사자 처리:** `status_code='N'`은 삭제하지 않고 비활성 상태로 유지
+- **응답 파싱:** 세아웍스 응답은 `MESSAGE`, `CODE`, `DATA.list` 구조를 우선 처리
+
+최소 저장 필드:
+
+- `seah_org_units`: `org_code`, `org_name(org_code_name)`, `parent_org_code`, `is_active`, `synced_at`
+- `seah_employees`: `email`, `name`, `org_code`, `status_code`, `synced_at` (`emp_no` 선택)
 
 ## 4. 트러블슈팅
 
