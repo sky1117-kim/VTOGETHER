@@ -2,6 +2,19 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPublicAppOrigin } from '@/lib/public-app-url'
 
+// Supabase 인증 쿠키를 정리해서 잘못된 refresh token 루프를 끊습니다.
+function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) {
+  const authCookies = request.cookies
+    .getAll()
+    .map(({ name }) => name)
+    .filter((name) => name.startsWith('sb-'))
+
+  authCookies.forEach((name) => {
+    request.cookies.delete(name)
+    response.cookies.delete(name)
+  })
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -34,7 +47,21 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser()
+
+  // refresh token 유실/만료 시 인증 쿠키를 정리하고 로그인으로 보냅니다.
+  if (error?.code === 'refresh_token_not_found') {
+    const url = new URL('/login', getPublicAppOrigin())
+    url.pathname = '/login'
+    if (request.nextUrl.pathname !== '/') {
+      url.searchParams.set('next', request.nextUrl.pathname)
+    }
+
+    const redirectResponse = NextResponse.redirect(url)
+    clearSupabaseAuthCookies(request, redirectResponse)
+    return redirectResponse
+  }
 
   // 비로그인 사용자는 /login으로 리다이렉트 (로그인·OAuth 콜백 경로는 제외)
   if (
