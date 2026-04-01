@@ -62,43 +62,48 @@
 - **이벤트 운영 방식 (타입별)**:
   - **SEASONAL**: 구간별 기간·1회 참여. 상태는 LOCKED/OPEN/SUBMITTED/APPROVED/DONE/FAILED (자세한 조건은 `docs/plan-events-operations.md`).
   - **ALWAYS**: 기간 없음, 참여 빈도만 제한. `events.frequency_limit`(ONCE/DAILY/WEEKLY/MONTHLY)으로 일/주/월 1회 등 제어. 최근 제출일은 `event_submissions`에서 조회.
-  - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 **둘 다** V.Credit 지급 (다른 이벤트와 동일하게, V.Credit 있으면 승인 시점에 즉시 지급).
-  - **칭찬 챌린지 적립 내역 구분**: 제출자(칭찬한 사람)는 "칭찬을 함: 동료를 칭찬하여 제출한 칭찬 챌린지가 승인되어 X P 적립", 수신자(칭찬받은 사람)는 "칭찬을 받음: 동료가 나를 칭찬하여 X P 적립"으로 DB에 저장. UI에서는 **통일 형식**으로 표시: [이벤트명] 먼저, 그 다음 [상태] 배지. 상태는 승인완료/보상 선택 대기/보상 지급 완료. 칭찬 챌린지는 [내가 칭찬한 내역] / [내가 칭찬 받은 내역] 배지로 받음·보냄 구분.
+  - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 **둘 다** 같은 재화·같은 금액을 지급합니다. 재화 종류는 **`events.category`와 동일 규칙** (`api/actions/admin/verifications.ts`의 `primaryCurrency`): **People** → `V_MEDAL`, **그 외(V.Together/Culture 등)** → `V_CREDIT`. (CHOICE·복수 보상이면 아래 「승인 시 지급」 예외.)
+  - **칭찬 챌린지 적립 내역 구분**: 제출자(칭찬한 사람)는 "칭찬을 함: …", 수신자는 "칭찬을 받음: …" 등으로 DB `description`에 남길 수 있으며, UI에서는 **통일 형식**으로 표시: [이벤트명] 먼저, 그 다음 [상태] 배지. 상태는 승인완료/보상 선택 대기/보상 지급 완료. 칭찬 챌린지는 [내가 칭찬한 내역] / [내가 칭찬 받은 내역] 배지로 받음·보냄 구분.
   - **칭찬 챌린지 익명 옵션**: 제출 시 "익명으로 칭찬 보내기"를 선택할 수 있음. 선택 시 칭찬 수신자에게는 포인트 내역에 "익명의 동료가 나를 칭찬하여"로 표시되며, 관리자(/admin/verifications)는 제출자 이름을 그대로 확인 가능.
 - **이벤트 보상 (복수 선택)**:
   - 보상 유형: **V.Credit**, **굿즈**, **커피쿠폰**. 하나만 선택하거나 여러 개 선택 가능.
   - `event_rewards` 테이블에 이벤트별로 저장. V.Credit·커피쿠폰은 `amount` 필수, 굿즈는 금액 없음.
-- **이벤트 카테고리별 매칭 정책**:
-  - **People 이벤트**: 사용자가 적립한 V.Credit에 대해 **회사 매칭** 적용. (예: 사용자 1,000 P 적립 → 매칭금 1,000 P)
-  - **V.Together 이벤트**: 매칭 없음.
-  - **전체 모인금액** = V.Together 적립 + People 적립 + People 매칭금액
-  - 관리자 대시보드 `/admin`의 **이벤트 적립 현황** 섹션에서 People/V.Together별 V.Credit, 매칭금, 전체 모인금액을 확인 가능.
+- **승인 시 재화 지급 (`approveSubmission`)**:
+  - `events.reward_type === 'CHOICE'`이거나 **`event_rewards` 행이 2개 이상**이면 복수/선택형으로 보아 **승인 직후 재화(V.Credit/V.Medal)를 지급하지 않음** (사용자 보상 선택 플로 대기).
+  - 위가 아니고 **단일 재화 보상**이면서 금액이 잡히면, 카테고리 정책(People=V.Medal, 그 외=V.Credit)에 따라 **승인 즉시** 발신자(및 쌍방이면 수신자)에게 지급.
+- **관리자 대시보드·이벤트 적립·매칭 (`getEventEarnedStats`)**:
+  - 이벤트 승인으로 쌓인 적립은 `point_transactions`(type=`EARNED`, related_type=`EVENT`)를 제출→이벤트 카테고리로 묶어 **People V.Medal**, **V.Together V.Credit** 등으로 표시합니다(People이 예전 데이터로 V.Credit만 쌓인 경우도 합산에 포함).
+  - **매칭금**: 기부 시 `donation_lot_allocations`에 기록된 금액 중, 출처 lot이 **`credit_lots.source_type = MEDAL_EXCHANGE`**(메달 상점에서 V.Credit으로 전환한 뒤 기부한 분)만 합산합니다.
+  - **전체 모인금액**(대시보드 카드): **이벤트로 적립된 V.Credit 합(`totalCreditEarned`) + 위 매칭금**. UI 안내: "이벤트 Credit + 매칭금 (기부 가능 재원)". V.Medal 적립 총액은 같은 섹션의 **전체 사용자 적립**에서 Credit·Medal을 함께 표시합니다.
 
-## 건강 챌린지 (마이그레이션 033·034, People 재화: V.Medal)
+## 건강 챌린지 (마이그레이션 033·034·035·037, People 재화: V.Medal)
 
 - **데이터 모델**: 활동·정산은 `health_challenge_*` 테이블. **시즌은 `/admin/events/new`에서 People 이벤트와 함께 생성하거나**, 이벤트 상세 `/admin/events/[eventId]`의 「건강 챌린지 룰」에서 시즌을 새로 붙일 수 있습니다. `health_challenge_seasons.event_id`로 이벤트와 1:1(034). **4종목(걷기·러닝·하이킹·라이딩)의 1회 최소 조건·월 누적 L1~L3·시즌 기간·ACTIVE 여부는 동일 이벤트 수정 페이지에서 편집**합니다.
+- **참가 기준표 URL (035)**: `health_challenge_seasons.criteria_attachment_url` — PDF·이미지 등 공개 URL. 메인 건강 챌린지 영역에서 안내 링크로 쓸 수 있습니다.
 - **메인**: 활성 시즌이 있으면 메인 「이벤트 & 챌린지」블록 **안**(필터 아래, 이벤트 카드 그리드 위)에 `#health-challenge`로 노출. 한 번에 **여러 건** 인증을 제출할 수 있고, **종목(블록)마다 사진을 여러 장** 첨부할 수 있습니다(`photo_urls` JSON 배열).
 - **제출 정책(2026.03.31 업데이트)**: 건강 챌린지는 한 번의 제출에서 **같은 달의 여러 활동일을 달력으로 다중 선택**할 수 있습니다. 같은 달에 같은 종목을 여러 번 제출할 수 있지만, **같은 종목 + 같은 활동일** 조합은 중복 제출할 수 없습니다.
-- **중복 방지 안전장치(2026.03.31)**: 서버 사전검증 외에 DB 유니크 인덱스(`season_id, user_id, track_id, activity_date` + `deleted_at IS NULL` + `status IN (PENDING, APPROVED)`)를 함께 두어 동시 제출 레이스에서도 중복 행이 생기지 않게 막습니다.
+- **중복 방지 안전장치(2026.03.31)**: 서버 사전검증 외에 DB 유니크 인덱스(`037-health-log-unique-track-date.sql`, `uq_health_logs_user_track_activity_active`: `season_id, user_id, track_id, activity_date` + `deleted_at IS NULL` + `status IN (PENDING, APPROVED)`)로 동시 제출 레이스에서도 중복 행이 생기지 않게 막습니다.
 - **심사**: `/admin/verifications`에서 활동 로그 승인 시 해당 활동일이 속한 **연·월** 롤업에 거리(km) 또는 고도(m)를 더하고, 종목 임계값으로 `achieved_level`(0~3)을 다시 계산합니다.
 - **월말 정산**: `/admin/health-challenges` 또는 인증 심사 화면에서 연·월 선택 후 실행. 사용자별 **종목 달성 레벨의 합**만큼 V.Medal 지급(레벨 1당 1M), **합계 상한 12M**(4종목×L3). `point_transactions`에 `related_type=HEALTH_CHALLENGE_SETTLEMENT`로 남깁니다. 동일 시즌·연·월·사용자에 이미 정산 레코드가 있으면(유니크) 재지급하지 않습니다.
 - **기본 종목·L1~L3**: 시즌 생성 시 서버가 기획표 기준 4종목·임계값을 자동 채웁니다(마이그레이션 시드 없음).
 
 ## Soft Delete (020 마이그레이션)
+
 - 모든 테이블에 `deleted_at` 컬럼 추가. 데이터 삭제 시 실제 DELETE 대신 `deleted_at = NOW()`로 플래그 처리.
 - 조회 시 `deleted_at IS NULL`인 행만 노출. 이벤트·구간·제출·기부·포인트 거래 등 모두 적용.
-  - **승인 시 자동 지급 (2026.03.30 정책)**: 보상 선택(CHOICE) 경로는 사용하지 않음. 승인 시점에 카테고리 정책에 따라 즉시 지급됨(PEOPLE=V.Medal, CULTURE=V.Credit).
-- **인증 방식**:
-  - 사진 / 텍스트 / 숫자 / 동료 선택. 항목을 여러 개 추가 가능 (예: 텍스트 2개, 사진+텍스트, 동료 선택+텍스트 등).
-  - **제목(label)**: 모든 인증 방식에 공통. 관리자가 이벤트 등록 시 "제목 (심사 시 표시)"를 입력. 인증 심사·상세 보기에서 "(제목) - 제출답변" 형태로 표시. 비우면 방식명(사진/텍스트/숫자/동료 선택)으로 fallback.
-  - `event_verification_methods.instruction`: 직원에게 보여줄 안내 문구 (예: "이런 이런 사진을 제출하세요", "이런 숫자를 기재하세요").
-  - `event_verification_methods.input_style`: 단답(SHORT)=한 줄 입력, 장문(LONG)=여러 줄 입력, 객관식(CHOICE)=관리자가 정한 선택지 중 하나 선택. **텍스트(TEXT) 항목에만** 선택 가능 (마이그레이션 014, 031).
-  - **객관식(CHOICE) 인증**: 관리자가 선택지를 2개 이상 입력. 참여자는 그 중 하나를 선택. `event_verification_methods.options` JSONB에 선택지 문자열 배열 저장.
-  - **숫자(VALUE) 인증**: 숫자만 입력 가능 (단답/장문 옵션 없음). 제목(label)은 거리/속도/시간 등 항목명 선택 또는 직접 입력. `event_verification_methods.unit`: 단위 (예: km/h, km). 심사 화면에서 "거리: 34 km"처럼 표시.
-  - **숫자 입력 표시 규칙**: 웹 입력창에서는 타이핑 중 천 단위 콤마를 자동 표시 (`20000` → `20,000`). 서버 전송/검증 시에는 콤마를 제거한 순수 숫자로 변환.
-  - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. **최소 1장 필수** 제출. `verification_data`에 URL 배열로 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
-  - **칭찬 챌린지 동료 선택 확장 (2026.03.30)**: `PEER_SELECT` 인증은 단일 대상만이 아니라 **여러 명 동료 선택**을 지원. 제출 데이터는 `verification_data[method_id]`에 `{ peer_user_ids: string[], organization_name: string }` 형태로 저장하고, `peer_user_id` 컬럼에는 기존 하위호환을 위해 첫 번째 선택 동료를 함께 저장. 관리자 심사 화면에서는 "조직명 + 대표 동료 + 외 n명" 형태로 미리보기.
-  - **동료 선택 인원 정책 (2026.03.30)**: `PEER_SELECT` 항목의 `options`에 `SINGLE` 또는 `MULTIPLE` 저장. 관리자 등록 화면에서 항목별 선택(개인형/조직형) 가능. 참여 모달과 서버 제출 검증은 이 값을 기준으로 1명 제한 또는 다중 선택 허용을 강제.
+
+## 인증 방식 상세 (이벤트 제출)
+
+- **항목 종류**: 사진 / 텍스트 / 숫자 / 동료 선택. 여러 개 조합 가능 (예: 텍스트 2개, 사진+텍스트, 동료 선택+텍스트).
+- **제목(label)**: 모든 인증 방식에 공통. 관리자가 이벤트 등록 시 "제목 (심사 시 표시)"를 입력. 인증 심사·상세 보기에서 "(제목) - 제출답변" 형태로 표시. 비우면 방식명(사진/텍스트/숫자/동료 선택)으로 fallback.
+- **`event_verification_methods.instruction`**: 직원에게 보여줄 안내 문구 (예: "이런 이런 사진을 제출하세요", "이런 숫자를 기재하세요").
+- **`event_verification_methods.input_style`**: 단답(SHORT)=한 줄 입력, 장문(LONG)=여러 줄 입력, 객관식(CHOICE)=관리자가 정한 선택지 중 하나 선택. **텍스트(TEXT) 항목에만** 선택 가능 (마이그레이션 014, 031).
+- **객관식(CHOICE) 인증**: 관리자가 선택지를 2개 이상 입력. 참여자는 그 중 하나를 선택. `event_verification_methods.options` JSONB에 선택지 문자열 배열 저장.
+- **숫자(VALUE) 인증**: 숫자만 입력 가능 (단답/장문 옵션 없음). 제목(label)은 거리/속도/시간 등 항목명 선택 또는 직접 입력. `event_verification_methods.unit`: 단위 (예: km/h, km). 심사 화면에서 "거리: 34 km"처럼 표시.
+- **숫자 입력 표시 규칙**: 웹 입력창에서는 타이핑 중 천 단위 콤마를 자동 표시 (`20000` → `20,000`). 서버 전송/검증 시에는 콤마를 제거한 순수 숫자로 변환.
+- **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. **최소 1장 필수** 제출. `verification_data`에 URL 배열로 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
+- **칭찬 챌린지 동료 선택 확장 (2026.03.30)**: `PEER_SELECT` 인증은 단일 대상만이 아니라 **여러 명 동료 선택**을 지원. 제출 데이터는 `verification_data[method_id]`에 `{ peer_user_ids: string[], organization_name: string }` 형태로 저장하고, `peer_user_id` 컬럼에는 기존 하위호환을 위해 첫 번째 선택 동료를 함께 저장. 관리자 심사 화면에서는 "조직명 + 대표 동료 + 외 n명" 형태로 미리보기.
+- **동료 선택 인원 정책 (2026.03.30)**: `PEER_SELECT` 항목의 `options`에 `SINGLE` 또는 `MULTIPLE` 저장. 관리자 등록 화면에서 항목별 선택(개인형/조직형) 가능. 참여 모달과 서버 제출 검증은 이 값을 기준으로 1명 제한 또는 다중 선택 허용을 강제.
 
 ## 이벤트 카드 버튼 표시 기준 (인증하기)
 
@@ -115,6 +120,15 @@
 - **표시**: 메인 페이지에만 **TOP 10** 개인 랭킹·팀 랭킹. 전체 보기 링크 및 전용 페이지 없음.
 - **분기별 리셋**: 명예의 전당 랭킹은 **분기(Q1~Q4) 기준**으로 리셋됨. `donations` 테이블의 `created_at`으로 현재 분기 기부액만 집계하여 순위 산정.
 - **누적 기부액 유지**: `users.total_donated_amount`는 계속 누적되며, **본인(마이페이지·대시보드)** 과 **관리자(사용자 목록)** 에서 확인 가능. ESG Level 산정·등급 배지도 누적 기준.
+
+## ESG 레벨 구간 (누적 기부액, 2026.03.31)
+
+- **기준**: `users.total_donated_amount`(순수 기부액, 포인트 적립액과 별개).
+- **구간** (앱 UI `LevelRoadmapModal`·`DashboardSection`, 기부 시 레벨업 계산 `api/actions/donation.ts`, DB 함수 `calculate_esg_level` — 마이그레이션 **`038-update-level-thresholds-2026-03-31.sql`**):
+  - **ECO_KEEPER**: 0 ~ 100,000
+  - **GREEN_MASTER**: 100,001 ~ 150,000
+  - **EARTH_HERO**: 150,001 ~
+- **DB 동기화**: 038 실행 시 `public.calculate_esg_level` 갱신 후 삭제되지 않은 사용자의 `users.level`이 일괄 재계산됩니다. 마이그레이션 미적용이면 UI와 DB 트리거 기준 레벨이 어긋날 수 있습니다.
 
 ## MAU (월간 활성 사용자)
 

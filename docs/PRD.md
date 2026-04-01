@@ -1,8 +1,8 @@
 📂 V.Together 플랫폼 구축 마스터 기획서 (v2.6)
 
-문서 상태: Final Draft
+문서 상태: Final Draft (구현과 병행해 `docs/logic.md`에 운영·정책 상세를 둡니다.)
 작성일: 2026.02.11
-수정일: 2026.02.11 (v2.6 업데이트)
+수정일: 2026.04.01 — ESG 레벨 구간·칭찬 재화·대시보드 매칭 정의를 **현재 코드 기준**으로 메모 반영
 작성자: PM
 
 1. 프로젝트 개요 (Overview)
@@ -133,13 +133,15 @@ ESG Level System:
 
 기준: total_donated_amount (순수 기부액).
 
-등급:
+등급 (2026.03.31 기준, DB 함수·앱 UI·기부 레벨업 로직 공통):
 
-🌱 Eco Keeper: 0 ~ 30,000 P (회색 뱃지)
+🌱 Eco Keeper: 0 ~ 100,000 P (회색 뱃지)
 
-🌿 Green Master: 30,001 ~ 80,000 P (초록색 뱃지)
+🌿 Green Master: 100,001 ~ 150,000 P (초록색 뱃지)
 
-🌳 Earth Hero: 80,001 P ~ (보라색 뱃지)
+🌳 Earth Hero: 150,001 P ~ (보라색 뱃지)
+
+※ Supabase에 `docs/migrations/038-update-level-thresholds-2026-03-31.sql` 적용 시 `calculate_esg_level` 및 기존 사용자 `level`이 위 구간에 맞게 맞춰집니다.
 
 UI: 레벨 아이콘 클릭 시 [레벨 로드맵 모달] 호출 (다음 레벨까지 남은 기부액 표시).
 
@@ -179,17 +181,15 @@ PEER_SELECT: 👥 (조직도 검색 및 동료 선택 폼 활성화)
 
 칭찬 챌린지 (쌍방 보상 로직):
 
-참여: User A가 동료(User B)를 선택하고 칭찬 메시지 작성 (PEER_SELECT + TEXT).
+참여: User A가 동료(User B)를 선택하고 칭찬 메시지 작성 (PEER_SELECT + TEXT). (구현: 동료 다중 선택·조직명 입력·개인형/조직형 인원 제한 지원.)
 
 심사: 관리자가 메시지 내용 확인 후 승인.
 
 트랜잭션 (Atomic):
 
-User A에게 보상 포인트 지급.
+User A·User B에게 **동일 금액**의 보상 지급. 재화 종류는 **이벤트 카테고리**와 동일 규칙: People → V.Medal, V.Together(문화/ESG 탭의 Together 계열) → V.Credit. (CHOICE·복수 보상 이벤트는 승인 직후가 아니라 사용자 선택 후 지급.)
 
-User B에게 보상 포인트 지급 (동일 금액).
-
-User B에게 "User A님이 칭찬 메시지를 보냈습니다" 알림 발송.
+알림: "User A님이 칭찬 메시지를 보냈습니다" 등 푸시/알림은 설계만 있을 수 있음(구현 시 보완).
 
 보상 선택 (Reward Choice):
 

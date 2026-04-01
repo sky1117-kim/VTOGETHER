@@ -1,6 +1,7 @@
 # 개발 진행 현황 (Progress)
 
 작성일: 2026.02.13  
+최종 동기화: 2026.04.01 (`docs/logic.md`·마이그레이션 목록과 맞춤)  
 참조: PRD.md, plan-admin.md, plan-phase2.md, plan-phase3.md
 
 ---
@@ -22,7 +23,7 @@
 - [x] 사용자 챌린지 참여 모달·동적 폼 (인증하기, 구간별 상태)
 - [x] 칭찬 챌린지 쌍방 지급 (승인 시 참여자+수신자 포인트 지급)
 - [x] 반려 알림 (카드/상세에 "반려됨" 표시, 마이페이지 참여 내역에서 반려 사유)
-- [x] 보상 선택 CHOICE/복수 보상: 승인 후 사용자가 V.Credit·커피 쿠폰·굿즈 중 선택 (2026.02.13)
+- [x] 보상 선택 CHOICE/복수 보상: 이벤트가 CHOICE이거나 보상 행이 2개 이상이면 승인 시 재화 미지급·사용자 선택 플로 (`approveSubmission`) (2026.02.13, 이후 People=V.Medal 정책과 병행)
 - [x] 관리자 쿠폰/굿즈 발송 대상 페이지 `/admin/reward-fulfillment` (2026.02.13)
 - [x] 쿠폰/굿즈 발송 완료 체크·필터(전체/미발송/발송완료), 마이그레이션 017 (2026.02.24)
 - [x] 이벤트별 제출 목록 엑셀 다운로드 (이벤트 목록·상세에서 버튼) (2026.02.24)
@@ -58,6 +59,13 @@
 - [x] 관리자 상점 상품 관리 `/admin/shop-products` 추가 (등록/활성화) (2026.03.26)
 - [x] 기부 시 Credit lot FIFO 차감 + 출처 할당 저장 반영 (2026.03.26)
 - [x] 관리자 매칭 지표를 lot 기반으로 전환 (2026.03.26)
+- [x] 상점 분류 3종(굿즈 / V.Credit / 알맹상점)·상품 다중 이미지·카드 UX (2026.03.31)
+- [x] ESG 레벨 구간 변경 DB 함수·일괄 재계산 `038-update-level-thresholds-2026-03-31.sql` (2026.03.31)
+
+## Phase 4.5: 건강 챌린지·DB 보강 (문서화)
+
+- [x] 건강 챌린지 시즌 `criteria_attachment_url` (`035-health-criteria-attachment.sql`) (2026.03)
+- [x] 건강 활동 로그 중복 방지 부분 유니크 인덱스 (`037-health-log-unique-track-date.sql`) (2026.03.31)
 
 ---
 
@@ -70,3 +78,4 @@
 - [x] 쿠폰/굿즈 발송 완료 컬럼 마이그레이션 `docs/migrations/017-event-submissions-non-point-fulfilled-at.sql` (2026.02.24)
 - [x] V.Medal 구현 설계서 `docs/plan.md` (2026.03.26)
 - [x] 세아웍스 배치 동기화 스키마/크론 연동 `docs/migrations/036-seah-org-sync-tables.sql` (2026.03.30)
+- [x] 비즈니스 로직·트러블슈팅·PRD 구간을 구현과 동기화 (`docs/logic.md`, `docs/troubleshooting.md`, `docs/PRD.md`) (2026.04.01)

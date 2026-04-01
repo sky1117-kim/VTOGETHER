@@ -52,3 +52,9 @@
 - 기부 시 `credit_lots`를 오래된 순서(FIFO)로 차감합니다.
 - 차감 내역은 `donation_lot_allocations`에 저장합니다.
 - `source_type='MEDAL_EXCHANGE'` lot에서 차감된 금액 합계만 매칭 대상입니다.
+
+## 6) 구현 후속 (문서 동기화 메모, 2026.03~04)
+
+- 상점: 상품 분류 `굿즈` / `V.Credit` / `알맹상점`, 다중 이미지 URL(줄바꿈)·`/shop` 슬라이드. (`docs/logic.md` V.Medal 절)
+- 관리자 이벤트 적립 카드: People V.Medal, V.Together V.Credit, 매칭금(MEDAL_EXCHANGE 기부분), 전체 모인금액(이벤트 Credit 합+매칭). (`getEventEarnedStats`, `docs/logic.md`)
+- ESG 레벨: 누적 기부 10만 / 15만 구간 — `038-update-level-thresholds-2026-03-31.sql`
