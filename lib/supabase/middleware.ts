@@ -20,6 +20,13 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
+  // OAuth PKCE 인증 흐름(/auth/*)에서는 code_verifier 쿠키가 반드시 유지되어야 합니다.
+  // 여기서 세션 검사를 강제하면 refresh_token_not_found 분기에서 쿠키가 지워져
+  // /auth/callback의 exchangeCodeForSession이 실패할 수 있어 조기 반환합니다.
+  if (request.nextUrl.pathname.startsWith('/auth')) {
+    return supabaseResponse
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
