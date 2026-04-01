@@ -170,4 +170,5 @@
 - 관리자 운영 알림(예: 이벤트 승인 대기)은 `GOOGLE_CHAT_ADMIN_WEBHOOK_URL` 환경 변수로 별도 전송합니다.
 - **클라이언트 에러**는 `app/global-error.tsx`에서 `/api/report-client-error`로 전송한 뒤, 서버에서 Chat Webhook으로 전달합니다. (웹훅 URL을 브라우저에 직접 노출하지 않음)
 - **서버 에러**는 인증 관련 Route/Action의 실패 지점에서 `sendGoogleChatAlert()`를 호출해 알림을 보냅니다.
+- **사용자 식별 정보 포함(2026.04.01)**: 에러/운영 알림 모두에서 가능하면 `user_id`, `user_email`, `user_name`을 함께 전송합니다. 비로그인 상태에서 발생한 에러는 해당 값이 비어 있을 수 있습니다.
 - 보안 정책: 웹훅 URL은 비밀 값이므로 `.env.local`/`.env`에만 저장하고, 코드/채팅/문서에 실제 URL을 남기지 않습니다.

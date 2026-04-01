@@ -6,6 +6,9 @@ interface GoogleChatAlertPayload {
   source: AlertSource
   path?: string
   userAgent?: string
+  userId?: string
+  userEmail?: string
+  userName?: string
 }
 
 function trimText(value: string, max = 1200) {
@@ -32,6 +35,9 @@ export async function sendGoogleChatAlert(payload: GoogleChatAlertPayload) {
     `- env: ${process.env.NODE_ENV ?? 'unknown'}`,
     payload.path ? `- path: ${payload.path}` : null,
     payload.userAgent ? `- ua: ${trimText(payload.userAgent, 300)}` : null,
+    payload.userId ? `- user_id: ${payload.userId}` : null,
+    payload.userEmail ? `- user_email: ${payload.userEmail}` : null,
+    payload.userName ? `- user_name: ${payload.userName}` : null,
     `- time: ${new Date().toISOString()}`,
     '',
     trimText(payload.message),
@@ -48,6 +54,9 @@ export async function sendGoogleChatAlert(payload: GoogleChatAlertPayload) {
 interface AdminGoogleChatAlertPayload {
   title: string
   message: string
+  userId?: string
+  userEmail?: string
+  userName?: string
 }
 
 // 서버에서만 사용하는 구글 챗 "관리자 운영 알림" 웹훅 함수입니다.
@@ -58,6 +67,9 @@ export async function sendGoogleChatAdminAlert(payload: AdminGoogleChatAlertPayl
   const lines = [
     `📌 [ADMIN] ${payload.title}`,
     `- env: ${process.env.NODE_ENV ?? 'unknown'}`,
+    payload.userId ? `- user_id: ${payload.userId}` : null,
+    payload.userEmail ? `- user_email: ${payload.userEmail}` : null,
+    payload.userName ? `- user_name: ${payload.userName}` : null,
     `- time: ${new Date().toISOString()}`,
     '',
     trimText(payload.message),
