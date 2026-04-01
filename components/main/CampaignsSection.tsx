@@ -8,6 +8,7 @@ import { EventInfoModal } from './EventInfoModal'
 import { ALREADY_SUBMITTED_TAG_LABEL, FREQUENCY_TAG_LABEL } from '@/constants/events'
 import { HealthChallengeVerifyModal } from './HealthChallengeVerifyModal'
 import type { HealthSeasonPublic, HealthSubmittedTrackInfo, HealthTrackPublic } from '@/api/queries/health-challenges'
+import { formatEventRewardLabel, formatEventRewardShort } from '@/lib/event-reward-display'
 
 type Tab = 'ALL' | 'V.Together' | 'People'
 
@@ -21,6 +22,10 @@ export type PublicEvent = {
   image_url?: string | null
   rounds_count?: number
   rounds?: { round_id: string; round_number: number; status: string }[]
+  reward_preview_kind?: 'V_CREDIT' | 'V_MEDAL' | null
+  reward_preview_amount?: number | null
+  reward_type?: string | null
+  reward_amount?: number | null
   [key: string]: unknown
 }
 
@@ -114,24 +119,43 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
     [linkedHealthEventId, rawEvents],
   )
 
-  const events = rawEvents.map((e) => ({
-    id: e.event_id,
-    category: CATEGORY_DISPLAY[e.category] ?? 'V.Together',
-    title: e.title,
-    desc: toPlainTextSummary(e.short_description ?? e.description) || '참여하고 포인트를 획득하세요.',
-    icon: CATEGORY_ICON[e.category] ?? '🎯',
-    image_url: e.image_url ?? null,
-    type: e.type as string,
-    rounds_count: e.rounds_count ?? 0,
-    rounds: e.rounds ?? [],
-    frequency_limit: (e as { frequency_limit?: string | null }).frequency_limit ?? null,
-    alwaysParticipation: normalizeAlwaysParticipation((e as { alwaysParticipation?: unknown }).alwaysParticipation),
-  }))
+  const events = rawEvents.map((e) => {
+    const rewardInput = {
+      reward_preview_kind: e.reward_preview_kind ?? null,
+      reward_preview_amount: e.reward_preview_amount ?? null,
+      reward_type: e.reward_type ?? null,
+      reward_amount: e.reward_amount ?? null,
+    }
+    return {
+      id: e.event_id,
+      category: CATEGORY_DISPLAY[e.category] ?? 'V.Together',
+      title: e.title,
+      desc: toPlainTextSummary(e.short_description ?? e.description) || '참여하고 포인트를 획득하세요.',
+      icon: CATEGORY_ICON[e.category] ?? '🎯',
+      image_url: e.image_url ?? null,
+      type: e.type as string,
+      rounds_count: e.rounds_count ?? 0,
+      rounds: e.rounds ?? [],
+      frequency_limit: (e as { frequency_limit?: string | null }).frequency_limit ?? null,
+      alwaysParticipation: normalizeAlwaysParticipation((e as { alwaysParticipation?: unknown }).alwaysParticipation),
+      rewardLabel: formatEventRewardLabel(rewardInput),
+      rewardShort: formatEventRewardShort(rewardInput),
+    }
+  })
 
   const filtered =
     displayFilter === 'ALL'
       ? events
       : events.filter((c) => c.category === displayFilter)
+
+  const infoModalRewardInput = infoModalEvent
+    ? {
+        reward_preview_kind: infoModalEvent.reward_preview_kind ?? null,
+        reward_preview_amount: infoModalEvent.reward_preview_amount ?? null,
+        reward_type: infoModalEvent.reward_type ?? null,
+        reward_amount: infoModalEvent.reward_amount ?? null,
+      }
+    : null
 
   const ROUND_STATUS_LABEL: Record<string, string> = {
     OPEN: '인증가능',
@@ -146,12 +170,17 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
   return (
     <section id="events" className="mb-16">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
+        <div className="min-w-0">
           <h2 className="section-title flex items-center gap-3 text-gray-900">
             <span className="h-8 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
             이벤트 & 챌린지
           </h2>
-          <p className="mt-1 text-gray-500">참여하고 포인트를 획득하세요.</p>
+          {/* 한 줄 표시. 좁은 화면에서는 가로 스크롤로 전체 문구 확인 가능 */}
+          <div className="mt-1 overflow-x-auto overscroll-x-contain">
+            <p className="whitespace-nowrap text-sm text-gray-500">
+              People 이벤트는 V.Medal, V.Together 이벤트는 V.Credit이 지급됩니다. 지급 수량은 칩에 표시됩니다.
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 rounded-xl bg-white/60 p-1.5 shadow-soft backdrop-blur-sm">
           {(['ALL', 'V.Together', 'People'] as const).map((tab) => (
@@ -202,20 +231,56 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
                     {c.icon}
                   </div>
                 )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold leading-tight">{c.title}</h3>
+                <div className="min-w-0 space-y-2">
+                  {/* 제목은 항상 한 줄 블록 → 카드마다 정렬·줄바꿈 리듬 통일 */}
+                  <h3 className="text-lg font-bold leading-snug text-gray-900">{c.title}</h3>
+
+                  {/* 카테고리 + 보상 칩 */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span
-                      className={`shrink-0 rounded px-1.5 text-[10px] font-bold ${
+                      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                         c.category === 'People'
-                          ? 'bg-purple-100 text-purple-600'
-                          : 'bg-green-100 text-green-600'
+                          ? 'bg-purple-100/90 text-purple-700'
+                          : 'bg-emerald-100/90 text-emerald-800'
                       }`}
                     >
-                      {c.category}
+                      {c.category === 'People' ? 'People' : 'V.Together'}
                     </span>
+                    {c.rewardShort.unset ? (
+                      <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                        보상 미설정
+                      </span>
+                    ) : (
+                      <span
+                        className={`inline-flex max-w-full flex-wrap items-center gap-x-1 rounded-full px-2.5 py-1 text-[11px] font-medium leading-snug text-slate-700 ${
+                          c.rewardShort.unit === 'M' ? 'bg-violet-100/80' : 'bg-emerald-100/80'
+                        }`}
+                      >
+                        <span>참여 시</span>
+                        {c.rewardShort.amountText ? (
+                          <span
+                            className={`font-semibold tabular-nums ${
+                              c.rewardShort.unit === 'M' ? 'text-violet-900' : 'text-emerald-900'
+                            }`}
+                          >
+                            {c.rewardShort.amountText}
+                            {c.rewardShort.unit === 'M' ? ' M' : ' C'}
+                          </span>
+                        ) : (
+                          <span
+                            className={`font-semibold ${
+                              c.rewardShort.unit === 'M' ? 'text-violet-900' : 'text-emerald-900'
+                            }`}
+                          >
+                            {c.rewardShort.unit === 'M' ? '메달' : '크레딧'}
+                          </span>
+                        )}
+                        <span>지급</span>
+                      </span>
+                    )}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-xs text-gray-400">
+
+                  <p className="line-clamp-2 text-xs leading-relaxed text-gray-400">
                     {c.desc}
                   </p>
                   {c.type === 'SEASONAL' && c.rounds && c.rounds.length > 0 && (
@@ -302,6 +367,8 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
           rounds: infoModalEvent.rounds,
           frequency_limit: (infoModalEvent as { frequency_limit?: string | null }).frequency_limit ?? null,
           alwaysParticipation: normalizeAlwaysParticipation((infoModalEvent as { alwaysParticipation?: unknown }).alwaysParticipation) ?? undefined,
+          rewardLabel: infoModalRewardInput ? formatEventRewardLabel(infoModalRewardInput) : undefined,
+          rewardUnit: infoModalRewardInput ? formatEventRewardShort(infoModalRewardInput).unit : undefined,
         } : null}
         isOpen={!!infoModalEvent}
         onClose={() => setInfoModalEvent(null)}

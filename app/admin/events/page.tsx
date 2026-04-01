@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getEventsForAdmin } from '@/api/actions/admin/events'
 import { EventRowActions } from './EventRowActions'
 import { AdminPageHeader } from '../components/AdminPageHeader'
+import { formatEventRewardLabel } from '@/lib/event-reward-display'
 
 const CATEGORY_LABEL: Record<string, string> = {
   CULTURE: 'V.Together',
@@ -16,28 +17,6 @@ const STATUS_LABEL: Record<string, string> = {
   ACTIVE: '진행 중',
   PAUSED: '일시정지',
   ENDED: '종료',
-}
-
-function formatRewardLabel(event: {
-  reward_type: string | null
-  reward_amount: number | null
-  reward_preview_kind?: 'V_CREDIT' | 'V_MEDAL' | null
-  reward_preview_amount?: number | null
-}) {
-  if (event.reward_preview_kind && event.reward_preview_amount != null) {
-    return event.reward_preview_kind === 'V_MEDAL'
-      ? `${event.reward_preview_amount} 메달`
-      : `${event.reward_preview_amount} 크레딧`
-  }
-
-  if (event.reward_type === 'V_CREDIT' || event.reward_type === 'POINTS') {
-    return event.reward_amount != null ? `${event.reward_amount} 크레딧` : '크레딧'
-  }
-  if (event.reward_type === 'V_MEDAL') {
-    return event.reward_amount != null ? `${event.reward_amount} 메달` : '메달'
-  }
-
-  return '보상 미설정'
 }
 
 export default async function AdminEventsPage() {
@@ -148,7 +127,7 @@ export default async function AdminEventsPage() {
                     {TYPE_LABEL[e.type] ?? e.type}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                    {formatRewardLabel(e as {
+                    {formatEventRewardLabel(e as {
                       reward_type: string | null
                       reward_amount: number | null
                       reward_preview_kind?: 'V_CREDIT' | 'V_MEDAL' | null

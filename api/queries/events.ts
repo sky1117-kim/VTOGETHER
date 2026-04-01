@@ -8,7 +8,47 @@ export type PublicEventRow = {
   image_url: string | null
   category: 'CULTURE' | 'PEOPLE'
   type: 'ALWAYS' | 'SEASONAL'
+  /** 레거시 단일 보상 (event_rewards 없을 때) */
+  reward_type?: string | null
+  reward_amount?: number | null
+  /** event_rewards 첫 행 기준 (관리자 목록과 동일) */
+  reward_preview_kind?: 'V_CREDIT' | 'V_MEDAL' | null
+  reward_preview_amount?: number | null
   [key: string]: unknown
+}
+
+/** 공개 이벤트 목록에 event_rewards 기반 미리보기 병합 */
+async function mergeEventRewardPreviews(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  list: PublicEventRow[]
+): Promise<PublicEventRow[]> {
+  const eventIds = list.map((e) => e.event_id)
+  if (eventIds.length === 0) return list
+  const { data: rewardsData } = await supabase
+    .from('event_rewards')
+    .select('event_id, reward_kind, amount, display_order')
+    .in('event_id', eventIds)
+    .is('deleted_at', null)
+    .order('display_order', { ascending: true })
+
+  const rewardMap = new Map<string, { kind: 'V_CREDIT' | 'V_MEDAL'; amount: number | null }>()
+  for (const reward of rewardsData ?? []) {
+    const kind =
+      reward.reward_kind === 'V_CREDIT' || reward.reward_kind === 'V_MEDAL' ? reward.reward_kind : null
+    if (!kind) continue
+    if (!rewardMap.has(reward.event_id)) {
+      rewardMap.set(reward.event_id, { kind, amount: reward.amount ?? null })
+    }
+  }
+
+  return list.map((e) => {
+    const r = rewardMap.get(e.event_id)
+    return {
+      ...e,
+      reward_preview_kind: r?.kind ?? e.reward_preview_kind ?? null,
+      reward_preview_amount: r?.amount ?? e.reward_preview_amount ?? null,
+    }
+  })
 }
 
 /** 메인/이벤트 페이지: ACTIVE 상태 이벤트만 조회 + 구간 수(rounds_count) */
@@ -23,9 +63,10 @@ export async function getEventsForPublic(): Promise<
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
   if (error) return []
-  const list = (events ?? []) as PublicEventRow[]
+  let list = (events ?? []) as PublicEventRow[]
   if (list.length === 0) return []
 
+  list = await mergeEventRewardPreviews(supabase, list)
   const eventIds = list.map((e) => e.event_id)
   const { data: rounds } = await supabase
     .from('event_rounds')

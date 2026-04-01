@@ -39,6 +39,10 @@ interface EventInfoModalProps {
     rounds?: { round_number: number; status: string }[]
     frequency_limit?: string | null
     alwaysParticipation?: { allowed: boolean; reason?: string }
+    /** 승인 시 지급 보상 (예: "50 메달", "100 크레딧") */
+    rewardLabel?: string
+    /** 보상 단위 (색상 구분용, 내역 M/C와 동일) */
+    rewardUnit?: 'M' | 'C' | null
   } | null
   isOpen: boolean
   onClose: () => void
@@ -89,7 +93,7 @@ export function EventInfoModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 고정 (상단) */}
-        <div className="flex-shrink-0 border-b border-gray-100 bg-gradient-to-br from-green-50 to-white p-4 pb-4 sm:p-5 sm:pb-4">
+        <div className="flex-shrink-0 border-b border-gray-100 bg-gradient-to-br from-slate-50/90 to-white p-4 pb-4 sm:p-5 sm:pb-4">
           {event?.image_url?.trim() && (
             <div className="mb-3 overflow-hidden rounded-xl bg-gray-100">
               <img
@@ -100,11 +104,44 @@ export function EventInfoModal({
             </div>
           )}
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-                {event?.category === 'PEOPLE' ? 'People' : 'V.Together'}
-              </span>
-              <h3 className="mt-2 text-lg font-bold text-gray-900 sm:text-xl">{event?.title ?? '—'}</h3>
+            <div className="min-w-0 space-y-2">
+              <h3 className="text-lg font-bold leading-snug text-gray-900 sm:text-xl">{event?.title ?? '—'}</h3>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    event?.category === 'PEOPLE'
+                      ? 'bg-purple-100/90 text-purple-700'
+                      : 'bg-emerald-100/90 text-emerald-800'
+                  }`}
+                >
+                  {event?.category === 'PEOPLE' ? 'People' : 'V.Together'}
+                </span>
+                {event?.rewardLabel && event.rewardLabel !== '보상 미설정' ? (
+                  <span
+                    className={`inline-flex max-w-full flex-wrap items-center gap-x-1 rounded-full px-2.5 py-1 text-[11px] font-medium leading-snug text-slate-700 ${
+                      (event.rewardUnit ?? (event.category === 'PEOPLE' ? 'M' : 'C')) === 'M'
+                        ? 'bg-violet-100/80'
+                        : 'bg-emerald-100/80'
+                    }`}
+                  >
+                    <span>참여 시</span>
+                    <span
+                      className={`font-semibold tabular-nums ${
+                        (event.rewardUnit ?? (event.category === 'PEOPLE' ? 'M' : 'C')) === 'M'
+                          ? 'text-violet-900'
+                          : 'text-emerald-900'
+                      }`}
+                    >
+                      {event.rewardLabel}
+                    </span>
+                    <span>지급</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex shrink-0 items-center rounded-full bg-amber-100/90 px-2.5 py-1 text-[11px] font-medium text-amber-900">
+                    보상 미설정
+                  </span>
+                )}
+              </div>
             </div>
             <button
               type="button"
