@@ -31,7 +31,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **최근 접속 사용자**: `/admin/recent-users` — 마지막 접속 시각 기준 사용자 목록
 - **스켈레톤 UI**: 메인·마이·기부·관리자 페이지 로딩 시 콘텐츠 자리 표시용 스켈레톤 표시
 - **세아웍스 인사 연동(배치형)**: `seah_org_units`(조직) + `seah_employees`(직원) 스냅샷 테이블로 분리 저장 후 서비스에서 필요 시 조인 사용. 외부 API는 `/api/cron/seah-orgsync`를 하루 1회 호출해 동기화 (`docs/seah-orgsync-api.md` 참고)
-- **Google Chat 에러 알림**: 서버/클라이언트 에러 발생 시 지정한 Chat 스페이스로 알림 전송 (`GOOGLE_CHAT_WEBHOOK_URL`)
+- **Google Chat 에러 알림**: 서버/클라이언트 에러 발생 시 에러 전용 Chat 스페이스로 알림 전송 (`GOOGLE_CHAT_WEBHOOK_URL`)
+- **Google Chat 승인 대기 알림**: 이벤트 인증이 제출되면 관리자 전용 Chat 스페이스로 승인 대기 알림 전송 (`GOOGLE_CHAT_ADMIN_WEBHOOK_URL`, `/admin/verifications`)
 
 ## Getting Started
 

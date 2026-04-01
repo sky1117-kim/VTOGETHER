@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getEventForParticipation } from '@/api/queries/events'
+import { sendGoogleChatAdminAlert } from '@/lib/google-chat-alert'
 
 function isMultiPeerSelectMode(method: { options?: string[] | null }): boolean {
   return Array.isArray(method.options) && method.options.includes('MULTIPLE')
@@ -148,7 +149,7 @@ export async function submitEventSubmission(
 
     const { data: event, error: eventErr } = await supabase
       .from('events')
-      .select('event_id, type, status')
+      .select('event_id, title, type, status')
       .eq('event_id', eventId)
       .is('deleted_at', null)
       .single()
@@ -231,6 +232,23 @@ export async function submitEventSubmission(
       if (insertErr.code === '23505') return { success: false, error: '이미 해당 구간에 제출했습니다.' }
       return { success: false, error: insertErr.message }
     }
+
+    // 관리자 승인 대기 건이 생성되면 Google Chat으로 알림을 전송합니다.
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+      process.env.NEXT_PUBLIC_DEV_APP_URL?.trim() ||
+      'http://localhost:3000'
+    const adminVerificationLink = `${appUrl.replace(/\/+$/, '')}/admin/verifications`
+    const roundText = roundId ? '구간 제출' : '상시 제출'
+    await sendGoogleChatAdminAlert({
+      title: '새 인증 제출(승인 대기)',
+      message: [
+        `이벤트: ${event.title ?? '이벤트명 없음'}`,
+        `제출자 ID: ${userId}`,
+        `유형: ${roundText}`,
+        `확인 링크: ${adminVerificationLink}`,
+      ].join('\n'),
+    })
 
     revalidatePath('/')
     return { success: true, error: null }

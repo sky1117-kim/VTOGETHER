@@ -13,7 +13,16 @@ function trimText(value: string, max = 1200) {
   return `${value.slice(0, max)}...`
 }
 
-// 서버에서만 사용하는 구글 챗 웹훅 알림 함수입니다.
+async function postGoogleChatMessage(webhookUrl: string, text: string) {
+  await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({ text }),
+    cache: 'no-store',
+  })
+}
+
+// 서버에서만 사용하는 구글 챗 "에러 알림" 웹훅 함수입니다.
 export async function sendGoogleChatAlert(payload: GoogleChatAlertPayload) {
   const webhookUrl = process.env.GOOGLE_CHAT_WEBHOOK_URL
   if (!webhookUrl) return
@@ -29,15 +38,36 @@ export async function sendGoogleChatAlert(payload: GoogleChatAlertPayload) {
   ].filter(Boolean)
 
   try {
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-      body: JSON.stringify({ text: lines.join('\n') }),
-      cache: 'no-store',
-    })
+    await postGoogleChatMessage(webhookUrl, lines.join('\n'))
   } catch (error) {
     // 알림 전송 실패가 본 요청까지 실패시키지 않도록 로그만 남깁니다.
     console.error('[Alert] Google Chat 전송 실패:', error)
+  }
+}
+
+interface AdminGoogleChatAlertPayload {
+  title: string
+  message: string
+}
+
+// 서버에서만 사용하는 구글 챗 "관리자 운영 알림" 웹훅 함수입니다.
+export async function sendGoogleChatAdminAlert(payload: AdminGoogleChatAlertPayload) {
+  const webhookUrl = process.env.GOOGLE_CHAT_ADMIN_WEBHOOK_URL
+  if (!webhookUrl) return
+
+  const lines = [
+    `📌 [ADMIN] ${payload.title}`,
+    `- env: ${process.env.NODE_ENV ?? 'unknown'}`,
+    `- time: ${new Date().toISOString()}`,
+    '',
+    trimText(payload.message),
+  ].filter(Boolean)
+
+  try {
+    await postGoogleChatMessage(webhookUrl, lines.join('\n'))
+  } catch (error) {
+    // 관리자 알림 실패도 본 요청을 막지 않도록 로그만 남깁니다.
+    console.error('[Alert] Google Chat 관리자 알림 전송 실패:', error)
   }
 }
 
