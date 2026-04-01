@@ -135,14 +135,15 @@ export async function getRoundsWithStatusForUser(
 export async function getLastSubmissionForAlwaysEvent(
   eventId: string,
   userId: string
-): Promise<{ submission_id: string; created_at: string } | null> {
+): Promise<{ submission_id: string; created_at: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' } | null> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('event_submissions')
-    .select('submission_id, created_at')
+    .select('submission_id, created_at, status')
     .eq('event_id', eventId)
     .eq('user_id', userId)
     .is('round_id', null)
+    .in('status', ['PENDING', 'APPROVED'])
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -187,10 +188,11 @@ export async function canParticipateNowBatch(
 
   const { data: subs } = await supabase
     .from('event_submissions')
-    .select('event_id, created_at')
+    .select('event_id, created_at, status')
     .eq('user_id', userId)
     .in('event_id', eventIds)
     .is('round_id', null)
+    .in('status', ['PENDING', 'APPROVED'])
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
