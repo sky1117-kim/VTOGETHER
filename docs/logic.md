@@ -82,7 +82,7 @@
 - **참가 기준표 URL (035)**: `health_challenge_seasons.criteria_attachment_url` — PDF·이미지 등 공개 URL. 메인 건강 챌린지 영역에서 안내 링크로 쓸 수 있습니다.
 - **메인**: 활성 시즌이 있으면 메인 「이벤트 & 챌린지」블록 **안**(필터 아래, 이벤트 카드 그리드 위)에 `#health-challenge`로 노출. 한 번에 **여러 건** 인증을 제출할 수 있고, **종목(블록)마다 사진을 여러 장** 첨부할 수 있습니다(`photo_urls` JSON 배열).
 - **제출 정책(2026.03.31 업데이트)**: 건강 챌린지는 한 번의 제출에서 **같은 달의 여러 활동일을 달력으로 다중 선택**할 수 있습니다. 같은 달에 같은 종목을 여러 번 제출할 수 있지만, **같은 종목 + 같은 활동일** 조합은 중복 제출할 수 없습니다.
-- **중복 방지 안전장치(2026.03.31)**: 서버 사전검증 외에 DB 유니크 인덱스(`037-health-log-unique-track-date.sql`, `uq_health_logs_user_track_activity_active`: `season_id, user_id, track_id, activity_date` + `deleted_at IS NULL` + `status IN (PENDING, APPROVED)`)로 동시 제출 레이스에서도 중복 행이 생기지 않게 막습니다.
+- **중복 방지 안전장치(2026.03.31)**: 서버 사전검증 외에 DB 유니크 인덱스(`037-health-log-unique-track-date.sql`, `uq_health_logs_user_track_activity_active`: `season_id, user_id, track_id, activity_date` + `deleted_at IS NULL` + `status IN (PENDING, APPROVED)`)로 동시 제출 레이스에서도 중복 행이 생기지 않게 막습니다. **반려(`REJECTED`)는 유니크 조건에서 제외**되어 동일 종목·같은 활동일로 **재제출** 가능합니다. 인덱스가 과거에 전체 유니크로만 잡혀 있었다면 `039-health-log-unique-allow-resubmit-after-reject.sql`로 DROP 후 부분 유니크를 재적용하세요.
 - **심사**: `/admin/verifications`에서 활동 로그 승인 시 해당 활동일이 속한 **연·월** 롤업에 거리(km) 또는 고도(m)를 더하고, 종목 임계값으로 `achieved_level`(0~3)을 다시 계산합니다.
 - **월말 정산**: `/admin/health-challenges` 또는 인증 심사 화면에서 연·월 선택 후 실행. 사용자별 **종목 달성 레벨의 합**만큼 V.Medal 지급(레벨 1당 1M), **합계 상한 12M**(4종목×L3). `point_transactions`에 `related_type=HEALTH_CHALLENGE_SETTLEMENT`로 남깁니다. 동일 시즌·연·월·사용자에 이미 정산 레코드가 있으면(유니크) 재지급하지 않습니다.
 - **기본 종목·L1~L3**: 시즌 생성 시 서버가 기획표 기준 4종목·임계값을 자동 채웁니다(마이그레이션 시드 없음).

@@ -303,7 +303,9 @@ export function HealthChallengeVerifyModal({
             ? '승인 완료'
             : submittedInfo?.status === 'PENDING'
               ? '승인 대기중'
-              : '이미 제출'
+              : submittedInfo?.status === 'REJECTED'
+                ? '반려됨 · 재제출 가능'
+                : '이미 제출'
         const submittedValues = submittedInfo
           ? [
               submittedInfo.distance_km != null ? `거리 ${submittedInfo.distance_km}km` : null,
@@ -354,7 +356,9 @@ export function HealthChallengeVerifyModal({
                   className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${
                     submittedInfo?.status === 'APPROVED'
                       ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
-                      : 'border-amber-200 bg-amber-100 text-amber-900'
+                      : submittedInfo?.status === 'REJECTED'
+                        ? 'border-red-200 bg-red-50 text-red-800'
+                        : 'border-amber-200 bg-amber-100 text-amber-900'
                   }`}
                 >
                   {submissionStatusLabel}
@@ -375,18 +379,47 @@ export function HealthChallengeVerifyModal({
             </ul>
             {isSubmitted && (
               <div className="mt-2 space-y-1">
-                <p className="text-[11px] font-medium text-amber-700">
-                  기존 제출 이력이 있습니다. 같은 종목도 활동일이 다르면 다시 제출할 수 있습니다.
+                <p
+                  className={`text-[11px] font-medium ${
+                    submittedInfo?.status === 'REJECTED' ? 'text-red-800' : 'text-amber-700'
+                  }`}
+                >
+                  {submittedInfo?.status === 'REJECTED'
+                    ? '반려된 건은 같은 종목·같은 활동일로도 다시 제출할 수 있습니다.'
+                    : '기존 제출 이력이 있습니다. 같은 종목도 활동일이 다르면 다시 제출할 수 있습니다.'}
                 </p>
                 {submittedInfo && (
                   <>
                     <p className="text-[10px] text-gray-500">
                       제출일: {new Date(submittedInfo.created_at).toLocaleDateString('ko-KR')}
                     </p>
+                    {submittedInfo.status === 'REJECTED' && submittedInfo.rejection_reason?.trim() && (
+                      <p className="text-[10px] text-red-700">
+                        반려 사유: {submittedInfo.rejection_reason.trim()}
+                      </p>
+                    )}
                     {submittedValues.length > 0 && (
-                      <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-2 py-1.5">
-                        <p className="text-[10px] font-semibold text-emerald-800">내 제출값</p>
-                        <p className="mt-0.5 text-[11px] font-bold text-emerald-900">{submittedValues.join(' · ')}</p>
+                      <div
+                        className={`rounded-md border px-2 py-1.5 ${
+                          submittedInfo.status === 'REJECTED'
+                            ? 'border-gray-200 bg-gray-50/90'
+                            : 'border-emerald-200 bg-emerald-50/70'
+                        }`}
+                      >
+                        <p
+                          className={`text-[10px] font-semibold ${
+                            submittedInfo.status === 'REJECTED' ? 'text-gray-700' : 'text-emerald-800'
+                          }`}
+                        >
+                          내 제출값
+                        </p>
+                        <p
+                          className={`mt-0.5 text-[11px] font-bold ${
+                            submittedInfo.status === 'REJECTED' ? 'text-gray-900' : 'text-emerald-900'
+                          }`}
+                        >
+                          {submittedValues.join(' · ')}
+                        </p>
                       </div>
                     )}
                   </>

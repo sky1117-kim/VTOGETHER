@@ -40,12 +40,14 @@ export type HealthMonthlySubmissionState = {
 
 export type HealthSubmittedTrackInfo = {
   track_id: string
-  status: 'PENDING' | 'APPROVED'
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
   activity_date: string
   distance_km: number | null
   speed_kmh: number | null
   elevation_m: number | null
   created_at: string
+  /** 관리자 반려 시 사유 (없으면 null) */
+  rejection_reason: string | null
 }
 
 function isMissingCriteriaAttachmentColumnError(message?: string | null): boolean {
@@ -311,22 +313,24 @@ export async function getHealthChallengeSubmittedTrackInfosThisMonth(
 
     const { data: rows, error } = await supabase
       .from('health_challenge_activity_logs')
-      .select('track_id, status, activity_date, distance_km, speed_kmh, elevation_m, created_at')
+      .select(
+        'track_id, status, activity_date, distance_km, speed_kmh, elevation_m, created_at, rejection_reason',
+      )
       .eq('season_id', season.season_id)
       .eq('user_id', userId)
       .is('deleted_at', null)
       .gte('activity_date', startYmd)
       .lte('activity_date', endYmd)
-      .in('status', ['PENDING', 'APPROVED'])
+      .in('status', ['PENDING', 'APPROVED', 'REJECTED'])
       .order('created_at', { ascending: false })
 
     if (error || !rows?.length) return []
 
-    // 같은 종목 다중 제출이 있어도 카드에는 최신 1건만 표시
+    // 같은 종목 다중 제출이 있어도 카드에는 최신 1건만 표시 (반려 후 재제출 시 최신 건 기준)
     const latestByTrack = new Map<string, HealthSubmittedTrackInfo>()
     for (const row of rows) {
       if (latestByTrack.has(row.track_id)) continue
-      if (row.status !== 'PENDING' && row.status !== 'APPROVED') continue
+      if (row.status !== 'PENDING' && row.status !== 'APPROVED' && row.status !== 'REJECTED') continue
       latestByTrack.set(row.track_id, {
         track_id: row.track_id,
         status: row.status,
@@ -335,6 +339,7 @@ export async function getHealthChallengeSubmittedTrackInfosThisMonth(
         speed_kmh: row.speed_kmh != null ? Number(row.speed_kmh) : null,
         elevation_m: row.elevation_m != null ? Number(row.elevation_m) : null,
         created_at: row.created_at,
+        rejection_reason: row.rejection_reason ?? null,
       })
     }
     return [...latestByTrack.values()]
