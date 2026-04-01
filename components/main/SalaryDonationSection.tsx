@@ -12,8 +12,8 @@ export function SalaryDonationSection() {
           </p>
         </div>
         <div className="text-right">
-          <span className="inline-block animate-pulse rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700">
-            신청 마감: 1월 12일까지
+          <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+            상시 신청 가능
           </span>
         </div>
       </div>

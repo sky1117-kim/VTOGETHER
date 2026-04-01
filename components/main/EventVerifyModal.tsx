@@ -22,7 +22,7 @@ const METHOD_LABEL: Record<string, string> = {
   PHOTO: '사진',
   TEXT: '텍스트',
   VALUE: '숫자',
-  PEER_SELECT: '동료 선택',
+  PEER_SELECT: '칭찬 대상 추가',
 }
 
 function resolveInputPlaceholder(method: VerificationMethodRow, fallback = '입력하세요') {
@@ -475,19 +475,35 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                               (u.dept_name ?? '').toLowerCase().includes(peerSearch.toLowerCase())
                           )
                         : []
+                      // 검색 결과 내 팀(부서) 묶음을 계산해 팀 단위 선택을 지원합니다.
+                      const deptBuckets = new Map<string, PeerSelectionUserRow[]>()
+                      for (const user of list) {
+                        const dept = user.dept_name?.trim() || '미지정'
+                        const bucket = deptBuckets.get(dept) ?? []
+                        bucket.push(user)
+                        deptBuckets.set(dept, bucket)
+                      }
+                      const searchedDeptEntries = [...deptBuckets.entries()]
+                        .sort((a, b) => b[1].length - a[1].length)
+                      const selectedPeerIds = parsePeerSelectPayload(m.method_id).peer_user_ids
                       const peerLabel = (u: PeerSelectionUserRow) =>
                         [u.name || '이름 없음', u.dept_name, u.email].filter(Boolean).join(' · ')
-                      // 제목(label): 관리자가 설정한 값 사용. 비우면 방식명(동료 선택) fallback
-                      const displayLabel = m.label?.trim() || METHOD_LABEL[m.method_type]
+                      // 제목은 사용자 행동이 바로 보이도록 고정 문구를 사용합니다.
+                      const displayLabel = '칭찬 대상 추가'
                       const peerSearchPlaceholder = resolveInputPlaceholder(
                         m,
-                        isMultiMode ? '구성원을 검색해 여러 명 선택하세요' : '구성원을 검색해 1명을 선택하세요'
+                        isMultiMode
+                          ? '이름/이메일/팀명 검색 후 대상 추가'
+                          : '이름/이메일/팀명 검색 후 대상 1명 추가'
                       )
                       return (
                         <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                           <label className="mb-2 block text-sm font-bold text-gray-800">
                             {displayLabel}
                           </label>
+                          <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-900">
+                            메달 자동 지급을 위해 칭찬 대상을 반드시 추가해주세요.
+                          </div>
                           {m.instruction?.trim() && (
                             <p className="mb-2 text-xs text-gray-500">{m.instruction.trim()}</p>
                           )}
@@ -522,6 +538,101 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                   className={inputClass}
                                   autoComplete="off"
                                 />
+                                {hasSearch && searchedDeptEntries.length > 0 && (
+                                  <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                                    <p className="mb-2 text-xs font-semibold text-gray-600">검색된 팀 선택</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {searchedDeptEntries.map(([dept, deptUsers]) => {
+                                        const deptIds = deptUsers.map((u) => u.user_id)
+                                        const selectedCount = deptIds.filter((id) => selectedPeerIds.includes(id)).length
+                                        const isTeamFullySelected = deptIds.length > 0 && selectedCount === deptIds.length
+                                        return (
+                                          <button
+                                            key={dept}
+                                            type="button"
+                                            onClick={() =>
+                                              updatePeerSelectPayload(m.method_id, (prev) => {
+                                                if (!isMultiMode) {
+                                                  return {
+                                                    ...prev,
+                                                    peer_user_ids: deptIds[0] ? [deptIds[0]] : prev.peer_user_ids,
+                                                  }
+                                                }
+                                                return {
+                                                  ...prev,
+                                                  peer_user_ids: isTeamFullySelected
+                                                    ? prev.peer_user_ids.filter((id) => !deptIds.includes(id))
+                                                    : [...new Set([...prev.peer_user_ids, ...deptIds])],
+                                                }
+                                              })
+                                            }
+                                            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                                              isTeamFullySelected
+                                                ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                                : 'border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800'
+                                            }`}
+                                          >
+                                            {isTeamFullySelected ? '✓ ' : ''}
+                                            {dept} ({deptUsers.length})
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {hasSearch && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updatePeerSelectPayload(m.method_id, (prev) => {
+                                          const resultIds = list.map((u) => u.user_id)
+                                          if (!isMultiMode) {
+                                            return {
+                                              ...prev,
+                                              peer_user_ids: resultIds[0] ? [resultIds[0]] : prev.peer_user_ids,
+                                            }
+                                          }
+                                          return {
+                                            ...prev,
+                                            peer_user_ids: [...new Set([...prev.peer_user_ids, ...resultIds])],
+                                          }
+                                        })
+                                      }
+                                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                                    >
+                                      검색 결과 전체 선택 ({list.length})
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updatePeerSelectPayload(m.method_id, (prev) => ({
+                                          ...prev,
+                                          peer_user_ids: isMultiMode
+                                            ? prev.peer_user_ids.filter((id) => !list.some((u) => u.user_id === id))
+                                            : [],
+                                        }))
+                                      }
+                                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                    >
+                                      검색 결과 해제
+                                    </button>
+                                    {isMultiMode && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updatePeerSelectPayload(m.method_id, (prev) => ({
+                                            ...prev,
+                                            peer_user_ids: [],
+                                          }))
+                                        }
+                                        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                      >
+                                        전체 선택 초기화
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                                 {selectedPeers.length > 0 && (
                                   <div className="mt-3 flex flex-wrap gap-2">
                                     {selectedPeers.map((u) => (
@@ -543,9 +654,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                 )}
                                 {!hasSearch ? (
                                   <p className="mt-2 text-xs text-gray-500">
-                                    {isMultiMode
-                                      ? '검색어를 입력하면 구성원 목록이 나타납니다.'
-                                      : '검색어를 입력하면 구성원 목록이 나타납니다.'}
+                                    이름/이메일/팀명 검색으로 대상자를 추가하세요.
                                   </p>
                                 ) : (
                                   <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">
