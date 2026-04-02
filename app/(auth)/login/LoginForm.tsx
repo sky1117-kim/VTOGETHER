@@ -1,7 +1,6 @@
 'use client'
 
 import { createBrowserClient } from '@supabase/ssr'
-import { getPublicAppOrigin } from '@/lib/public-app-url'
 import { useState } from 'react'
 
 function formatLoginError(raw: string, fromUrl: boolean) {
@@ -50,10 +49,14 @@ export default function LoginForm({
         return
       }
       const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+      // redirectTo는 반드시 "지금 주소창의 origin"과 같아야 합니다. NEXT_PUBLIC_APP_URL만 쓰면
+      // Cloud Run 기본 URL로 들어왔는데 env는 커스텀 도메인인 경우 등 PKCE 쿠키가 콜백까지 안 맞아
+      // "code challenge does not match ... code verifier" 가 납니다.
+      const appOrigin = window.location.origin
       const callbackUrl =
         next && next.startsWith('/')
-          ? `${getPublicAppOrigin()}/auth/callback?next=${encodeURIComponent(next)}`
-          : `${getPublicAppOrigin()}/auth/callback`
+          ? `${appOrigin}/auth/callback?next=${encodeURIComponent(next)}`
+          : `${appOrigin}/auth/callback`
 
       // PKCE code verifier는 브라우저(document.cookie)에 저장되어야 콜백에서 세션 교환이 됩니다.
       // Server Action + redirect()로 시작하면 Set-Cookie가 누락되는 경우가 있어 클라이언트에서 시작합니다.

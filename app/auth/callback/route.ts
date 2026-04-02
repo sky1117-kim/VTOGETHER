@@ -1,17 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getErrorMessage, sendGoogleChatAlert } from '@/lib/google-chat-alert'
-import { getPublicAppOrigin } from '@/lib/public-app-url'
 import { NextResponse } from 'next/server'
 
 /**
  * Route Handler에서는 next/navigation의 redirect() 대신 NextResponse.redirect만 사용합니다.
  * (redirect()는 Server Component/Action용이며, 여기서는 500으로 이어질 수 있습니다.)
+ *
+ * OAuth 콜백은 사용자가 실제로 접속한 호스트로 돌아오므로, 리다이렉트도 그 origin을 씁니다.
+ * (getPublicAppOrigin()만 쓰면 호스트 불일치로 세션 쿠키·다음 화면이 엇갈릴 수 있음)
  */
-function toAbsoluteRedirect(path: string, requestUrl: URL) {
+function toSameOriginRedirect(path: string, requestUrl: URL) {
   const safePath = path.startsWith('/') ? path : '/'
-  const appOrigin = getPublicAppOrigin()
-  return new URL(safePath, appOrigin || requestUrl.origin)
+  return new URL(safePath, requestUrl.origin)
 }
 
 export async function GET(request: Request) {
@@ -26,13 +27,13 @@ export async function GET(request: Request) {
   if (oauthError) {
     const msg = oauthErrorDesc || oauthError
     return NextResponse.redirect(
-      toAbsoluteRedirect(`/login?error=${encodeURIComponent(msg)}`, requestUrl)
+      toSameOriginRedirect(`/login?error=${encodeURIComponent(msg)}`, requestUrl)
     )
   }
 
   if (!code) {
     return NextResponse.redirect(
-      toAbsoluteRedirect('/login?error=missing_oauth_code', requestUrl)
+      toSameOriginRedirect('/login?error=missing_oauth_code', requestUrl)
     )
   }
 
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
       path: '/auth/callback',
     })
     return NextResponse.redirect(
-      toAbsoluteRedirect(`/login?error=${encodeURIComponent(error.message)}`, requestUrl)
+      toSameOriginRedirect(`/login?error=${encodeURIComponent(error.message)}`, requestUrl)
     )
   }
 
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
   if (data.user?.email && !data.user.email.endsWith('@vntgcorp.com')) {
     await supabase.auth.signOut()
     return NextResponse.redirect(
-      toAbsoluteRedirect('/login?error=invalid_domain', requestUrl)
+      toSameOriginRedirect('/login?error=invalid_domain', requestUrl)
     )
   }
 
@@ -145,5 +146,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(toAbsoluteRedirect(next, requestUrl))
+  return NextResponse.redirect(toSameOriginRedirect(next, requestUrl))
 }

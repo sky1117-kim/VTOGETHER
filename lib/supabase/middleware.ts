@@ -21,10 +21,12 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
-  // OAuth PKCE 인증 흐름(/auth/*)에서는 code_verifier 쿠키가 반드시 유지되어야 합니다.
-  // 여기서 세션 검사를 강제하면 refresh_token_not_found 분기에서 쿠키가 지워져
-  // /auth/callback의 exchangeCodeForSession이 실패할 수 있어 조기 반환합니다.
-  if (request.nextUrl.pathname.startsWith('/auth')) {
+  // OAuth PKCE: code_verifier 쿠키가 /auth/callback 전에 지워지면 exchangeCodeForSession이 실패합니다.
+  // /auth/* 뿐 아니라 /login 에서 구글 로그인 직전에도 getUser()가 쿠키를 건드리지 않도록 건너뜁니다.
+  if (
+    request.nextUrl.pathname.startsWith('/auth') ||
+    request.nextUrl.pathname.startsWith('/login')
+  ) {
     return supabaseResponse
   }
 
