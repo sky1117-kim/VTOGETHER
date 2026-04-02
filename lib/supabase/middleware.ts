@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPublicAppOrigin } from '@/lib/public-app-url'
+import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
 
 // Supabase 인증 쿠키를 정리해서 잘못된 refresh token 루프를 끊습니다.
 function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) {
@@ -27,9 +28,10 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabasePublicCredentials()
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {

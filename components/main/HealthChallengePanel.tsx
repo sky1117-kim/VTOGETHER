@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { uploadEventVerificationPhoto } from '@/api/actions/events'
+import { useSupabaseBrowserEnv } from '@/components/providers/supabase-browser-env'
 import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
 import { submitHealthActivityLogsBatch, type HealthActivityEntryInput } from '@/api/actions/health-challenges'
 import { HEALTH_CHALLENGE_MIN_PHOTOS_PER_ENTRY } from '@/constants/health-challenges'
@@ -96,6 +97,7 @@ export function HealthChallengePanel({
   isLoggedIn,
   embedded = false,
 }: HealthChallengePanelProps) {
+  const supabaseBrowserEnv = useSupabaseBrowserEnv()
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [entries, setEntries] = useState<LocalEntry[]>(() => [emptyEntry()])
@@ -150,7 +152,7 @@ export function HealthChallengePanel({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-        let result = await uploadEventPhotoClient(file)
+        let result = await uploadEventPhotoClient(file, supabaseBrowserEnv ?? { url: '', anonKey: '' })
         if (result.error) {
           const fd = new FormData()
           fd.set('file', file)

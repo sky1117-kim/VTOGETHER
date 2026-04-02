@@ -1,6 +1,6 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
+import { createBrowserClient } from '@supabase/ssr'
 import { getPublicAppOrigin } from '@/lib/public-app-url'
 import { useState } from 'react'
 
@@ -18,7 +18,18 @@ function formatLoginError(raw: string, fromUrl: boolean) {
   return raw
 }
 
-export default function LoginForm({ error, next }: { error?: string; next?: string }) {
+export default function LoginForm({
+  error,
+  next,
+  supabaseUrl,
+  supabaseAnonKey,
+}: {
+  error?: string
+  next?: string
+  /** 서버에서 런타임 env로 넘김 (클라이언트 번들의 NEXT_PUBLIC 빈 값 회피) */
+  supabaseUrl: string
+  supabaseAnonKey: string
+}) {
   const [loading, setLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
 
@@ -32,7 +43,13 @@ export default function LoginForm({ error, next }: { error?: string; next?: stri
     setLocalError(null)
     setLoading(true)
     try {
-      const supabase = createClient()
+      if (!supabaseUrl?.trim() || !supabaseAnonKey?.trim()) {
+        setLocalError(
+          'Supabase 연결 정보가 없습니다. 운영 환경에 SERVER_SUPABASE_PUBLIC_* 또는 NEXT_PUBLIC_SUPABASE_* 를 설정해주세요.'
+        )
+        return
+      }
+      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
       const callbackUrl =
         next && next.startsWith('/')
           ? `${getPublicAppOrigin()}/auth/callback?next=${encodeURIComponent(next)}`

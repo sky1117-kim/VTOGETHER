@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Noto_Sans_KR } from "next/font/google";
+import { SupabaseBrowserBridge } from "@/components/providers/supabase-browser-bridge";
 import "./globals.css";
 
 // 환경변수 값을 안전하게 정리해 GA 측정 ID를 반환합니다.
@@ -43,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${notoSansKr.variable} font-sans antialiased`}>
-        {children}
+        <SupabaseBrowserBridge>{children}</SupabaseBrowserBridge>
         {gaMeasurementId ? <GoogleAnalytics gaId={gaMeasurementId} /> : null}
       </body>
     </html>

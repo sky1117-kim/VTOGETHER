@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
 import { redirect } from 'next/navigation'
 import LoginForm from './LoginForm'
 
@@ -19,5 +20,14 @@ export default async function LoginPage({
     redirect(next && next.startsWith('/') ? next : '/')
   }
 
-  return <LoginForm error={error} next={next} />
+  const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabasePublicCredentials()
+
+  return (
+    <LoginForm
+      error={error}
+      next={next}
+      supabaseUrl={supabaseUrl}
+      supabaseAnonKey={supabaseAnonKey}
+    />
+  )
 }

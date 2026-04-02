@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 import { getEventForParticipationAction, submitEventSubmission, uploadEventVerificationPhoto } from '@/api/actions/events'
+import { useSupabaseBrowserEnv } from '@/components/providers/supabase-browser-env'
 import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
 import type { VerificationMethodRow, RoundForParticipation, PeerSelectionUserRow } from '@/api/queries/events'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -48,6 +49,7 @@ interface EventVerifyModalProps {
 }
 
 export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventVerifyModalProps) {
+  const supabaseBrowserEnv = useSupabaseBrowserEnv()
   const [loading, setLoading] = useState(false)
   const [submitPending, setSubmitPending] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -140,7 +142,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     if (!file) return
     setUploadingId(methodId)
     setError(null)
-    let result = await uploadEventPhotoClient(file)
+    let result = await uploadEventPhotoClient(file, supabaseBrowserEnv ?? { url: '', anonKey: '' })
     if (result.error) {
       const fd = new FormData()
       fd.set('file', file)
