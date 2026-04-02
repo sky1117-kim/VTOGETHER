@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getErrorMessage, sendGoogleChatAlert } from '@/lib/google-chat-alert'
 import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getPublicAppOrigin } from '@/lib/public-app-url'
+import { cookies } from 'next/headers'
 
 /** PKCE verifier 누락은 중복 요청·프리페치·다른 기기 등에서 흔하며, 로그인 성공 후에도 알림만 남는 경우가 많습니다. */
 function isBenignPkceVerifierError(message: string) {
@@ -21,8 +23,26 @@ function toSameOriginRedirect(path: string, requestUrl: URL) {
   return new URL(safePath, requestUrl.origin)
 }
 
+function getOriginFromRequest(request: NextRequest) {
+  // OAuth 콜백 origin도 반드시 사용자 도메인 기준이어야 합니다.
+  // Cloud Run/프록시에서 request.url이 0.0.0.0/localhost로 들어올 수 있어 forwarded 값과 폴백을 함께 사용합니다.
+  const forwardedHost = request.headers.get('x-forwarded-host')?.trim()
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.trim()
+  const host = forwardedHost || request.headers.get('host') || ''
+  const proto = (forwardedProto || request.nextUrl.protocol || 'https:').replace(/:$/, '')
+
+  const hostOnly = host.split(':')[0].toLowerCase()
+  if (!host || hostOnly === '0.0.0.0' || hostOnly === '127.0.0.1' || hostOnly === 'localhost') {
+    return getPublicAppOrigin()
+  }
+
+  return `${proto}://${host}`
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
+  const origin = getOriginFromRequest(request)
+  const cookieStore = cookies()
   const code = requestUrl.searchParams.get('code')
   const oauthError = requestUrl.searchParams.get('error')
   const oauthErrorDesc = requestUrl.searchParams.get('error_description')
@@ -33,13 +53,13 @@ export async function GET(request: NextRequest) {
   if (oauthError) {
     const msg = oauthErrorDesc || oauthError
     return NextResponse.redirect(
-      toSameOriginRedirect(`/login?error=${encodeURIComponent(msg)}`, requestUrl)
+      new URL(`/login?error=${encodeURIComponent(msg)}`, origin)
     )
   }
 
   if (!code) {
     return NextResponse.redirect(
-      toSameOriginRedirect('/login?error=missing_oauth_code', requestUrl)
+      new URL('/login?error=missing_oauth_code', origin)
     )
   }
 
@@ -48,18 +68,19 @@ export async function GET(request: NextRequest) {
   const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabasePublicCredentials()
   let redirectPath = next
   let redirectResponse = NextResponse.redirect(
-    toSameOriginRedirect(redirectPath, requestUrl)
+    new URL(redirectPath, origin)
   )
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        return request.cookies.getAll()
+        // Route Handler에서 PKCE verifier 쿠키를 확실히 읽기 위해
+        // request.cookies 대신 next/headers의 cookies()를 사용합니다.
+        return cookieStore.getAll()
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
         redirectResponse = NextResponse.redirect(
-          toSameOriginRedirect(redirectPath, requestUrl)
+          new URL(redirectPath, origin)
         )
         cookiesToSet.forEach(({ name, value, options }) =>
           redirectResponse.cookies.set(name, value, options)
@@ -71,7 +92,9 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    if (!isBenignPkceVerifierError(error.message)) {
+    const isPkceMissing = isBenignPkceVerifierError(error.message)
+
+    if (!isPkceMissing) {
       await sendGoogleChatAlert({
         source: 'server',
         title: 'OAuth 콜백 세션 교환 실패',
@@ -79,10 +102,27 @@ export async function GET(request: NextRequest) {
         path: '/auth/callback',
       })
     } else {
-      console.warn('[Auth] OAuth 콜백 PKCE verifier 없음 (무시 가능):', error.message)
+      console.warn('[Auth] OAuth 콜백 PKCE verifier 없음:', error.message)
+
+      // PKCE verifier가 없다는 건 (1) 다른 기기/도메인에서 시작했거나 (2) 콜백이 중복 호출되어
+      // 첫 번째 호출에서 이미 교환된 경우일 수 있습니다. 후자의 경우에는 이미 세션이 있을 수 있어,
+      // 로그인된 사용자라면 에러 대신 정상 이동을 시도합니다.
+      try {
+        const {
+          data: { user: alreadyLoggedInUser },
+        } = await supabase.auth.getUser()
+        if (alreadyLoggedInUser) {
+          return redirectResponse
+        }
+      } catch {
+        // getUser 실패는 그대로 로그인 실패 처리로 내려갑니다.
+      }
+
+      return NextResponse.redirect(new URL('/login?error=pkce_verifier_missing', origin))
     }
+
     return NextResponse.redirect(
-      toSameOriginRedirect(`/login?error=${encodeURIComponent(error.message)}`, requestUrl)
+      new URL(`/login?error=${encodeURIComponent(error.message)}`, origin)
     )
   }
 

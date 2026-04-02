@@ -87,6 +87,18 @@ export async function syncSeahOrgsyncSnapshot(): Promise<SyncResult> {
       if (employeeError) return { success: false, error: `직원 upsert 실패: ${employeeError.message}` }
     }
 
+    // 스냅샷 동기화 후 users.dept_name 일괄 보정
+    // - 기존 로그인 시점 보정만으로는 이미 생성된 사용자의 NULL 부서가 남을 수 있어,
+    //   배치 한 번으로 전체를 최신 조직명으로 맞춥니다.
+    const { error: usersDeptSyncError } = await admin.rpc('sync_users_dept_name_from_seah_snapshot')
+    if (usersDeptSyncError) {
+      // RPC가 없는 환경(마이그레이션 미적용) 대비: 앱 자체 실패는 막고 원인만 반환
+      return {
+        success: false,
+        error: `users.dept_name 동기화 실패: ${usersDeptSyncError.message}`,
+      }
+    }
+
     return {
       success: true,
       orgUnitsUpserted: normalizedOrgRows.length,

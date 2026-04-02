@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getPublicAppOrigin } from '@/lib/public-app-url'
 import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
 
 // Supabase 인증 쿠키를 정리해서 잘못된 refresh token 루프를 끊습니다.
@@ -24,7 +25,9 @@ export async function updateSession(request: NextRequest) {
   // /auth/* 뿐 아니라 /login 에서 구글 로그인 직전에도 getUser()가 쿠키를 건드리지 않도록 건너뜁니다.
   if (
     request.nextUrl.pathname.startsWith('/auth') ||
-    request.nextUrl.pathname.startsWith('/login')
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/api/cron/') ||
+    request.nextUrl.pathname.startsWith('/api/debug/seah-orgsync')
   ) {
     return supabaseResponse
   }
@@ -60,13 +63,27 @@ export async function updateSession(request: NextRequest) {
     error,
   } = await supabase.auth.getUser()
 
-  // 현재 요청으로 들어온 실제 호스트 기준으로 로그인 URL을 만듭니다.
-  // (NEXT_PUBLIC_APP_URL이 이전 도메인이어도 강제 이동되지 않도록 보호)
-  const getLoginUrlFromRequest = () => {
-    const url = new URL('/login', request.url)
-    if (request.nextUrl.pathname !== '/') {
-      url.searchParams.set('next', request.nextUrl.pathname)
+  // 리다이렉트 origin은 반드시 "사용자가 실제 접속한 도메인" 기준이어야 합니다.
+  // Cloud Run/프록시 환경에서는 request.url의 origin이 0.0.0.0/localhost처럼 내부 값으로 잡힐 수 있어,
+  // X-Forwarded-Host/Proto를 우선 사용하고(가능하면), 그래도 내부 값이면 NEXT_PUBLIC_APP_URL로 폴백합니다.
+  const getOriginFromRequest = () => {
+    const forwardedHost = request.headers.get('x-forwarded-host')?.trim()
+    const forwardedProto = request.headers.get('x-forwarded-proto')?.trim()
+    const host = forwardedHost || request.headers.get('host') || ''
+    const proto = (forwardedProto || request.nextUrl.protocol || 'https:').replace(/:$/, '')
+
+    const hostOnly = host.split(':')[0].toLowerCase()
+    if (!host || hostOnly === '0.0.0.0' || hostOnly === '127.0.0.1' || hostOnly === 'localhost') {
+      return getPublicAppOrigin()
     }
+
+    return `${proto}://${host}`
+  }
+
+  const getLoginUrlFromRequest = () => {
+    const origin = getOriginFromRequest()
+    const url = new URL('/login', origin)
+    if (request.nextUrl.pathname !== '/') url.searchParams.set('next', request.nextUrl.pathname)
     return url
   }
 

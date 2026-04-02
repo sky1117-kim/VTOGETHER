@@ -35,12 +35,6 @@ export async function Footer() {
             href="#"
             className="text-gray-500 underline decoration-gray-300 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 rounded"
           >
-            이용약관
-          </a>
-          <a
-            href="#"
-            className="text-gray-500 underline decoration-gray-300 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 rounded"
-          >
             개인정보처리방침
           </a>
         </div>

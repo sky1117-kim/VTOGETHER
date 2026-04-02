@@ -7,6 +7,9 @@ function formatLoginError(raw: string, fromUrl: boolean) {
   if (raw === 'invalid_domain') {
     return 'VNTG 직원 전용입니다. vntgcorp.com 메일 계정으로 로그인해주세요.'
   }
+  if (raw === 'pkce_verifier_missing') {
+    return '로그인 과정이 만료되었거나 중복 요청이 발생했습니다. 다시 로그인해 주세요.'
+  }
   if (fromUrl) {
     try {
       return decodeURIComponent(raw)
