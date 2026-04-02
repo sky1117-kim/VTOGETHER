@@ -120,7 +120,53 @@ export type UserEventSubmissionRow = {
   round_number: number | null
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   rejection_reason: string | null
+  /** 사용자가 실제로 입력한 인증값 요약(텍스트/숫자/사진 개수 등) */
+  submission_preview: string | null
   created_at: string
+}
+
+function buildSubmissionPreview(
+  verificationData: unknown,
+  methods: Array<{ method_id: string; method_type: string; label: string | null }>
+): string | null {
+  if (!verificationData || typeof verificationData !== 'object' || Array.isArray(verificationData)) return null
+  const vd = verificationData as Record<string, unknown>
+  const parts: string[] = []
+
+  // 관리자 설정 순서대로 훑으면서, 사용자에게 의미 있는 값만 요약합니다.
+  for (const method of methods) {
+    const raw = vd[method.method_id]
+    const label = method.label?.trim() || '입력값'
+    if (method.method_type === 'PHOTO') {
+      const count = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string' && v.trim()).length : 0
+      if (count > 0) parts.push(`${label} ${count}장`)
+      continue
+    }
+    if (method.method_type === 'PEER_SELECT') {
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const ids = (raw as { peer_user_ids?: unknown }).peer_user_ids
+        const count = Array.isArray(ids) ? ids.filter((v) => typeof v === 'string' && v.trim()).length : 0
+        if (count > 0) parts.push(`칭찬 대상 ${count}명`)
+      }
+      continue
+    }
+    if (typeof raw === 'string') {
+      const text = raw.trim()
+      if (text) parts.push(`${label}: ${text}`)
+    } else if (typeof raw === 'number') {
+      parts.push(`${label}: ${raw}`)
+    }
+  }
+
+  if (parts.length > 0) {
+    return parts.slice(0, 3).join(' · ')
+  }
+
+  // 레거시/예외 데이터 대비: 문자열 값 하나라도 있으면 fallback으로 노출합니다.
+  for (const value of Object.values(vd)) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return null
 }
 
 export async function getUserEventSubmissions(
@@ -131,7 +177,7 @@ export async function getUserEventSubmissions(
 
   const { data: subs, error: subsError } = await supabase
     .from('event_submissions')
-    .select('submission_id, event_id, round_id, status, rejection_reason, created_at')
+    .select('submission_id, event_id, round_id, status, rejection_reason, verification_data, created_at')
     .eq('user_id', userId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -146,6 +192,26 @@ export async function getUserEventSubmissions(
     .in('event_id', eventIds)
     .is('deleted_at', null)
   const eventTitleBy = new Map((events ?? []).map((e) => [e.event_id, e.title]))
+
+  let methodsByEvent = new Map<string, Array<{ method_id: string; method_type: string; label: string | null }>>()
+  if (eventIds.length > 0) {
+    const { data: methods } = await supabase
+      .from('event_verification_methods')
+      .select('event_id, method_id, method_type, label, created_at')
+      .in('event_id', eventIds)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+    methodsByEvent = new Map<string, Array<{ method_id: string; method_type: string; label: string | null }>>()
+    for (const m of methods ?? []) {
+      const list = methodsByEvent.get(m.event_id) ?? []
+      list.push({
+        method_id: m.method_id,
+        method_type: m.method_type,
+        label: m.label ?? null,
+      })
+      methodsByEvent.set(m.event_id, list)
+    }
+  }
 
   const roundIds = subs.map((s) => s.round_id).filter(Boolean) as string[]
   let roundNumberBy = new Map<string, number>()
@@ -165,6 +231,7 @@ export async function getUserEventSubmissions(
     round_number: s.round_id ? roundNumberBy.get(s.round_id) ?? null : null,
     status: s.status,
     rejection_reason: s.rejection_reason,
+    submission_preview: buildSubmissionPreview(s.verification_data, methodsByEvent.get(s.event_id) ?? []),
     created_at: s.created_at,
   }))
 }

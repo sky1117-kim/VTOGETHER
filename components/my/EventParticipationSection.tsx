@@ -101,6 +101,11 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
                 반려 사유: {s.rejection_reason}
               </p>
             )}
+            {s.status === 'REJECTED' && s.submission_preview && (
+              <p className="mt-1 text-sm text-slate-600">
+                내가 제출한 내용: {s.submission_preview}
+              </p>
+            )}
             <p className="mt-1 text-xs text-slate-400">
               제출일 {new Date(s.created_at).toLocaleDateString('ko-KR')}
             </p>

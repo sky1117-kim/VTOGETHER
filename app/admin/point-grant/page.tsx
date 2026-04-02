@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getUsersForAdmin, getPointTransactionsForAdmin } from '@/api/actions/admin'
+import { getEarnedDisplay } from '@/lib/point-display'
 import { GrantPointsForm } from '../components/GrantPointsForm'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 
@@ -18,6 +19,26 @@ function getRelatedTypeBadgeLabel(relatedType: string | null): string {
   }
   if (!key) return '—'
   return map[key] ?? key.replaceAll('_', ' ')
+}
+
+function getCompactDescription(row: {
+  type: 'EARNED' | 'DONATED' | 'USED'
+  related_type: string | null
+  description: string | null
+  donation_target_name: string | null
+}): string {
+  const raw = row.description?.trim() ?? ''
+  const relatedType = (row.related_type ?? '').trim().toUpperCase()
+
+  if (row.type === 'DONATED' && row.donation_target_name) return `${row.donation_target_name} 기부`
+  if (!raw && !row.donation_target_name) return '—'
+
+  if (relatedType === 'EVENT' && row.type === 'EARNED') {
+    return getEarnedDisplay(raw, { maxTextLength: 22 }).text
+  }
+  if (relatedType === 'HEALTH_CHALLENGE_SETTLEMENT') return '건강 챌린지 정산'
+  if (relatedType === 'ADMIN_GRANT') return '관리자 지급'
+  return raw || row.donation_target_name || '—'
 }
 
 /** 관리자 전용: 수동 지급 + 지급/적립/사용 내역을 한 화면에서 관리 */
@@ -253,7 +274,7 @@ export default async function AdminPointGrantPage({
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-700 whitespace-pre-wrap break-words leading-6 align-top">
-                    {row.description || row.donation_target_name || '—'}
+                    {getCompactDescription(row)}
                   </td>
                 </tr>
               ))}

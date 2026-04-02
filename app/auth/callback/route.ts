@@ -1,7 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getErrorMessage, sendGoogleChatAlert } from '@/lib/google-chat-alert'
-import { NextResponse } from 'next/server'
+import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
+import { NextResponse, type NextRequest } from 'next/server'
+
+/** PKCE verifier 누락은 중복 요청·프리페치·다른 기기 등에서 흔하며, 로그인 성공 후에도 알림만 남는 경우가 많습니다. */
+function isBenignPkceVerifierError(message: string) {
+  return message.includes('PKCE code verifier not found')
+}
 
 /**
  * Route Handler에서는 next/navigation의 redirect() 대신 NextResponse.redirect만 사용합니다.
@@ -15,7 +21,7 @@ function toSameOriginRedirect(path: string, requestUrl: URL) {
   return new URL(safePath, requestUrl.origin)
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const oauthError = requestUrl.searchParams.get('error')
@@ -37,16 +43,44 @@ export async function GET(request: Request) {
     )
   }
 
-  const supabase = await createClient()
+  // Route Handler에서는 next/headers의 cookies() 대신 request.cookies를 쓰는 것이 안전합니다.
+  // PKCE code_verifier는 브라우저가 보낸 요청 쿠키에만 있고, cookies()와 요청이 어긋나면 교환이 실패합니다.
+  const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabasePublicCredentials()
+  let redirectPath = next
+  let redirectResponse = NextResponse.redirect(
+    toSameOriginRedirect(redirectPath, requestUrl)
+  )
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        redirectResponse = NextResponse.redirect(
+          toSameOriginRedirect(redirectPath, requestUrl)
+        )
+        cookiesToSet.forEach(({ name, value, options }) =>
+          redirectResponse.cookies.set(name, value, options)
+        )
+      },
+    },
+  })
+
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    await sendGoogleChatAlert({
-      source: 'server',
-      title: 'OAuth 콜백 세션 교환 실패',
-      message: error.message,
-      path: '/auth/callback',
-    })
+    if (!isBenignPkceVerifierError(error.message)) {
+      await sendGoogleChatAlert({
+        source: 'server',
+        title: 'OAuth 콜백 세션 교환 실패',
+        message: error.message,
+        path: '/auth/callback',
+      })
+    } else {
+      console.warn('[Auth] OAuth 콜백 PKCE verifier 없음 (무시 가능):', error.message)
+    }
     return NextResponse.redirect(
       toSameOriginRedirect(`/login?error=${encodeURIComponent(error.message)}`, requestUrl)
     )
@@ -54,10 +88,9 @@ export async function GET(request: Request) {
 
   // @vntgcorp.com 도메인 검증
   if (data.user?.email && !data.user.email.endsWith('@vntgcorp.com')) {
+    redirectPath = '/login?error=invalid_domain'
     await supabase.auth.signOut()
-    return NextResponse.redirect(
-      toSameOriginRedirect('/login?error=invalid_domain', requestUrl)
-    )
+    return redirectResponse
   }
 
   // 로그인 시마다 Google에서 이메일·이름 동기화 후 users 테이블에 반영
@@ -146,5 +179,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(toSameOriginRedirect(next, requestUrl))
+  return redirectResponse
 }

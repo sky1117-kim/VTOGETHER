@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getPublicAppOrigin } from '@/lib/public-app-url'
 import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
 
 // Supabase 인증 쿠키를 정리해서 잘못된 refresh token 루프를 끊습니다.
@@ -61,14 +60,19 @@ export async function updateSession(request: NextRequest) {
     error,
   } = await supabase.auth.getUser()
 
-  // refresh token 유실/만료 시 인증 쿠키를 정리하고 로그인으로 보냅니다.
-  if (error?.code === 'refresh_token_not_found') {
-    const url = new URL('/login', getPublicAppOrigin())
-    url.pathname = '/login'
+  // 현재 요청으로 들어온 실제 호스트 기준으로 로그인 URL을 만듭니다.
+  // (NEXT_PUBLIC_APP_URL이 이전 도메인이어도 강제 이동되지 않도록 보호)
+  const getLoginUrlFromRequest = () => {
+    const url = new URL('/login', request.url)
     if (request.nextUrl.pathname !== '/') {
       url.searchParams.set('next', request.nextUrl.pathname)
     }
+    return url
+  }
 
+  // refresh token 유실/만료 시 인증 쿠키를 정리하고 로그인으로 보냅니다.
+  if (error?.code === 'refresh_token_not_found') {
+    const url = getLoginUrlFromRequest()
     const redirectResponse = NextResponse.redirect(url)
     clearSupabaseAuthCookies(request, redirectResponse)
     return redirectResponse
@@ -80,12 +84,7 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth')
   ) {
-    const url = new URL('/login', getPublicAppOrigin())
-    url.pathname = '/login'
-    // 로그인 후 원래 페이지로 돌아갈 수 있도록 현재 경로를 next 파라미터로 전달
-    if (request.nextUrl.pathname !== '/') {
-      url.searchParams.set('next', request.nextUrl.pathname)
-    }
+    const url = getLoginUrlFromRequest()
     return NextResponse.redirect(url)
   }
 
