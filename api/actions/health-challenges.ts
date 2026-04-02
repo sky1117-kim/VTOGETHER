@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { validateSessionForTrack, type HealthTrackRule } from '@/lib/health-challenge-scoring'
 import { isActivityDateInSeasonRange, yearMonthFromISODate } from '@/lib/health-challenge-time'
 import { HEALTH_CHALLENGE_MIN_PHOTOS_PER_ENTRY } from '@/constants/health-challenges'
+import { sendGoogleChatAdminAlert } from '@/lib/google-chat-alert'
 
 export type HealthActivityEntryInput = {
   track_id: string
@@ -32,7 +33,7 @@ export async function submitHealthActivityLogsBatch(
 
     const { data: season, error: sErr } = await supabase
       .from('health_challenge_seasons')
-      .select('season_id, starts_at, ends_at')
+      .select('season_id, name, starts_at, ends_at')
       .eq('status', 'ACTIVE')
       .is('deleted_at', null)
       .limit(1)
@@ -196,6 +197,29 @@ export async function submitHealthActivityLogsBatch(
       }
       return { success: false, submitted: 0, error: insErr.message }
     }
+
+    // 이벤트 인증과 동일하게, 승인 대기 건 생성 시 관리자 Google Chat(스페이스 웹훅) 알림
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+      process.env.NEXT_PUBLIC_DEV_APP_URL?.trim() ||
+      'http://localhost:3000'
+    const adminVerificationLink = `${appUrl.replace(/\/+$/, '')}/admin/verifications`
+    await sendGoogleChatAdminAlert({
+      title: '새 건강 챌린지 인증(승인 대기)',
+      userId: user.id,
+      userEmail: user.email ?? undefined,
+      userName:
+        (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
+        (typeof user.user_metadata?.name === 'string' && user.user_metadata.name) ||
+        undefined,
+      message: [
+        `시즌: ${season.name ?? '이름 없음'}`,
+        `제출 건수: ${rows.length}건`,
+        `제출자 ID: ${user.id}`,
+        `제출자 이메일: ${user.email ?? '알 수 없음'}`,
+        `확인 링크: ${adminVerificationLink}`,
+      ].join('\n'),
+    })
 
     revalidatePath('/')
     revalidatePath('/my')

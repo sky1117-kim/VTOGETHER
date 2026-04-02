@@ -17,12 +17,17 @@ function trimText(value: string, max = 1200) {
 }
 
 async function postGoogleChatMessage(webhookUrl: string, text: string) {
-  await fetch(webhookUrl, {
+  const res = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=UTF-8' },
     body: JSON.stringify({ text }),
     cache: 'no-store',
   })
+  // 웹훅 URL 만료·권한 오류 시에도 fetch는 끝나므로 상태를 확인해 서버 로그에 남깁니다.
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    console.error('[Alert] Google Chat 웹훅 HTTP 오류:', res.status, errText.slice(0, 500))
+  }
 }
 
 // 서버에서만 사용하는 구글 챗 "에러 알림" 웹훅 함수입니다.

@@ -82,6 +82,12 @@ if [ -n "$GOOGLE_CHAT_WEBHOOK_URL" ]; then
   ENV_VARS="$ENV_VARS,GOOGLE_CHAT_WEBHOOK_URL=$GOOGLE_CHAT_WEBHOOK_URL"
 fi
 
+# 구글 챗 관리자 스페이스(승인 대기 등) — .env에 있으면 배포에 포함
+if [ -n "$GOOGLE_CHAT_ADMIN_WEBHOOK_URL" ]; then
+  echo "✓ GOOGLE_CHAT_ADMIN_WEBHOOK_URL 포함"
+  ENV_VARS="$ENV_VARS,GOOGLE_CHAT_ADMIN_WEBHOOK_URL=$GOOGLE_CHAT_ADMIN_WEBHOOK_URL"
+fi
+
 if gcloud secrets describe supabase-service-role &>/dev/null 2>&1; then
   echo "✓ Secret Manager의 supabase-service-role 사용"
   gcloud run deploy vtogether \
