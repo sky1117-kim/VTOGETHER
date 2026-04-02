@@ -1,8 +1,73 @@
 'use client'
 
-import { loginAction } from './actions'
+import { createClient } from '@/lib/supabase/client'
+import { getPublicAppOrigin } from '@/lib/public-app-url'
+import { useState } from 'react'
+
+function formatLoginError(raw: string, fromUrl: boolean) {
+  if (raw === 'invalid_domain') {
+    return 'VNTG 직원 전용입니다. vntgcorp.com 메일 계정으로 로그인해주세요.'
+  }
+  if (fromUrl) {
+    try {
+      return decodeURIComponent(raw)
+    } catch {
+      return raw
+    }
+  }
+  return raw
+}
 
 export default function LoginForm({ error, next }: { error?: string; next?: string }) {
+  const [loading, setLoading] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const displayError = error
+    ? formatLoginError(error, true)
+    : localError
+    ? formatLoginError(localError, false)
+    : null
+
+  async function handleGoogleLogin() {
+    setLocalError(null)
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const callbackUrl =
+        next && next.startsWith('/')
+          ? `${getPublicAppOrigin()}/auth/callback?next=${encodeURIComponent(next)}`
+          : `${getPublicAppOrigin()}/auth/callback`
+
+      // PKCE code verifier는 브라우저(document.cookie)에 저장되어야 콜백에서 세션 교환이 됩니다.
+      // Server Action + redirect()로 시작하면 Set-Cookie가 누락되는 경우가 있어 클라이언트에서 시작합니다.
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: callbackUrl,
+          queryParams: {
+            hd: 'vntgcorp.com',
+            prompt: 'select_account',
+          },
+        },
+      })
+
+      if (oauthError) {
+        setLocalError(oauthError.message)
+        return
+      }
+      if (data.url) {
+        window.location.assign(data.url)
+        return
+      }
+      setLocalError('로그인 URL을 생성할 수 없습니다.')
+    } catch (e) {
+      setLocalError(
+        e instanceof Error ? e.message : '로그인 시작에 실패했습니다.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 selection:bg-green-100 selection:text-green-900 relative overflow-hidden bg-slate-100">
@@ -64,7 +129,7 @@ export default function LoginForm({ error, next }: { error?: string; next?: stri
             </p>
 
             {/* 에러 메시지 표시 */}
-            {error && (
+            {displayError && (
               <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
                 <div className="flex items-start gap-2.5">
                   <svg
@@ -82,22 +147,20 @@ export default function LoginForm({ error, next }: { error?: string; next?: stri
                   </svg>
                   <div>
                     <p className="text-sm text-red-800 font-medium">
-                      {error === 'invalid_domain'
-                        ? 'VNTG 직원 전용입니다. vntgcorp.com 메일 계정으로 로그인해주세요.'
-                        : decodeURIComponent(error)}
+                      {displayError}
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Google 로그인 버튼 */}
-            <form action={loginAction}>
-              {next && <input type="hidden" name="next" value={next} />}
-              <button
-                type="submit"
-                className="btn-google w-full flex items-center justify-center gap-3 bg-white border border-slate-200 text-slate-700 font-bold text-[15px] py-3.5 px-4 rounded-xl relative group transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:shadow-none"
-              >
+            {/* Google 로그인 버튼 — OAuth는 브라우저에서 시작 (PKCE 쿠키 유지) */}
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void handleGoogleLogin()}
+              className="btn-google w-full flex items-center justify-center gap-3 bg-white border border-slate-200 text-slate-700 font-bold text-[15px] py-3.5 px-4 rounded-xl relative group transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:opacity-60 disabled:pointer-events-none"
+            >
                 <svg
                   className="w-5 h-5 absolute left-5"
                   viewBox="0 0 24 24"
@@ -119,9 +182,8 @@ export default function LoginForm({ error, next }: { error?: string; next?: stri
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                   />
                 </svg>
-                Google 계정으로 로그인
+                {loading ? '이동 중…' : 'Google 계정으로 로그인'}
               </button>
-            </form>
 
             <div className="mt-8 flex items-center before:mt-0.5 before:flex-1 before:border-t before:border-slate-100 after:mt-0.5 after:flex-1 after:border-t after:border-slate-100">
               <p className="mx-4 mb-0 text-center text-[11px] font-bold text-slate-300 uppercase tracking-widest">
