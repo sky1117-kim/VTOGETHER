@@ -14,6 +14,8 @@ COPY package.json package-lock.json ./
 RUN npm install
 
 # 소스 복사 및 빌드
+# NEXT_PUBLIC_* 는 `npm run build` 시점에 JS 번들에 포함됩니다. .dockerignore 때문에 .env 가 없으므로
+# Cloud Run 배포 시 `gcloud run deploy --set-build-env-vars` 로 넣거나, 로컬 빌드 시 동일 변수를 환경에 설정하세요.
 COPY . .
 RUN npm run build
 

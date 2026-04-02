@@ -68,7 +68,16 @@ fi
 echo "🚀 배포 시작..."
 echo ""
 
+# 런타임(서비스) 환경 변수 — 컨테이너 실행 시 process.env
 ENV_VARS="NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_APP_URL=$APP_URL"
+
+# 빌드 단계 환경 변수 — `next build` / 클라이언트·Edge 번들에 NEXT_PUBLIC_* 를 박기 위해 필수.
+# (.dockerignore 로 .env 가 이미지에 없어서, 여기 없으면 로그인 버튼 등 브라우저용 Supabase 클라이언트가 undefined 가 됨)
+BUILD_ENV_VARS="NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_APP_URL=$APP_URL"
+if [ -n "${NEXT_PUBLIC_GA_MEASUREMENT_ID:-}" ]; then
+  BUILD_ENV_VARS="$BUILD_ENV_VARS,NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID"
+fi
+echo "✓ 빌드 시 NEXT_PUBLIC_* 주입 (로그인·클라이언트 번들)"
 
 # 세아웍스 인사 연동 (선택) — .env에 있으면 배포에 포함
 if [ -n "$SEAH_ORGSYNC_USER_API_URL" ] && [ -n "$SEAH_ORGSYNC_USERNAME" ] && [ -n "$SEAH_ORGSYNC_PASSWORD" ]; then
@@ -94,6 +103,7 @@ if gcloud secrets describe supabase-service-role &>/dev/null 2>&1; then
     --source . \
     --region asia-northeast3 \
     --allow-unauthenticated \
+    --set-build-env-vars "$BUILD_ENV_VARS" \
     --set-env-vars "$ENV_VARS" \
     --set-secrets "SUPABASE_SERVICE_ROLE_KEY=supabase-service-role:latest"
 else
@@ -102,6 +112,7 @@ else
     --source . \
     --region asia-northeast3 \
     --allow-unauthenticated \
+    --set-build-env-vars "$BUILD_ENV_VARS" \
     --set-env-vars "$ENV_VARS"
 fi
 
