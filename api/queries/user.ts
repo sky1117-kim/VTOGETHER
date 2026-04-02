@@ -174,8 +174,15 @@ export type ReceivedComplimentRow = {
   submission_id: string
   event_id: string
   event_title: string
-  /** 칭찬 메시지 (TEXT 인증 항목 또는 구 형식 PEER_SELECT 항목) */
+  /** 추천·칭찬 사유: LONG(여러 줄) TEXT 우선, 없으면 SHORT·CHOICE·구형 PEER 문자열 */
   message: string
+  /** PEER_SELECT JSON의 organization_name (조직형 챌린지). 없으면 null */
+  organization_name: string | null
+  /**
+   * true: 이벤트에 여러 줄(LONG) 텍스트 항목이 있는데 비어 있고, 한 줄(SHORT) 값만 본문으로 쓴 경우.
+   * (제출자가 추천 사유를 긴 칸에 안 적었을 수 있음)
+   */
+  short_text_only_fallback: boolean
   /** 익명 칭찬 여부 (수신자에게는 익명으로 표시) */
   is_anonymous: boolean
   /** 익명이 아닐 때만: 보낸 사람 이름 (user_id로 조회) */
@@ -232,36 +239,136 @@ export async function getReceivedCompliments(
   const [eventsRes, usersRes, methodsRes] = await Promise.all([
     supabase.from('events').select('event_id, title').in('event_id', eventIds).is('deleted_at', null),
     senderIds.length > 0 ? supabase.from('users').select('user_id, name').in('user_id', senderIds).is('deleted_at', null) : { data: [] },
-    supabase.from('event_verification_methods').select('event_id, method_id, method_type').in('event_id', eventIds).is('deleted_at', null),
+    supabase
+      .from('event_verification_methods')
+      .select('event_id, method_id, method_type, input_style, created_at')
+      .in('event_id', eventIds)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true }),
   ])
 
   const eventTitleBy = new Map((eventsRes.data ?? []).map((e) => [e.event_id, e.title]))
   const senderNameBy = new Map((usersRes.data ?? []).map((u) => [u.user_id, u.name ?? null]))
-  /** 칭찬 메시지: 새 형식은 TEXT 항목, 구 형식은 PEER_SELECT 항목에 저장됨 (하위 호환) */
+  /**
+   * 조직형 챌린지는 TEXT가 SHORT(팀·조직명) + LONG(추천 사유)로 나뉘는 경우가 많음.
+   * 전역 "가장 긴 문자열"이면 조직명만 나올 수 있어, LONG(null 포함) → SHORT → CHOICE → 구형 PEER 순으로 고름.
+   */
   const peerEventIds = new Set<string>()
-  const textMethodByEvent = new Map<string, string>()
+  const textLongByEvent = new Map<string, string[]>()
+  const textShortByEvent = new Map<string, string[]>()
+  const textChoiceByEvent = new Map<string, string[]>()
   const peerSelectMethodByEvent = new Map<string, string>()
   for (const m of methodsRes.data ?? []) {
     const evId = (m as { event_id: string }).event_id
-    if ((m as { method_type?: string }).method_type === 'PEER_SELECT') {
+    const mtype = (m as { method_type?: string }).method_type
+    const mid = (m as { method_id: string }).method_id
+    if (mtype === 'PEER_SELECT') {
       peerEventIds.add(evId)
-      peerSelectMethodByEvent.set(evId, (m as { method_id: string }).method_id)
+      peerSelectMethodByEvent.set(evId, mid)
+    }
+  }
+  const pushTextId = (evId: string, mid: string, inputStyle: string | null | undefined) => {
+    if (inputStyle === 'SHORT') {
+      const a = textShortByEvent.get(evId) ?? []
+      a.push(mid)
+      textShortByEvent.set(evId, a)
+    } else if (inputStyle === 'CHOICE') {
+      const a = textChoiceByEvent.get(evId) ?? []
+      a.push(mid)
+      textChoiceByEvent.set(evId, a)
+    } else {
+      const a = textLongByEvent.get(evId) ?? []
+      a.push(mid)
+      textLongByEvent.set(evId, a)
     }
   }
   for (const m of methodsRes.data ?? []) {
     const evId = (m as { event_id: string }).event_id
-    if (peerEventIds.has(evId) && (m as { method_type?: string }).method_type === 'TEXT' && !textMethodByEvent.has(evId)) {
-      textMethodByEvent.set(evId, (m as { method_id: string }).method_id)
+    if (peerEventIds.has(evId) && (m as { method_type?: string }).method_type === 'TEXT') {
+      pushTextId(evId, (m as { method_id: string }).method_id, (m as { input_style?: string | null }).input_style)
+    }
+  }
+
+  const longestStringInKeys = (vd: Record<string, unknown>, methodIds: string[]): string => {
+    let best = ''
+    for (const mid of methodIds) {
+      const v = vd[mid]
+      if (typeof v !== 'string') continue
+      const t = v.trim()
+      if (t.length > best.length) best = t
+    }
+    return best
+  }
+
+  const extractPeerOrgAndLegacyString = (
+    vd: Record<string, unknown>,
+    peerMethodId: string | undefined
+  ): { organizationName: string; legacyMessage: string } => {
+    if (!peerMethodId) return { organizationName: '', legacyMessage: '' }
+    const raw = vd[peerMethodId]
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const o = (raw as { organization_name?: unknown }).organization_name
+      const organizationName = typeof o === 'string' ? o.trim() : ''
+      return { organizationName, legacyMessage: '' }
+    }
+    if (typeof raw === 'string') {
+      const t = raw.trim()
+      if (t && !/^[0-9a-f-]{36}$/i.test(t)) return { organizationName: '', legacyMessage: t }
+    }
+    return { organizationName: '', legacyMessage: '' }
+  }
+
+  const resolveComplimentBody = (
+    vd: Record<string, unknown>,
+    eventId: string,
+    peerMethodId: string | undefined
+  ): { message: string; organization_name: string | null; short_text_only_fallback: boolean } => {
+    const longIds = textLongByEvent.get(eventId) ?? []
+    const shortIds = textShortByEvent.get(eventId) ?? []
+    const choiceIds = textChoiceByEvent.get(eventId) ?? []
+    const fromLong = longestStringInKeys(vd, longIds)
+    if (fromLong) {
+      const { organizationName } = extractPeerOrgAndLegacyString(vd, peerMethodId)
+      return {
+        message: fromLong,
+        organization_name: organizationName || null,
+        short_text_only_fallback: false,
+      }
+    }
+    const fromShort = longestStringInKeys(vd, shortIds)
+    if (fromShort) {
+      const { organizationName } = extractPeerOrgAndLegacyString(vd, peerMethodId)
+      return {
+        message: fromShort,
+        organization_name: organizationName || null,
+        short_text_only_fallback: longIds.length > 0,
+      }
+    }
+    const fromChoice = longestStringInKeys(vd, choiceIds)
+    if (fromChoice) {
+      const { organizationName } = extractPeerOrgAndLegacyString(vd, peerMethodId)
+      return {
+        message: fromChoice,
+        organization_name: organizationName || null,
+        short_text_only_fallback: longIds.length > 0,
+      }
+    }
+    const { organizationName, legacyMessage } = extractPeerOrgAndLegacyString(vd, peerMethodId)
+    return {
+      message: legacyMessage,
+      organization_name: organizationName || null,
+      short_text_only_fallback: false,
     }
   }
 
   return subs.map((s) => {
     const vd = (s.verification_data as Record<string, unknown>) ?? {}
-    const textMethodId = textMethodByEvent.get(s.event_id)
     const peerMethodId = peerSelectMethodByEvent.get(s.event_id)
-    const textVal = textMethodId && vd[textMethodId] != null ? String(vd[textMethodId]).trim() : ''
-    const peerVal = peerMethodId && vd[peerMethodId] != null ? String(vd[peerMethodId]).trim() : ''
-    const message = textVal || (peerVal && !/^[0-9a-f-]{36}$/i.test(peerVal) ? peerVal : '') // 구 형식: PEER_SELECT에 텍스트 저장
+    const { message, organization_name, short_text_only_fallback } = resolveComplimentBody(
+      vd,
+      s.event_id,
+      peerMethodId
+    )
     const isAnonymous = s.is_anonymous ?? false
     const senderId = (s as { user_id?: string }).user_id
     const sender_name = !isAnonymous && senderId ? (senderNameBy.get(senderId) ?? null) : null
@@ -270,6 +377,8 @@ export async function getReceivedCompliments(
       event_id: s.event_id,
       event_title: eventTitleBy.get(s.event_id) ?? '칭찬 챌린지',
       message,
+      organization_name,
+      short_text_only_fallback,
       is_anonymous: isAnonymous,
       sender_name,
       created_at: s.created_at,

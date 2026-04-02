@@ -84,9 +84,20 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
     const amount = t.amount
     const isPlus = amount > 0
     const earnedDisplay = isEarned ? getEarnedDisplay(t.description) : null
+    const isComplimentReceived = isEarned && earnedDisplay?.variant === 'received'
+
+    const complimentReceivedLink =
+      isComplimentReceived ? (
+        <Link
+          href="/my#received-compliments"
+          className="mt-1 inline-block text-xs font-semibold text-violet-700 underline-offset-2 hover:underline"
+        >
+          받은 칭찬 내용 보기
+        </Link>
+      ) : null
 
     const eventSubmissionLink =
-      isEarned && t.related_type === 'EVENT' && t.related_id ? (
+      isEarned && t.related_type === 'EVENT' && t.related_id && !isComplimentReceived ? (
         <Link
           href={`/my#event-submission-${t.related_id}`}
           className="mt-1 inline-block text-xs font-semibold text-[#00b859] underline-offset-2 hover:underline"
@@ -133,6 +144,7 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
               minute: '2-digit',
             })}
           </p>
+          {complimentReceivedLink}
           {eventSubmissionLink}
         </div>
         <p

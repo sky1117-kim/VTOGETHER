@@ -67,6 +67,8 @@
   - **INTERACTIVE**(칭찬 등): `reward_policy = 'BOTH'` + 인증 방식 PEER_SELECT. 승인 시 발신자·수신자 **둘 다** 같은 재화·같은 금액을 지급합니다. 재화 종류는 **`events.category`와 동일 규칙** (`api/actions/admin/verifications.ts`의 `primaryCurrency`): **People** → `V_MEDAL`, **그 외(V.Together/Culture 등)** → `V_CREDIT`. (CHOICE·복수 보상이면 아래 「승인 시 지급」 예외.)
   - **칭찬 챌린지 적립 내역 구분**: 제출자(칭찬한 사람)는 "칭찬을 함: …", 수신자는 "칭찬을 받음: …" 등으로 DB `description`에 남길 수 있으며, UI에서는 **통일 형식**으로 표시: [이벤트명] 먼저, 그 다음 [상태] 배지. 상태는 승인완료/보상 선택 대기/보상 지급 완료. 칭찬 챌린지는 [내가 칭찬한 내역] / [내가 칭찬 받은 내역] 배지로 받음·보냄 구분.
   - **칭찬 챌린지 익명 옵션**: 제출 시 "익명으로 칭찬 보내기"를 선택할 수 있음. 선택 시 칭찬 수신자에게는 포인트 내역에 "익명의 동료가 나를 칭찬하여"로 표시되며, 관리자(/admin/verifications)는 제출자 이름을 그대로 확인 가능.
+  - **칭찬 수신자의 제출 행 조회(RLS)**: 마이페이지「받은 칭찬」은 `event_submissions`에서 `peer_user_id` 또는 `verification_data.peer_user_ids`에 본인이 포함된 승인 건을 읽습니다. `026` 이전에는 SELECT가 제출자·관리자만 허용되어 수신자가 행을 읽지 못했음 → `041-event-submissions-peer-recipient-select-rls.sql`로 수신 조건을 추가함.
+  - **받은 칭찬 본문 추출**: 조직형 등에서 TEXT가 SHORT(팀·조직명)·LONG(추천 사유)로 나뉠 때, 수신자 화면에는 **LONG(또는 input_style 미지정 기본)** 에 적힌 내용을 추천 사유로 우선 표시한다. 예전 로직처럼 “모든 TEXT 중 가장 긴 문자열”만 고르면 조직명만 보일 수 있다.
 - **이벤트 보상 (복수 선택)**:
   - 보상 유형: **V.Credit**, **굿즈**, **커피쿠폰**. 하나만 선택하거나 여러 개 선택 가능.
   - `event_rewards` 테이블에 이벤트별로 저장. V.Credit·커피쿠폰은 `amount` 필수, 굿즈는 금액 없음.

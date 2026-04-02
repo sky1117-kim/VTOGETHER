@@ -34,7 +34,8 @@ export function ReceivedComplimentsSection({ compliments }: ReceivedComplimentsS
         받은 칭찬
       </h2>
       <p className="mb-4 text-sm text-slate-500">
-        칭찬 챌린지로 동료가 보내준 칭찬 내용을 확인할 수 있습니다. (포인트 내역의 &apos;내가 칭찬 받은 내역&apos;과 연결됩니다)
+        동료가 칭찬 챌린지에 제출한 내용입니다. 본인이 인증을 직접 넣지 않아도 되며, 아래에 동료가 적은 추천·칭찬 사유가 표시됩니다. (포인트
+        내역의 &apos;내가 칭찬 받은 내역&apos;과 연결됩니다)
       </p>
       <ul className="max-h-[320px] space-y-3 overflow-y-auto md:max-h-[400px]">
         {displayed.map((c) => (
@@ -60,13 +61,26 @@ export function ReceivedComplimentsSection({ compliments }: ReceivedComplimentsS
             <p className="mt-2 text-xs text-slate-500">
               {c.is_anonymous ? '익명' : c.sender_name ? `${c.sender_name}님이 보냈습니다` : '보낸 사람 정보 없음'}
             </p>
-            {/* 칭찬 내용: 메인으로만 강조 (인용구 스타일) */}
-            {c.message ? (
-              <p className="mt-2 whitespace-pre-wrap text-base font-semibold leading-relaxed text-slate-900">
-                &ldquo;{c.message}&rdquo;
+            {c.organization_name && c.organization_name.trim() !== c.message.trim() && (
+              <p className="mt-2 text-sm text-slate-600">
+                <span className="font-semibold text-slate-500">팀·조직</span> {c.organization_name}
               </p>
+            )}
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">추천·칭찬 내용</p>
+            {c.message ? (
+              <>
+                <p className="mt-1 whitespace-pre-wrap text-base font-semibold leading-relaxed text-slate-900">
+                  &ldquo;{c.message}&rdquo;
+                </p>
+                {c.short_text_only_fallback && (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                    이벤트에 &apos;여러 줄 텍스트&apos; 칸이 있는데 비어 있어, 팀·조직명 등 짧은 항목만 표시된 상태입니다. 제출자가 긴 칸에
+                    추천 사유를 적었는지 확인이 필요할 수 있습니다.
+                  </p>
+                )}
+              </>
             ) : (
-              <p className="mt-2 text-sm italic text-slate-500">칭찬 메시지 없음</p>
+              <p className="mt-1 text-sm italic text-slate-500">등록된 추천 사유 텍스트가 없습니다.</p>
             )}
           </li>
         ))}
