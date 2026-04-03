@@ -42,8 +42,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <body className={`${notoSansKr.variable} font-sans antialiased`}>
+    <html lang="ko" className="overflow-x-clip">
+      <body className={`${notoSansKr.variable} font-sans antialiased overflow-x-clip`}>
         <SupabaseBrowserBridge>{children}</SupabaseBrowserBridge>
         {gaMeasurementId ? <GoogleAnalytics gaId={gaMeasurementId} /> : null}
       </body>

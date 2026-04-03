@@ -48,8 +48,10 @@ export function DonationCard({ target, userPoints }: DonationCardProps) {
             🏢
           </div>
         )}
-        <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-gray-800 shadow-sm">
-          {target.name}
+        <div className="absolute left-3 top-3 max-w-[min(100%-1.5rem,14rem)] rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-gray-800 shadow-sm">
+          <span className="block truncate" title={target.name}>
+            {target.name}
+          </span>
         </div>
       </div>
 

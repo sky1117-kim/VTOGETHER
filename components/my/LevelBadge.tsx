@@ -6,6 +6,8 @@ interface LevelBadgeProps {
   level: Level
   size?: 'sm' | 'md' | 'lg'
   totalDonated?: number
+  /** true면 작은 화면에서 등급명을 숨기고 이모지만 표시 (헤더 등 좁은 공간) */
+  compact?: boolean
 }
 
 const levelConfig: Record<
@@ -33,7 +35,7 @@ const levelConfig: Record<
   },
 }
 
-export function LevelBadge({ level, size = 'md', totalDonated }: LevelBadgeProps) {
+export function LevelBadge({ level, size = 'md', totalDonated, compact = false }: LevelBadgeProps) {
   const config = levelConfig[level]
   const sizeClasses = {
     sm: 'text-xs px-2 py-1',
@@ -44,7 +46,9 @@ export function LevelBadge({ level, size = 'md', totalDonated }: LevelBadgeProps
   return (
     <LevelRoadmapModal level={level} totalDonated={totalDonated}>
       <button
-        className={`relative inline-flex overflow-hidden items-center gap-2 rounded-full border border-white/40 font-semibold transition-all hover:scale-[1.02] hover:opacity-95 ${config.bgColor} ${config.color} ${sizeClasses[size]} ${config.extraClass ?? ''}`}
+        type="button"
+        aria-label={compact ? `${config.label} · 등급 정보` : undefined}
+        className={`relative inline-flex overflow-hidden items-center gap-2 rounded-full border border-white/40 font-semibold transition-all hover:scale-[1.02] hover:opacity-95 ${config.bgColor} ${config.color} ${sizeClasses[size]} ${compact ? 'max-sm:gap-0 max-sm:px-2' : ''} ${config.extraClass ?? ''}`}
       >
         {level === 'GREEN_MASTER' && (
           <span
@@ -56,7 +60,7 @@ export function LevelBadge({ level, size = 'md', totalDonated }: LevelBadgeProps
           />
         )}
         <span className="relative">{config.emoji}</span>
-        <span className="relative">{config.label}</span>
+        <span className={`relative ${compact ? 'max-sm:hidden' : ''}`}>{config.label}</span>
       </button>
     </LevelRoadmapModal>
   )

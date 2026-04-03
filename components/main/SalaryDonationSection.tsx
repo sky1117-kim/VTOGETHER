@@ -41,10 +41,10 @@ export function SalaryDonationSection() {
           href="https://forms.gle/voHLTomhbQ2Q5o4A8"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-indigo-600 px-8 py-4 font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-xl md:w-auto"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-xl sm:px-8 sm:py-4 sm:text-base md:w-auto md:whitespace-nowrap"
         >
-          <span>신청서 작성하기 (Google Form)</span>
-          <span>→</span>
+          <span className="break-words sm:break-normal">신청서 작성하기 (Google Form)</span>
+          <span aria-hidden>→</span>
         </a>
       </div>
     </section>

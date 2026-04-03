@@ -84,7 +84,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   const level = user?.level ?? 'ECO_KEEPER'
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-12 pt-0 sm:px-6 lg:px-8">
+    <div className="mx-auto min-w-0 max-w-7xl px-3 pb-12 pt-0 sm:px-6 lg:px-8">
       {showAdminDenied && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           관리자 페이지는 관리자 계정으로만 접근할 수 있습니다. 관리자 권한이 필요하면 기존 관리자에게 문의하세요.

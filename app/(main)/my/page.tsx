@@ -29,8 +29,8 @@ export default async function MyPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-[#00b859]/[0.08]">
-      <div className="mx-auto max-w-6xl px-4 pb-14 pt-2 sm:px-6 sm:pt-3 lg:px-8">
-        <section className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-[0_14px_40px_-30px_rgba(15,23,42,0.65)]">
+      <div className="mx-auto min-w-0 max-w-7xl px-3 pb-16 pt-3 sm:px-6 sm:pt-4 lg:px-8">
+        <section className="mb-6 overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-4 text-slate-900 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.65)] sm:p-6">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#00b859]">MY ESG DASHBOARD</p>
             <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">마이페이지</h1>
@@ -39,22 +39,48 @@ export default async function MyPage() {
             </p>
           </div>
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white px-4 py-3">
               <p className="text-xs font-semibold text-slate-500">참여 이벤트</p>
               <p className="mt-1 text-2xl font-extrabold text-[#00b859]">{eventSubmissions.length}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white px-4 py-3">
               <p className="text-xs font-semibold text-slate-500">승인 완료</p>
               <p className="mt-1 text-2xl font-extrabold text-[#00b859]">{approvedSubmissionCount}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <a
+              href="#received-compliments"
+              className="block rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white px-4 py-3 transition hover:border-[#00b859]/40 hover:bg-emerald-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b859]/30"
+            >
               <p className="text-xs font-semibold text-slate-500">받은 칭찬</p>
               <p className="mt-1 text-2xl font-extrabold text-[#00b859]">{receivedCompliments.length}</p>
-            </div>
+              <p className="mt-1 text-[11px] font-medium text-slate-500">탭하면 아래 목록으로 이동</p>
+            </a>
           </div>
+
+          {/* 마이페이지 주요 영역 빠른 이동 */}
+          <nav className="mt-4 flex flex-wrap gap-2">
+            <a
+              href="#point-history"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              포인트 내역
+            </a>
+            <a
+              href="#received-compliments"
+              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
+            >
+              받은 칭찬
+            </a>
+            <a
+              href="#event-submissions"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              이벤트 제출 내역
+            </a>
+          </nav>
         </section>
 
-        <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_14px_40px_-30px_rgba(15,23,42,0.65)]">
+        <section className="mb-6 rounded-3xl border border-slate-200/90 bg-white p-4 shadow-[0_14px_40px_-30px_rgba(15,23,42,0.65)] sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
@@ -88,14 +114,11 @@ export default async function MyPage() {
           totalDonated={user?.total_donated_amount ?? 0}
         />
 
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-8">
-            <PointHistorySection transactions={transactions} />
-          </div>
-          <aside className="space-y-6 xl:col-span-4 xl:pt-14">
-            <EventParticipationSection submissions={eventSubmissions} />
-            <ReceivedComplimentsSection compliments={receivedCompliments} />
-          </aside>
+        {/* 주요 섹션을 한 줄 세로 배치해 카드 폭을 넓혀 가독성을 높임 */}
+        <div className="mt-6 space-y-7">
+          <PointHistorySection transactions={transactions} />
+          <ReceivedComplimentsSection compliments={receivedCompliments} />
+          <EventParticipationSection submissions={eventSubmissions} />
         </div>
       </div>
     </div>

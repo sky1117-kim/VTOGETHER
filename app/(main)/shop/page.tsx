@@ -9,7 +9,7 @@ export default async function ShopPage() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-5xl px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto min-w-0 max-w-5xl px-3 pb-12 pt-6 sm:px-6 lg:px-8">
         <div className="glass rounded-2xl border border-gray-200 bg-white/90 p-8 text-center shadow-soft">
           <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">V.Medal 상점</h1>
           <p className="mt-2 text-sm font-medium text-gray-600">로그인 후 상점을 이용할 수 있습니다.</p>
@@ -25,8 +25,8 @@ export default async function ShopPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-12 pt-2 sm:px-6 lg:px-8">
-      <section className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-8 shadow-soft-lg">
+    <div className="mx-auto min-w-0 max-w-6xl px-3 pb-12 pt-2 sm:px-6 lg:px-8">
+      <section className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-5 shadow-soft-lg sm:p-8">
         <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-emerald-300/20 blur-2xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

@@ -26,8 +26,8 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-gradient-to-b from-[#f8fafc] to-[#f3f4f6]">
       {/* 상단 헤더: 모바일에서도 항상 보임 */}
       <header className="sticky top-0 z-10 border-b border-gray-200/80 bg-white/95 shadow-soft backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex h-14 max-w-7xl min-w-0 items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link
               href="/"
               className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press-link"
@@ -36,10 +36,15 @@ export default async function AdminLayout({
               <span className="hidden sm:inline">메인으로</span>
             </Link>
             <span className="text-gray-200">|</span>
-            <span className="text-base font-bold text-gray-900">V.Together 관리자</span>
+            <span className="truncate text-sm font-bold text-gray-900 sm:text-base">
+              <span className="sm:hidden">관리자</span>
+              <span className="hidden sm:inline">V.Together 관리자</span>
+            </span>
           </div>
-          <div className="text-right text-xs text-gray-500 sm:text-sm">
-            <span className="font-medium text-gray-700">{user.name || user.email}</span>
+          <div className="max-w-[45%] shrink-0 text-right text-xs text-gray-500 sm:max-w-[50%] sm:text-sm">
+            <span className="block truncate font-medium text-gray-700" title={user.name || user.email || undefined}>
+              {user.name || user.email}
+            </span>
           </div>
         </div>
       </header>

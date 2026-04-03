@@ -175,27 +175,30 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
             <span className="h-8 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
             이벤트 & 챌린지
           </h2>
-          {/* 한 줄 표시. 좁은 화면에서는 가로 스크롤로 전체 문구 확인 가능 */}
+          {/* 좁은 화면: 여러 줄로 읽기, 필요 시 가로 스크롤 */}
           <div className="mt-1 overflow-x-auto overscroll-x-contain">
-            <p className="whitespace-nowrap text-sm text-gray-500">
+            <p className="max-w-prose text-sm leading-relaxed text-gray-500 sm:whitespace-nowrap sm:leading-normal">
               People 이벤트는 V.Medal, V.Together 이벤트는 V.Credit이 지급됩니다. 지급 수량은 칩에 표시됩니다.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 rounded-xl bg-white/60 p-1.5 shadow-soft backdrop-blur-sm">
-          {(['ALL', 'V.Together', 'People'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => handleFilterChange(tab)}
-              className={`rounded-lg px-5 py-2.5 text-sm font-bold transition-all duration-200 ${
-                filter === tab
-                  ? 'bg-white text-green-700 shadow-soft'
-                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-800'
-              }`}
-            >
-              {tab === 'ALL' ? '전체' : tab}
-            </button>
-          ))}
+        <div className="-mx-1 w-full min-w-0 overflow-x-auto px-1 pb-1 md:w-auto md:overflow-visible md:pb-0">
+          <div className="flex w-max max-w-none gap-1.5 rounded-xl bg-white/60 p-1.5 shadow-soft backdrop-blur-sm md:w-auto md:flex-wrap">
+            {(['ALL', 'V.Together', 'People'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => handleFilterChange(tab)}
+                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 sm:px-5 sm:py-2.5 sm:text-sm ${
+                  filter === tab
+                    ? 'bg-white text-green-700 shadow-soft'
+                    : 'text-gray-600 hover:bg-white/70 hover:text-gray-800'
+                }`}
+              >
+                {tab === 'ALL' ? '전체' : tab}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -322,10 +325,10 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
                 </div>
               </div>
               {/* 카드 하단: 상세 보기 + 액션 버튼 — mt-auto로 카드마다 하단 정렬 통일 */}
-              <div className="mt-auto flex min-h-[2.5rem] items-center justify-between gap-3 pt-4">
+              <div className="mt-auto flex min-h-[2.5rem] flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <span className="shrink-0 text-xs text-gray-400">클릭 시 상세 보기</span>
                 {isLoggedIn ? (
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center justify-end gap-2 sm:justify-start">
                     {/* 인증하기: 기간제 OPEN 구간 또는 상시 이벤트 */}
                     {((c.type === 'SEASONAL' && c.rounds?.some((r) => r.status === 'OPEN')) ||
                       c.type === 'ALWAYS') && (

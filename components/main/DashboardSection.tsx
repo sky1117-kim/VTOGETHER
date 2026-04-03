@@ -92,14 +92,14 @@ export function DashboardSection({
 
   return (
     <section className="mb-8 grid grid-cols-1 gap-5 lg:grid-cols-3">
-      <div className="card-hover hero-glass relative flex min-h-[280px] overflow-hidden rounded-3xl p-10 text-white shadow-soft-xl lg:min-h-[320px] lg:col-span-2 lg:p-12">
+      <div className="card-hover hero-glass relative flex min-h-[240px] overflow-hidden rounded-3xl p-5 text-white shadow-soft-xl sm:min-h-[280px] sm:p-10 lg:min-h-[320px] lg:col-span-2 lg:p-12">
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800" aria-hidden />
         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06)_0%,transparent_50%)]" aria-hidden />
         <div className="relative z-10 flex flex-col justify-center">
           <span className="mb-5 inline-block w-fit rounded-full border border-green-400/40 bg-green-500/25 px-4 py-1.5 text-xs font-bold tracking-wide text-green-200">
             {heroSeasonBadge ?? defaultHero.seasonBadge}
           </span>
-          <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-5xl">
+          <h1 className="mb-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
             {titleLines.length >= 2 ? (
               <>
                 <span className="block text-white">{titleLines[0]}</span>
@@ -155,8 +155,8 @@ export function DashboardSection({
         {/* 보유 재화 */}
         <div className="border-t border-gray-100 px-4 py-2">
           <div className="rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2">
-            <div className="flex items-end gap-3">
-              <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-0 flex-1 basis-[38%]">
               <p className="text-[11px] font-semibold text-gray-500">
                 보유 V.Credit
               </p>
@@ -167,7 +167,7 @@ export function DashboardSection({
                 <span className="text-sm font-semibold text-emerald-600">C</span>
               </div>
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-[38%]">
               <p className="text-[11px] font-semibold text-gray-500">
                 보유 V.Medal
               </p>

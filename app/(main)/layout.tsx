@@ -8,9 +8,12 @@ export default async function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="page-bg flex min-h-screen flex-col">
+    <div className="page-bg flex min-h-screen min-w-0 flex-col overflow-x-clip">
       <Header />
-      <main id="main-content" className="relative flex-1 pb-16 pt-16 sm:pb-0">
+      <main
+        id="main-content"
+        className="relative min-w-0 max-w-full flex-1 overflow-x-clip pb-16 pt-16 sm:pb-0"
+      >
         {children}
       </main>
       <Footer />

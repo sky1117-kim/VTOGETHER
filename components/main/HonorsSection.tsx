@@ -57,14 +57,14 @@ export function HonorsSection({ personalRank, teamRank, quarterLabel }: HonorsSe
         <table className="w-full min-w-[320px] border-collapse text-left">
           <thead className="bg-gray-100/80 text-xs font-medium uppercase tracking-wider text-gray-500">
             <tr>
-              <th className="w-16 px-6 py-4 text-center">순위</th>
-              <th className="px-6 py-4">이름 / 소속</th>
+              <th className="w-14 px-2 py-3 text-center sm:w-16 sm:px-6 sm:py-4">순위</th>
+              <th className="min-w-[7rem] px-2 py-3 sm:px-6 sm:py-4">이름 / 소속</th>
               {type === 'TEAM' ? (
-                <th className="px-6 py-4 text-center">기부 인원</th>
+                <th className="px-2 py-3 text-center sm:px-6 sm:py-4">기부 인원</th>
               ) : (
-                <th className="px-6 py-4 text-center">등급</th>
+                <th className="px-2 py-3 text-center sm:px-6 sm:py-4">등급</th>
               )}
-              <th className="px-6 py-4 text-right">분기 기부액</th>
+              <th className="whitespace-nowrap px-2 py-3 text-right sm:px-6 sm:py-4">분기 기부액</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm">
@@ -87,22 +87,22 @@ export function HonorsSection({ personalRank, teamRank, quarterLabel }: HonorsSe
                     : 'bg-slate-100 text-slate-600'
               return (
                 <tr key={item.rank} className="transition-colors hover:bg-white/60">
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-2 py-3 text-center sm:px-6 sm:py-4">
                     <span
                       className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full font-bold text-xs shadow-sm ${badgeClass}`}
                     >
                       {item.rank}
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-bold text-gray-900">
-                    {item.name}
+                  <td className="max-w-[11rem] px-2 py-3 text-sm font-bold text-gray-900 sm:max-w-none sm:px-6 sm:py-4 sm:text-base">
+                    <span className="break-words">{item.name}</span>
                     {type === 'PERSONAL' && 'dept' in item && item.dept != null && (
-                      <span className="ml-1 text-xs font-normal text-gray-400">
+                      <span className="mt-0.5 block text-xs font-normal text-gray-400 sm:ml-1 sm:mt-0 sm:inline">
                         {String(item.dept)}
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-2 py-3 text-center sm:px-6 sm:py-4">
                     {type === 'TEAM' && 'donatedCount' in item && 'totalCount' in item ? (
                       <span className="text-gray-600">
                         {item.donatedCount}명 / {item.totalCount}명
@@ -117,7 +117,7 @@ export function HonorsSection({ personalRank, teamRank, quarterLabel }: HonorsSe
                       '-'
                     )}
                   </td>
-                  <td className="px-6 py-4 text-right font-bold text-gray-800">
+                  <td className="whitespace-nowrap px-2 py-3 text-right text-sm font-bold tabular-nums text-gray-800 sm:px-6 sm:py-4 sm:text-base">
                     {item.score.toLocaleString()} C
                   </td>
                 </tr>

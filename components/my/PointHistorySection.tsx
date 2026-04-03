@@ -69,7 +69,7 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
   const creditDisplayed = creditShowAll ? creditFiltered : creditFiltered.slice(0, INITIAL_SHOW)
   const medalHasMore = medalFiltered.length > INITIAL_SHOW
   const creditHasMore = creditFiltered.length > INITIAL_SHOW
-  const filterBaseClass = 'rounded-xl px-4 py-2 text-sm font-semibold transition'
+  const filterBaseClass = 'rounded-xl px-2.5 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-2 sm:text-sm'
   const filterActiveClass = 'bg-slate-900 text-white shadow-sm'
   const filterInactiveClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200'
 
@@ -148,7 +148,7 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
           {eventSubmissionLink}
         </div>
         <p
-          className={`shrink-0 text-lg font-extrabold ${
+          className={`shrink-0 text-right text-base font-extrabold tabular-nums sm:text-lg ${
             isPlus ? 'text-[#00b859]' : 'text-slate-700'
           }`}
         >
@@ -182,7 +182,7 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
     hasMore: boolean
     onShowAll: () => void
   }) => (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_16px_36px_-28px_rgba(2,6,23,0.55)]">
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_16px_36px_-28px_rgba(2,6,23,0.55)] sm:p-6">
       <h3 className="mb-3 inline-flex items-center gap-2 text-xl font-black text-slate-900">
         <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${badgeClassName}`}>{badge}</span>
         {title}

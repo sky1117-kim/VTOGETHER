@@ -63,23 +63,23 @@ export function DonationSection({
       </div>
 
       {/* 전사 누적 기부액 — 강조 영역 */}
-      <div className="glass card-hover mb-8 rounded-2xl border-2 border-green-200 bg-gradient-to-br from-green-50/80 to-white px-6 py-7 shadow-soft sm:px-8 sm:py-8">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <span className="block text-sm font-bold uppercase tracking-wide text-green-700 sm:text-base">
+      <div className="glass card-hover mb-8 rounded-2xl border-2 border-green-200 bg-gradient-to-br from-green-50/80 to-white px-4 py-5 shadow-soft sm:px-8 sm:py-8">
+        <div className="mb-4 flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-6">
+          <div className="min-w-0">
+            <span className="block text-xs font-bold uppercase tracking-wide text-green-700 sm:text-base">
               전사 누적 기부액 (Total Progress)
             </span>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-gray-900 sm:text-4xl md:text-5xl">
+            <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="break-all text-2xl font-bold tabular-nums text-gray-900 sm:text-4xl md:text-5xl">
                 {totalCurrent.toLocaleString()}
               </span>
-              <span className="text-lg text-gray-500 sm:text-xl md:text-2xl">
+              <span className="break-all text-base text-gray-500 sm:text-xl md:text-2xl">
                 / {totalTarget.toLocaleString()} C
               </span>
             </div>
           </div>
-          <div className="text-right">
-            <span className="block text-3xl font-bold text-green-600 sm:text-4xl md:text-5xl">
+          <div className="shrink-0 text-left sm:text-right">
+            <span className="block text-2xl font-bold tabular-nums text-green-600 sm:text-4xl md:text-5xl">
               {Math.round(totalPercent)}%
             </span>
             <span className="block text-sm font-medium text-gray-600">전체 달성률</span>

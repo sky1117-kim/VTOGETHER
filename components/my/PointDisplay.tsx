@@ -12,7 +12,7 @@ export function PointDisplay({ currentPoints, currentMedals, totalDonated }: Poi
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
           보유 크레딧
         </p>
-        <p className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
+        <p className="mt-2 break-all text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
           {currentPoints.toLocaleString()} C
         </p>
       </div>
@@ -21,7 +21,7 @@ export function PointDisplay({ currentPoints, currentMedals, totalDonated }: Poi
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
           보유 메달
         </p>
-        <p className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
+        <p className="mt-2 break-all text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
           {currentMedals.toLocaleString()} M
         </p>
       </div>
@@ -30,7 +30,7 @@ export function PointDisplay({ currentPoints, currentMedals, totalDonated }: Poi
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
           누적 기부액
         </p>
-        <p className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
+        <p className="mt-2 break-all text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
           {totalDonated.toLocaleString()} C
         </p>
       </div>
