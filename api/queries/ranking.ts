@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /** 현재 분기의 시작/종료 시각 및 라벨 반환 (명예의 전당 분기별 랭킹용) */
 export function getCurrentQuarterBounds(): {
@@ -88,12 +89,15 @@ export async function getTeamRanking(limit = 10): Promise<TeamRankItem[]> {
 /**
  * 명예의 전당용: 현재 분기 기부액 기준 개인 랭킹
  * (누적 기부액은 total_donated_amount로 본인/관리자에게 별도 노출)
+ *
+ * donations 는 RLS로 본인 행만 조회 가능하므로, 공개 랭킹 집계는 서버 전용 관리 클라이언트로만 읽습니다.
  */
 export async function getPersonalRankingQuarterly(limit = 10): Promise<PersonalRankItem[]> {
   const supabase = await createClient()
+  const admin = createAdminClient()
   const { start, end } = getCurrentQuarterBounds()
 
-  const { data: donations } = await supabase
+  const { data: donations } = await admin
     .from('donations')
     .select('user_id, amount')
     .gte('created_at', start)
@@ -142,12 +146,14 @@ export async function getPersonalRankingQuarterly(limit = 10): Promise<PersonalR
 
 /**
  * 명예의 전당용: 현재 분기 기부액 기준 팀 랭킹
+ * (donations 집계는 공개 랭킹용으로 관리 클라이언트 사용 — getPersonalRankingQuarterly 와 동일)
  */
 export async function getTeamRankingQuarterly(limit = 10): Promise<TeamRankItem[]> {
   const supabase = await createClient()
+  const admin = createAdminClient()
   const { start, end } = getCurrentQuarterBounds()
 
-  const { data: donations } = await supabase
+  const { data: donations } = await admin
     .from('donations')
     .select('user_id, amount')
     .gte('created_at', start)
