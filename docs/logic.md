@@ -115,7 +115,8 @@
 - **숫자(VALUE) 인증**: 숫자만 입력 가능 (단답/장문 옵션 없음). 제목(label)은 거리/속도/시간 등 항목명 선택 또는 직접 입력. `event_verification_methods.unit`: 단위 (예: km/h, km). 심사 화면에서 "거리: 34 km"처럼 표시.
 - **숫자 입력 표시 규칙**: 웹 입력창에서는 타이핑 중 천 단위 콤마를 자동 표시 (`20000` → `20,000`). 서버 전송/검증 시에는 콤마를 제거한 순수 숫자로 변환.
 - **사진 인증**: 업로드 파일은 Supabase Storage 버킷 `event-verification`에 저장. **최소 1장 필수** 제출. `verification_data`에 URL 배열로 저장. Supabase 대시보드 → Storage → New bucket → 이름 `event-verification`, Public 체크(또는 정책으로 인증 사용자 업로드 허용) 후 생성 필요.
-- **칭찬 챌린지 동료 선택 확장 (2026.03.30)**: `PEER_SELECT` 인증은 단일 대상만이 아니라 **여러 명 동료 선택**을 지원. 제출 데이터는 `verification_data[method_id]`에 `{ peer_user_ids: string[], organization_name: string }` 형태로 저장하고, `peer_user_id` 컬럼에는 기존 하위호환을 위해 첫 번째 선택 동료를 함께 저장. 관리자 심사 화면에서는 "조직명 + 대표 동료 + 외 n명" 형태로 미리보기.
+- **칭찬 챌린지 동료 선택 확장 (2026.03.30)**: `PEER_SELECT` 인증은 단일 대상만이 아니라 **여러 명 동료 선택**을 지원. 제출 데이터는 `verification_data[method_id]`에 `{ peer_user_ids: string[], organization_name?: string }` 형태로 저장하고, `peer_user_id` 컬럼에는 기존 하위호환을 위해 첫 번째 선택 동료를 함께 저장. 관리자 심사 화면에서는 "조직명 + 대표 동료 + 외 n명" 형태로 미리보기.
+- **팀 칩 선택 시 organization_name (2026.04.03)**: 참여 모달에서 **검색된 팀 선택** 칩으로 팀 전체를 넣으면 `organization_name`에 해당 팀(부서) 표시명을 저장한다. 개별 행 클릭·검색 결과 일괄 등으로 섞으면 `organization_name`은 비운다. 관리자 **인증 상세**에서는 `organization_name` 또는 동일 `dept_name`만 모인 경우 팀(부서) 제목 + 포함 인원 목록을 보여준다.
 - **동료 선택 인원 정책 (2026.03.30)**: `PEER_SELECT` 항목의 `options`에 `SINGLE` 또는 `MULTIPLE` 저장. 관리자 등록 화면에서 항목별 선택(개인형/조직형) 가능. 참여 모달과 서버 제출 검증은 이 값을 기준으로 1명 제한 또는 다중 선택 허용을 강제.
 
 ## 이벤트 카드 버튼 표시 기준 (인증하기)

@@ -40,6 +40,53 @@ export type PendingSubmissionRow = {
   /** 인증 미리보기: 수치 (method_type=VALUE) */
   preview_value: string | number | null
   created_at: string
+  /** 동료 선택(PEER_SELECT) 수신자 해석용 — 관리자 목록 조회 시 채움 */
+  peer_recipients?: Array<{
+    user_id: string
+    name: string | null
+    email: string | null
+    dept_name: string | null
+  }>
+}
+
+/** verification_data에서 PEER_SELECT 항목·루트 peer_user_ids 순서로 동료 ID 목록 (표시 순서 유지) */
+function collectPeerUserIdsOrdered(
+  vd: Record<string, unknown>,
+  methods: VerificationMethodInfo[]
+): string[] {
+  for (const m of methods) {
+    if (m.method_type !== 'PEER_SELECT') continue
+    const val = vd[m.method_id]
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const ids = (val as { peer_user_ids?: unknown }).peer_user_ids
+      if (Array.isArray(ids) && ids.length > 0) {
+        const out: string[] = []
+        const seen = new Set<string>()
+        for (const x of ids) {
+          const s = typeof x === 'string' ? x.trim() : ''
+          if (s && !seen.has(s)) {
+            seen.add(s)
+            out.push(s)
+          }
+        }
+        if (out.length > 0) return out
+      }
+    }
+  }
+  const root = vd.peer_user_ids
+  if (Array.isArray(root) && root.length > 0) {
+    const out: string[] = []
+    const seen = new Set<string>()
+    for (const x of root) {
+      const s = typeof x === 'string' ? x.trim() : String(x).trim()
+      if (s && !seen.has(s)) {
+        seen.add(s)
+        out.push(s)
+      }
+    }
+    if (out.length > 0) return out
+  }
+  return []
 }
 
 function getRecipientUserIds(sub: {
@@ -51,7 +98,19 @@ function getRecipientUserIds(sub: {
   const fromArray = Array.isArray(vd.peer_user_ids)
     ? vd.peer_user_ids.map((v) => String(v).trim()).filter(Boolean)
     : []
-  return [...new Set([...fromSingle, ...fromArray])]
+  const fromNested: string[] = []
+  for (const v of Object.values(vd)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const nested = (v as { peer_user_ids?: unknown }).peer_user_ids
+      if (Array.isArray(nested)) {
+        for (const x of nested) {
+          const s = typeof x === 'string' ? x.trim() : ''
+          if (s) fromNested.push(s)
+        }
+      }
+    }
+  }
+  return [...new Set([...fromSingle, ...fromArray, ...fromNested])]
 }
 
 /** 관리자: 제출 목록 (승인대기·승인·반려) 전체 조회 (이벤트명·참여자·구간 정보 포함) */
@@ -75,21 +134,18 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
 
     const eventIds = [...new Set(submissions.map((s) => s.event_id))]
     const roundIds = [...new Set(submissions.map((s) => s.round_id).filter(Boolean))] as string[]
-    const userIds = [...new Set([...submissions.map((s) => s.user_id), ...submissions.map((s) => s.peer_user_id).filter(Boolean)])] as string[]
-
-    const [eventsRes, roundsRes, usersRes, methodsRes] = await Promise.all([
-      eventIds.length ? supabase.from('events').select('event_id, title').in('event_id', eventIds).is('deleted_at', null) : { data: [] },
-      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds).is('deleted_at', null) : { data: [] },
-      userIds.length ? supabase.from('users').select('user_id, name, email').in('user_id', userIds).is('deleted_at', null) : { data: [] },
-      eventIds.length ? supabase.from('event_verification_methods').select('event_id, method_id, method_type, label, unit').in('event_id', eventIds).is('deleted_at', null).order('event_id').order('created_at', { ascending: true }) : { data: [] },
-    ])
-
-    const eventMap = new Map((eventsRes.data ?? []).map((e) => [e.event_id, e]))
-    const roundMap = new Map((roundsRes.data ?? []).map((r) => [r.round_id, r]))
-    const userMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
-    // event_id -> [ { method_id, method_type } ]
     const methodsByEvent = new Map<string, VerificationMethodInfo[]>()
-    for (const m of methodsRes.data ?? []) {
+    const { data: methodsRows } =
+      eventIds.length > 0
+        ? await supabase
+            .from('event_verification_methods')
+            .select('event_id, method_id, method_type, label, unit')
+            .in('event_id', eventIds)
+            .is('deleted_at', null)
+            .order('event_id')
+            .order('created_at', { ascending: true })
+        : { data: [] }
+    for (const m of methodsRows ?? []) {
       const list = methodsByEvent.get(m.event_id) ?? []
       list.push({
         method_id: m.method_id,
@@ -99,6 +155,41 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
       })
       methodsByEvent.set(m.event_id, list)
     }
+
+    const extraPeerIds = new Set<string>()
+    for (const s of submissions) {
+      const vd = (s.verification_data as Record<string, unknown>) ?? {}
+      const methods = methodsByEvent.get(s.event_id) ?? []
+      for (const id of collectPeerUserIdsOrdered(vd, methods)) {
+        extraPeerIds.add(id)
+      }
+      for (const id of getRecipientUserIds({
+        peer_user_id: s.peer_user_id,
+        verification_data: s.verification_data,
+      })) {
+        extraPeerIds.add(id)
+      }
+    }
+
+    const userIds = [
+      ...new Set([
+        ...submissions.map((s) => s.user_id),
+        ...submissions.map((s) => s.peer_user_id).filter(Boolean),
+        ...extraPeerIds,
+      ]),
+    ] as string[]
+
+    const [eventsRes, roundsRes, usersRes] = await Promise.all([
+      eventIds.length ? supabase.from('events').select('event_id, title').in('event_id', eventIds).is('deleted_at', null) : { data: [] },
+      roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds).is('deleted_at', null) : { data: [] },
+      userIds.length
+        ? supabase.from('users').select('user_id, name, email, dept_name').in('user_id', userIds).is('deleted_at', null)
+        : { data: [] },
+    ])
+
+    const eventMap = new Map((eventsRes.data ?? []).map((e) => [e.event_id, e]))
+    const roundMap = new Map((roundsRes.data ?? []).map((r) => [r.round_id, r]))
+    const userMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
 
     const rows: PendingSubmissionRow[] = submissions.map((s) => {
       const event = eventMap.get(s.event_id)
@@ -121,6 +212,8 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
           if (str === '') continue
           if (method_type === 'TEXT' && str) preview_text = preview_text ? `${preview_text} · ${str}` : str
           else if (method_type === 'PEER_SELECT' && str) {
+            const orderedIds = collectPeerUserIdsOrdered(vd, methods)
+            const names = orderedIds.map((id) => userMap.get(id)?.name?.trim()).filter(Boolean) as string[]
             let peerPreview = peer?.name ?? '동료 선택됨'
             if (val && typeof val === 'object' && !Array.isArray(val)) {
               const obj = val as { organization_name?: unknown; peer_user_ids?: unknown }
@@ -128,14 +221,35 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
               const peerIds = Array.isArray(obj.peer_user_ids)
                 ? obj.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim())
                 : []
-              if (peerIds.length > 1) peerPreview = `${peerPreview} 외 ${peerIds.length - 1}명`
-              if (org) peerPreview = `${org} · ${peerPreview}`
+              if (peerIds.length > 1) {
+                peerPreview =
+                  names.length > 0
+                    ? org
+                      ? `${org} · ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` 외 ${names.length - 3}명` : ''}`
+                      : `${names[0]} 외 ${peerIds.length - 1}명`
+                    : `${peerPreview} 외 ${peerIds.length - 1}명`
+              }
+              if (org && peerIds.length <= 1) peerPreview = `${org} · ${peerPreview}`
             }
             preview_text = preview_text ? `${preview_text} · ${peerPreview}` : peerPreview
           }
           else if (method_type === 'VALUE' && (preview_value === null || preview_value === '')) preview_value = typeof val === 'number' ? val : str
         }
       }
+      const orderedPeerIds = collectPeerUserIdsOrdered(vd, methods)
+      const peer_recipients =
+        orderedPeerIds.length > 0
+          ? orderedPeerIds.map((id) => {
+              const u = userMap.get(id)
+              return {
+                user_id: id,
+                name: u?.name ?? null,
+                email: u?.email ?? null,
+                dept_name: u?.dept_name ?? null,
+              }
+            })
+          : undefined
+
       return {
         submission_id: s.submission_id,
         event_id: s.event_id,
@@ -157,6 +271,7 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
         preview_text,
         preview_value,
         created_at: s.created_at,
+        peer_recipients,
       }
     })
 

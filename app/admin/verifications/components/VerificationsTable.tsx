@@ -25,26 +25,123 @@ const STATUS_LABEL: Record<string, string> = {
   REJECTED: '반려',
 }
 
-function parsePeerSelectDisplay(
-  rawValue: unknown,
-  fallbackPeerName: string | null
-): string {
+type PeerRecipientLite = NonNullable<PendingSubmissionRow['peer_recipients']>[number]
+
+/** PEER_SELECT 저장값에서 동료 user_id 목록 */
+function peerIdsFromSelectRaw(rawValue: unknown): string[] {
   if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-    const v = rawValue as { organization_name?: unknown; peer_user_ids?: unknown }
-    const org = typeof v.organization_name === 'string' ? v.organization_name.trim() : ''
-    const peerIds = Array.isArray(v.peer_user_ids)
-      ? v.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim())
-      : []
-    const base = fallbackPeerName ?? '동료 선택됨'
-    const peerText = peerIds.length > 1 ? `${base} 외 ${peerIds.length - 1}명` : base
-    return org ? `${org} · ${peerText}` : peerText
+    const v = rawValue as { peer_user_ids?: unknown }
+    if (Array.isArray(v.peer_user_ids)) {
+      return v.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim())
+    }
   }
   if (Array.isArray(rawValue)) {
-    const list = rawValue.filter((x): x is string => typeof x === 'string' && !!x.trim())
-    if (list.length > 1) return `${fallbackPeerName ?? list[0]} 외 ${list.length - 1}명`
-    return fallbackPeerName ?? list[0] ?? '동료 선택됨'
+    return rawValue.filter((x): x is string => typeof x === 'string' && !!x.trim())
   }
-  return fallbackPeerName ?? '동료 선택됨'
+  return []
+}
+
+/** 제출 JSON의 organization_name 또는, 동일 부서만 모인 경우 users.dept_name */
+function resolvePeerSelectTeamLabel(
+  rawValue: unknown,
+  recipients: PeerRecipientLite[] | undefined,
+  ids: string[]
+): string | null {
+  if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+    const org = (rawValue as { organization_name?: unknown }).organization_name
+    if (typeof org === 'string' && org.trim()) return org.trim()
+  }
+  if (ids.length <= 1 || !recipients?.length) return null
+  const recMap = new Map(recipients.map((r) => [r.user_id, r]))
+  const depts = new Set<string>()
+  for (const id of ids) {
+    const d = recMap.get(id)?.dept_name?.trim()
+    if (d) depts.add(d)
+  }
+  if (depts.size === 1) return [...depts][0]!
+  return null
+}
+
+/** 목록·카드용 한 줄 요약 */
+function parsePeerSelectDisplay(
+  rawValue: unknown,
+  fallbackPeerName: string | null,
+  row?: PendingSubmissionRow
+): string {
+  const ids = peerIdsFromSelectRaw(rawValue)
+  const recipients = row?.peer_recipients
+  const recMap = new Map((recipients ?? []).map((r) => [r.user_id, r]))
+  const names = ids.map((id) => recMap.get(id)?.name?.trim() || null)
+  const teamLabel = resolvePeerSelectTeamLabel(rawValue, recipients, ids)
+
+  if (ids.length === 0) {
+    return fallbackPeerName ?? '동료 선택됨'
+  }
+  if (ids.length === 1) {
+    const n = names[0] || fallbackPeerName || '동료 선택됨'
+    return teamLabel ? `${teamLabel} · ${n}` : n
+  }
+  const resolved = names.filter(Boolean) as string[]
+  if (teamLabel) {
+    if (resolved.length > 0 && resolved.length <= 5) {
+      return `${teamLabel} · ${resolved.join(', ')}`
+    }
+    return `${teamLabel} · ${ids.length}명`
+  }
+  const base = resolved[0] || fallbackPeerName || '동료'
+  return resolved.length > 1 ? `${base} 외 ${ids.length - 1}명` : base
+}
+
+/** 상세 모달: 팀(부서) 라벨 + 멤버 표시 줄 */
+function buildPeerSelectModalBlock(
+  rawValue: unknown,
+  row: PendingSubmissionRow
+): { teamLabel: string | null; memberLines: string[] } {
+  const ids = peerIdsFromSelectRaw(rawValue)
+  const recipients = row.peer_recipients ?? []
+  const recMap = new Map(recipients.map((r) => [r.user_id, r]))
+  const teamLabel = resolvePeerSelectTeamLabel(rawValue, recipients, ids)
+
+  const memberLines =
+    ids.length > 0
+      ? ids.map((id) => {
+          const r = recMap.get(id)
+          if (r) {
+            return [r.name || '이름 없음', r.dept_name, r.email].filter(Boolean).join(' · ')
+          }
+          return `사용자 ID ${id.slice(0, 8)}… (프로필 조회 없음)`
+        })
+      : [row.peer_name ?? '동료 선택됨']
+
+  return { teamLabel, memberLines }
+}
+
+/** 테이블·카드 헤더용: 칭찬 대상이 팀 단위면 팀명·인원, 다중이면 '첫 이름 외 n명' */
+function formatPeerHeaderSummary(row: PendingSubmissionRow): string | null {
+  const vd = row.verification_data ?? {}
+  const methods = row.verification_methods ?? []
+  let raw: unknown = null
+  for (const m of methods) {
+    if (m.method_type === 'PEER_SELECT') {
+      raw = vd[m.method_id]
+      break
+    }
+  }
+  const ids = peerIdsFromSelectRaw(raw)
+  const pr = row.peer_recipients ?? []
+  if (ids.length === 0) {
+    return row.peer_name ?? null
+  }
+  const teamLabel = resolvePeerSelectTeamLabel(raw, pr.length > 0 ? pr : undefined, ids)
+  if (ids.length > 1 && teamLabel) {
+    return `${teamLabel} (${ids.length}명)`
+  }
+  if (ids.length > 1) {
+    const recMap = new Map(pr.map((r) => [r.user_id, r]))
+    const first = recMap.get(ids[0]!)?.name ?? row.peer_name ?? '동료'
+    return `${first} 외 ${ids.length - 1}명`
+  }
+  return pr[0]?.name ?? row.peer_name ?? null
 }
 
 interface VerificationsTableProps {
@@ -93,13 +190,21 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
     if (filterStatus) list = list.filter((r) => r.status === filterStatus)
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase()
-      list = list.filter(
-        (r) =>
+      list = list.filter((r) => {
+        const inRecipients = (r.peer_recipients ?? []).some(
+          (p) =>
+            (p.name ?? '').toLowerCase().includes(q) ||
+            (p.dept_name ?? '').toLowerCase().includes(q) ||
+            (p.email ?? '').toLowerCase().includes(q)
+        )
+        return (
           (r.user_name ?? '').toLowerCase().includes(q) ||
           (r.user_email ?? '').toLowerCase().includes(q) ||
           (r.peer_name ?? '').toLowerCase().includes(q) ||
-          (r.user_id ?? '').toLowerCase().includes(q)
-      )
+          (r.user_id ?? '').toLowerCase().includes(q) ||
+          inRecipients
+        )
+      })
     }
     return list
   }, [rows, filterEventId, filterRoundId, filterStatus, searchQuery])
@@ -313,6 +418,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
               <tbody className="divide-y divide-gray-100">
                 {filteredRows.map((row) => {
                   const isResolved = row.status !== 'PENDING'
+                  const peerArrow = formatPeerHeaderSummary(row)
                   return (
                   <tr
                     key={row.submission_id}
@@ -345,11 +451,11 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                     <td className="overflow-hidden px-4 py-4">
                       <div
                         className="flex min-w-0 items-center gap-1 overflow-hidden"
-                        title={`${row.user_name ?? row.user_email ?? row.user_id}${row.peer_name ? ` → ${row.peer_name}` : ''}${row.is_anonymous ? ' (익명 제출)' : ''}`}
+                        title={`${row.user_name ?? row.user_email ?? row.user_id}${peerArrow ? ` → ${peerArrow}` : ''}${row.is_anonymous ? ' (익명 제출)' : ''}`}
                       >
                         <span className={`min-w-0 truncate text-sm font-medium ${isResolved ? 'text-gray-500' : 'text-gray-900'}`}>
                           {row.user_name ?? row.user_email ?? row.user_id}
-                          {row.peer_name && ` → ${row.peer_name}`}
+                          {peerArrow && ` → ${peerArrow}`}
                         </span>
                         {row.is_anonymous && (
                           <span className="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600" title="칭찬 수신자에게는 익명 표시">
@@ -479,6 +585,7 @@ function SubmissionCard({
   const methods = row.verification_methods ?? []
   const vd = row.verification_data ?? {}
   const resolved = isResolved ?? row.status !== 'PENDING'
+  const peerArrow = formatPeerHeaderSummary(row)
 
   return (
     <div className={`flex flex-col overflow-hidden rounded-2xl border shadow-sm transition ${resolved ? 'border-gray-200 bg-gray-50/80 opacity-80' : 'border-gray-200 bg-white hover:shadow-md'}`}>
@@ -500,9 +607,9 @@ function SubmissionCard({
             {STATUS_LABEL[row.status] ?? row.status}
           </span>
           <div className="min-w-0 overflow-hidden">
-            <p className={`truncate text-sm font-semibold ${resolved ? 'text-gray-500' : 'text-gray-900'}`} title={`${row.user_name ?? row.user_email ?? row.user_id}${row.peer_name ? ` → ${row.peer_name}` : ''}`}>
+            <p className={`truncate text-sm font-semibold ${resolved ? 'text-gray-500' : 'text-gray-900'}`} title={`${row.user_name ?? row.user_email ?? row.user_id}${peerArrow ? ` → ${peerArrow}` : ''}`}>
               {row.user_name ?? row.user_email ?? row.user_id}
-              {row.peer_name && ` → ${row.peer_name}`}
+              {peerArrow && ` → ${peerArrow}`}
               {row.is_anonymous && ' (익명)'}
             </p>
             <p className="mt-0.5 truncate text-xs text-gray-500">
@@ -546,6 +653,16 @@ function SubmissionCard({
                 <div key={m.method_id} className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
                   <p className="text-xs font-semibold text-gray-500">{displayLabel}</p>
                   <p className="mt-1 text-lg font-bold text-gray-900">{displayValue}</p>
+                </div>
+              )
+            }
+            if (m.method_type === 'PEER_SELECT') {
+              const displayLabel = m.label || (METHOD_LABEL[m.method_type] ?? m.method_type)
+              const displayValue = parsePeerSelectDisplay(val, row.peer_name, row)
+              return (
+                <div key={m.method_id} className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
+                  <p className="text-xs font-semibold text-gray-500">{displayLabel}</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-800">{displayValue}</p>
                 </div>
               )
             }
@@ -665,7 +782,7 @@ function VerificationPreviewCell({ row }: { row: PendingSubmissionRow }) {
           items.push({
             type: 'text',
             label: m.label ?? undefined,
-            value: parsePeerSelectDisplay(val, row.peer_name),
+            value: parsePeerSelectDisplay(val, row.peer_name, row),
           })
         }
         else items.push({ type: 'text', label: m.label ?? undefined, value: str })
@@ -714,6 +831,8 @@ function VerificationDetailModal({
   const vd = row.verification_data ?? {}
 
   // methods 순서대로 항목 구성 (label, value). PHOTO는 배열 지원 (values)
+  const peerHeaderLabel = formatPeerHeaderSummary(row)
+
   const modalItems = methods.length > 0
     ? methods
         .map((m) => {
@@ -730,16 +849,33 @@ function VerificationDetailModal({
           if (m.method_type !== 'PHOTO' && !str) return null
           const label = m.label || METHOD_LABEL[m.method_type] || m.method_type
           const displayValue =
-            m.method_type === 'PEER_SELECT' ? parsePeerSelectDisplay(val, row.peer_name) : str
-          return { method_type: m.method_type, label, unit: m.unit, value: displayValue, photoUrls: urls }
+            m.method_type === 'PEER_SELECT' ? parsePeerSelectDisplay(val, row.peer_name, row) : str
+          const peerBlock =
+            m.method_type === 'PEER_SELECT' ? buildPeerSelectModalBlock(val, row) : undefined
+          return {
+            method_type: m.method_type,
+            label,
+            unit: m.unit,
+            value: displayValue,
+            photoUrls: urls,
+            peerBlock,
+          }
         })
-        .filter(Boolean) as { method_type: string; label: string; unit?: string | null; value: string; photoUrls?: string[] }[]
+        .filter(Boolean) as {
+          method_type: string
+          label: string
+          unit?: string | null
+          value: string
+          photoUrls?: string[]
+          peerBlock?: { teamLabel: string | null; memberLines: string[] }
+        }[]
     : items.map((item) => ({
         method_type: item.type === 'photo' ? 'PHOTO' : item.type === 'value' ? 'VALUE' : 'TEXT',
         label: item.label || (item.type === 'photo' ? '사진' : item.type === 'value' ? '수치' : '텍스트'),
         unit: item.unit,
         value: item.value,
         photoUrls: item.type === 'photo' ? (item.values ?? [item.value]) : undefined,
+        peerBlock: undefined,
       }))
 
   // Portal로 document.body에 렌더링 → 테이블 overflow/stacking context 영향 없이 모달이 최상단에 표시됨
@@ -770,10 +906,10 @@ function VerificationDetailModal({
                 <p>
                   <span className="font-medium text-gray-500">참여자</span>{' '}
                   {row.user_name ?? row.user_email ?? row.user_id}
-                  {row.peer_name && (
+                  {peerHeaderLabel && (
                     <>
                       <span className="text-gray-400"> → </span>
-                      {row.peer_name}
+                      {peerHeaderLabel}
                     </>
                   )}
                   {row.is_anonymous && (
@@ -843,6 +979,25 @@ function VerificationDetailModal({
                       <img src={expandPhoto} alt="인증 원본" className="max-h-[90vh] max-w-full rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
                     </div>
                   )}
+                </div>
+              ) : item.method_type === 'PEER_SELECT' && item.peerBlock ? (
+                <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
+                  {item.peerBlock.teamLabel ? (
+                    <p className="text-sm font-bold text-gray-900">
+                      팀(부서){' '}
+                      <span className="font-semibold text-emerald-800">{item.peerBlock.teamLabel}</span>
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-xs font-medium text-gray-500">
+                    포함 인원 ({item.peerBlock.memberLines.length}명)
+                  </p>
+                  <ul className="mt-2 list-inside list-disc space-y-1.5 text-sm font-medium text-gray-900">
+                    {item.peerBlock.memberLines.map((line: string, j: number) => (
+                      <li key={j} className="break-words">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : (
                 <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">

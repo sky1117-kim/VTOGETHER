@@ -13,6 +13,8 @@ import { formatDecimalWithCommas, sanitizeDecimalInput } from '@/lib/number-form
 
 type PeerSelectPayload = {
   peer_user_ids: string[]
+  /** 팀 칩으로 전체 선택 시 부서/팀 표시명 — 관리자 상세에서 팀 단위로 보여줄 때 사용 */
+  organization_name?: string
 }
 
 function isMultiPeerSelectMode(method: { options?: string[] | null }): boolean {
@@ -81,7 +83,11 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
       const peer_user_ids = Array.isArray(parsed.peer_user_ids)
         ? parsed.peer_user_ids.filter((v): v is string => typeof v === 'string' && !!v.trim())
         : []
-      return { peer_user_ids }
+      const organization_name =
+        typeof parsed.organization_name === 'string' && parsed.organization_name.trim()
+          ? parsed.organization_name.trim()
+          : undefined
+      return { peer_user_ids, organization_name }
     } catch {
       return { peer_user_ids: [] }
     }
@@ -531,6 +537,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                         peer_user_ids: isMultiMode
                                           ? [...prev.peer_user_ids, firstMatch.user_id]
                                           : [firstMatch.user_id],
+                                        organization_name: undefined,
                                       }))
                                     }
                                     // 연속 선택 UX: 엔터로 추가 후 바로 다음 검색 가능하도록 입력어를 비웁니다.
@@ -558,13 +565,27 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                                   return {
                                                     ...prev,
                                                     peer_user_ids: deptIds[0] ? [deptIds[0]] : prev.peer_user_ids,
+                                                    organization_name: deptIds[0] ? dept : undefined,
                                                   }
                                                 }
+                                                if (isTeamFullySelected) {
+                                                  const nextIds = prev.peer_user_ids.filter((id) => !deptIds.includes(id))
+                                                  return {
+                                                    ...prev,
+                                                    peer_user_ids: nextIds,
+                                                    organization_name:
+                                                      prev.organization_name === dept ? undefined : prev.organization_name,
+                                                  }
+                                                }
+                                                const nextIds = [...new Set([...prev.peer_user_ids, ...deptIds])]
+                                                const nextOrg =
+                                                  prev.organization_name && prev.organization_name !== dept
+                                                    ? undefined
+                                                    : dept
                                                 return {
                                                   ...prev,
-                                                  peer_user_ids: isTeamFullySelected
-                                                    ? prev.peer_user_ids.filter((id) => !deptIds.includes(id))
-                                                    : [...new Set([...prev.peer_user_ids, ...deptIds])],
+                                                  peer_user_ids: nextIds,
+                                                  organization_name: nextOrg,
                                                 }
                                               })
                                             }
@@ -593,11 +614,13 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                             return {
                                               ...prev,
                                               peer_user_ids: resultIds[0] ? [resultIds[0]] : prev.peer_user_ids,
+                                              organization_name: undefined,
                                             }
                                           }
                                           return {
                                             ...prev,
                                             peer_user_ids: [...new Set([...prev.peer_user_ids, ...resultIds])],
+                                            organization_name: undefined,
                                           }
                                         })
                                       }
@@ -613,6 +636,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                           peer_user_ids: isMultiMode
                                             ? prev.peer_user_ids.filter((id) => !list.some((u) => u.user_id === id))
                                             : [],
+                                          organization_name: undefined,
                                         }))
                                       }
                                       className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
@@ -626,6 +650,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                           updatePeerSelectPayload(m.method_id, (prev) => ({
                                             ...prev,
                                             peer_user_ids: [],
+                                            organization_name: undefined,
                                           }))
                                         }
                                         className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
@@ -645,6 +670,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                           updatePeerSelectPayload(m.method_id, (prev) => ({
                                             ...prev,
                                             peer_user_ids: prev.peer_user_ids.filter((id) => id !== u.user_id),
+                                            organization_name: undefined,
                                           }))
                                         }
                                         className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
@@ -680,6 +706,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                                       : isMultiMode
                                                         ? [...prev.peer_user_ids, u.user_id]
                                                         : [u.user_id],
+                                                    organization_name: undefined,
                                                   }))
                                                 }
                                                 className={`w-full px-4 py-2.5 text-left text-sm ${
