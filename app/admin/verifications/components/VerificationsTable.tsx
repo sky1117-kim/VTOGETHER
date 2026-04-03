@@ -11,6 +11,11 @@ import {
   bulkApproveSubmissionIds,
   bulkRejectSubmissionIds,
 } from '@/api/actions/admin/verifications'
+import {
+  formatPeerSelectSummaryLine,
+  buildPeerSelectMemberBlock,
+  formatPeerHeaderSummary,
+} from '@/lib/peer-select-display'
 
 const METHOD_LABEL: Record<string, string> = {
   PHOTO: '사진',
@@ -23,125 +28,6 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: '승인대기',
   APPROVED: '승인',
   REJECTED: '반려',
-}
-
-type PeerRecipientLite = NonNullable<PendingSubmissionRow['peer_recipients']>[number]
-
-/** PEER_SELECT 저장값에서 동료 user_id 목록 */
-function peerIdsFromSelectRaw(rawValue: unknown): string[] {
-  if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-    const v = rawValue as { peer_user_ids?: unknown }
-    if (Array.isArray(v.peer_user_ids)) {
-      return v.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim())
-    }
-  }
-  if (Array.isArray(rawValue)) {
-    return rawValue.filter((x): x is string => typeof x === 'string' && !!x.trim())
-  }
-  return []
-}
-
-/** 제출 JSON의 organization_name 또는, 동일 부서만 모인 경우 users.dept_name */
-function resolvePeerSelectTeamLabel(
-  rawValue: unknown,
-  recipients: PeerRecipientLite[] | undefined,
-  ids: string[]
-): string | null {
-  if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-    const org = (rawValue as { organization_name?: unknown }).organization_name
-    if (typeof org === 'string' && org.trim()) return org.trim()
-  }
-  if (ids.length <= 1 || !recipients?.length) return null
-  const recMap = new Map(recipients.map((r) => [r.user_id, r]))
-  const depts = new Set<string>()
-  for (const id of ids) {
-    const d = recMap.get(id)?.dept_name?.trim()
-    if (d) depts.add(d)
-  }
-  if (depts.size === 1) return [...depts][0]!
-  return null
-}
-
-/** 목록·카드용 한 줄 요약 */
-function parsePeerSelectDisplay(
-  rawValue: unknown,
-  fallbackPeerName: string | null,
-  row?: PendingSubmissionRow
-): string {
-  const ids = peerIdsFromSelectRaw(rawValue)
-  const recipients = row?.peer_recipients
-  const recMap = new Map((recipients ?? []).map((r) => [r.user_id, r]))
-  const names = ids.map((id) => recMap.get(id)?.name?.trim() || null)
-  const teamLabel = resolvePeerSelectTeamLabel(rawValue, recipients, ids)
-
-  if (ids.length === 0) {
-    return fallbackPeerName ?? '동료 선택됨'
-  }
-  if (ids.length === 1) {
-    const n = names[0] || fallbackPeerName || '동료 선택됨'
-    return teamLabel ? `${teamLabel} · ${n}` : n
-  }
-  const resolved = names.filter(Boolean) as string[]
-  if (teamLabel) {
-    if (resolved.length > 0 && resolved.length <= 5) {
-      return `${teamLabel} · ${resolved.join(', ')}`
-    }
-    return `${teamLabel} · ${ids.length}명`
-  }
-  const base = resolved[0] || fallbackPeerName || '동료'
-  return resolved.length > 1 ? `${base} 외 ${ids.length - 1}명` : base
-}
-
-/** 상세 모달: 팀(부서) 라벨 + 멤버 표시 줄 */
-function buildPeerSelectModalBlock(
-  rawValue: unknown,
-  row: PendingSubmissionRow
-): { teamLabel: string | null; memberLines: string[] } {
-  const ids = peerIdsFromSelectRaw(rawValue)
-  const recipients = row.peer_recipients ?? []
-  const recMap = new Map(recipients.map((r) => [r.user_id, r]))
-  const teamLabel = resolvePeerSelectTeamLabel(rawValue, recipients, ids)
-
-  const memberLines =
-    ids.length > 0
-      ? ids.map((id) => {
-          const r = recMap.get(id)
-          if (r) {
-            return [r.name || '이름 없음', r.dept_name, r.email].filter(Boolean).join(' · ')
-          }
-          return `사용자 ID ${id.slice(0, 8)}… (프로필 조회 없음)`
-        })
-      : [row.peer_name ?? '동료 선택됨']
-
-  return { teamLabel, memberLines }
-}
-
-/** 테이블·카드 헤더용: 칭찬 대상이 팀 단위면 팀명·인원, 다중이면 '첫 이름 외 n명' */
-function formatPeerHeaderSummary(row: PendingSubmissionRow): string | null {
-  const vd = row.verification_data ?? {}
-  const methods = row.verification_methods ?? []
-  let raw: unknown = null
-  for (const m of methods) {
-    if (m.method_type === 'PEER_SELECT') {
-      raw = vd[m.method_id]
-      break
-    }
-  }
-  const ids = peerIdsFromSelectRaw(raw)
-  const pr = row.peer_recipients ?? []
-  if (ids.length === 0) {
-    return row.peer_name ?? null
-  }
-  const teamLabel = resolvePeerSelectTeamLabel(raw, pr.length > 0 ? pr : undefined, ids)
-  if (ids.length > 1 && teamLabel) {
-    return `${teamLabel} (${ids.length}명)`
-  }
-  if (ids.length > 1) {
-    const recMap = new Map(pr.map((r) => [r.user_id, r]))
-    const first = recMap.get(ids[0]!)?.name ?? row.peer_name ?? '동료'
-    return `${first} 외 ${ids.length - 1}명`
-  }
-  return pr[0]?.name ?? row.peer_name ?? null
 }
 
 interface VerificationsTableProps {
@@ -658,7 +544,7 @@ function SubmissionCard({
             }
             if (m.method_type === 'PEER_SELECT') {
               const displayLabel = m.label || (METHOD_LABEL[m.method_type] ?? m.method_type)
-              const displayValue = parsePeerSelectDisplay(val, row.peer_name, row)
+              const displayValue = formatPeerSelectSummaryLine(val, row.peer_name, row.peer_recipients)
               return (
                 <div key={m.method_id} className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
                   <p className="text-xs font-semibold text-gray-500">{displayLabel}</p>
@@ -782,7 +668,7 @@ function VerificationPreviewCell({ row }: { row: PendingSubmissionRow }) {
           items.push({
             type: 'text',
             label: m.label ?? undefined,
-            value: parsePeerSelectDisplay(val, row.peer_name, row),
+            value: formatPeerSelectSummaryLine(val, row.peer_name, row.peer_recipients),
           })
         }
         else items.push({ type: 'text', label: m.label ?? undefined, value: str })
@@ -849,9 +735,13 @@ function VerificationDetailModal({
           if (m.method_type !== 'PHOTO' && !str) return null
           const label = m.label || METHOD_LABEL[m.method_type] || m.method_type
           const displayValue =
-            m.method_type === 'PEER_SELECT' ? parsePeerSelectDisplay(val, row.peer_name, row) : str
+            m.method_type === 'PEER_SELECT'
+              ? formatPeerSelectSummaryLine(val, row.peer_name, row.peer_recipients)
+              : str
           const peerBlock =
-            m.method_type === 'PEER_SELECT' ? buildPeerSelectModalBlock(val, row) : undefined
+            m.method_type === 'PEER_SELECT'
+              ? buildPeerSelectMemberBlock(val, row.peer_recipients ?? [], row.peer_name)
+              : undefined
           return {
             method_type: m.method_type,
             label,

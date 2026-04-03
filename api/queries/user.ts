@@ -1,4 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import {
+  buildPeerSelectMemberBlock,
+  collectPeerUserIdsOrdered,
+  formatPeerSelectSummaryLine,
+  peerIdsFromSelectRaw,
+} from '@/lib/peer-select-display'
 
 export async function getUserData(userId: string) {
   const supabase = await createClient()
@@ -123,11 +129,24 @@ export type UserEventSubmissionRow = {
   /** 사용자가 실제로 입력한 인증값 요약(텍스트/숫자/사진 개수 등) */
   submission_preview: string | null
   created_at: string
+  /** PEER_SELECT 항목이 있을 때: 팀(부서) + 멤버 목록 (관리자 인증 상세와 동일 규칙) */
+  peer_target_display: {
+    fieldLabel: string
+    teamLabel: string | null
+    memberLines: string[]
+  } | null
+}
+
+type RecipientRow = {
+  name: string | null
+  email: string | null
+  dept_name: string | null
 }
 
 function buildSubmissionPreview(
   verificationData: unknown,
-  methods: Array<{ method_id: string; method_type: string; label: string | null }>
+  methods: Array<{ method_id: string; method_type: string; label: string | null }>,
+  opts?: { recipientById?: Map<string, RecipientRow>; peerUserId?: string | null }
 ): string | null {
   if (!verificationData || typeof verificationData !== 'object' || Array.isArray(verificationData)) return null
   const vd = verificationData as Record<string, unknown>
@@ -143,11 +162,22 @@ function buildSubmissionPreview(
       continue
     }
     if (method.method_type === 'PEER_SELECT') {
-      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        const ids = (raw as { peer_user_ids?: unknown }).peer_user_ids
-        const count = Array.isArray(ids) ? ids.filter((v) => typeof v === 'string' && v.trim()).length : 0
-        if (count > 0) parts.push(`칭찬 대상 ${count}명`)
-      }
+      if (raw === undefined || raw === null) continue
+      const orderedIds = collectPeerUserIdsOrdered(vd, methods)
+      const recipients = orderedIds.map((id) => {
+        const u = opts?.recipientById?.get(id)
+        return {
+          user_id: id,
+          name: u?.name ?? null,
+          email: u?.email ?? null,
+          dept_name: u?.dept_name ?? null,
+        }
+      })
+      const pid = opts?.peerUserId
+      const fallback = pid ? opts?.recipientById?.get(pid)?.name ?? null : null
+      if (peerIdsFromSelectRaw(raw).length === 0 && !fallback) continue
+      const summary = formatPeerSelectSummaryLine(raw, fallback, recipients.length > 0 ? recipients : undefined)
+      if (summary) parts.push(`${label}: ${summary}`)
       continue
     }
     if (typeof raw === 'string') {
@@ -177,7 +207,7 @@ export async function getUserEventSubmissions(
 
   const { data: subs, error: subsError } = await supabase
     .from('event_submissions')
-    .select('submission_id, event_id, round_id, status, rejection_reason, verification_data, created_at')
+    .select('submission_id, event_id, round_id, status, rejection_reason, verification_data, created_at, peer_user_id')
     .eq('user_id', userId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -224,16 +254,82 @@ export async function getUserEventSubmissions(
     roundNumberBy = new Map((rounds ?? []).map((r) => [r.round_id, r.round_number]))
   }
 
-  return subs.map((s) => ({
-    submission_id: s.submission_id,
-    event_id: s.event_id,
-    event_title: eventTitleBy.get(s.event_id) ?? '(이벤트)',
-    round_number: s.round_id ? roundNumberBy.get(s.round_id) ?? null : null,
-    status: s.status,
-    rejection_reason: s.rejection_reason,
-    submission_preview: buildSubmissionPreview(s.verification_data, methodsByEvent.get(s.event_id) ?? []),
-    created_at: s.created_at,
-  }))
+  const allPeerIds = new Set<string>()
+  for (const s of subs) {
+    const vd = (s.verification_data as Record<string, unknown>) ?? {}
+    const methods = methodsByEvent.get(s.event_id) ?? []
+    for (const id of collectPeerUserIdsOrdered(vd, methods)) {
+      allPeerIds.add(id)
+    }
+    const p = (s as { peer_user_id?: string | null }).peer_user_id
+    if (p) allPeerIds.add(p)
+  }
+
+  let recipientById = new Map<string, RecipientRow>()
+  if (allPeerIds.size > 0) {
+    const { data: peerUsers } = await supabase
+      .from('users')
+      .select('user_id, name, email, dept_name')
+      .in('user_id', [...allPeerIds])
+      .is('deleted_at', null)
+    recipientById = new Map(
+      (peerUsers ?? []).map((u) => [
+        u.user_id,
+        { name: u.name ?? null, email: u.email ?? null, dept_name: u.dept_name ?? null },
+      ])
+    )
+  }
+
+  return subs.map((s) => {
+    const methods = methodsByEvent.get(s.event_id) ?? []
+    const vd = (s.verification_data as Record<string, unknown>) ?? {}
+    const peerUserId = (s as { peer_user_id?: string | null }).peer_user_id ?? null
+    const orderedIds = collectPeerUserIdsOrdered(vd, methods)
+    const recipients = orderedIds.map((id) => {
+      const u = recipientById.get(id)
+      return {
+        user_id: id,
+        name: u?.name ?? null,
+        email: u?.email ?? null,
+        dept_name: u?.dept_name ?? null,
+      }
+    })
+    const fallbackName = peerUserId ? recipientById.get(peerUserId)?.name ?? null : null
+
+    const peerMethod = methods.find((m) => m.method_type === 'PEER_SELECT')
+    let peer_target_display: UserEventSubmissionRow['peer_target_display'] = null
+    if (peerMethod) {
+      const fieldLabel = peerMethod.label?.trim() || '동료 선택'
+      const raw = vd[peerMethod.method_id]
+      if (raw != null) {
+        peer_target_display = {
+          fieldLabel,
+          ...buildPeerSelectMemberBlock(raw, recipients, fallbackName),
+        }
+      } else if (fallbackName) {
+        peer_target_display = {
+          fieldLabel,
+          teamLabel: null,
+          memberLines: [fallbackName],
+        }
+      }
+    }
+
+    return {
+      submission_id: s.submission_id,
+      event_id: s.event_id,
+      event_title: eventTitleBy.get(s.event_id) ?? '(이벤트)',
+      round_number: s.round_id ? roundNumberBy.get(s.round_id) ?? null : null,
+      status: s.status as UserEventSubmissionRow['status'],
+      rejection_reason: s.rejection_reason,
+      submission_preview: buildSubmissionPreview(s.verification_data, methods, {
+        recipientById,
+        peerUserId,
+      }),
+      created_at: s.created_at,
+      peer_target_display,
+    }
+  })
 }
 
 /** 마이페이지용: 나에게 보낸 칭찬(단일/다중 수신자 모두, 승인된 건만). 칭찬 내용(메시지) 포함 */

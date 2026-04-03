@@ -96,6 +96,30 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
                 {STATUS_LABEL[s.status] ?? s.status}
               </span>
             </div>
+            {s.peer_target_display && (
+              <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/90 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {s.peer_target_display.fieldLabel}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">제출 답변</p>
+                {s.peer_target_display.teamLabel ? (
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    팀(부서){' '}
+                    <span className="font-semibold text-[#00b859]">{s.peer_target_display.teamLabel}</span>
+                  </p>
+                ) : null}
+                <p className="mt-2 text-xs font-medium text-slate-500">
+                  포함 인원 ({s.peer_target_display.memberLines.length}명)
+                </p>
+                <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm font-medium text-slate-800">
+                  {s.peer_target_display.memberLines.map((line, idx) => (
+                    <li key={idx} className="break-words">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {s.status === 'REJECTED' && s.rejection_reason && (
               <p className="mt-2 text-sm text-red-600">
                 반려 사유: {s.rejection_reason}

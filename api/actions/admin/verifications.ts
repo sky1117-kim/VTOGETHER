@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { collectPeerUserIdsOrdered } from '@/lib/peer-select-display'
 
 /** 이벤트별 인증 방식 (카드/테이블 렌더링용). label·unit은 심사 시 "거리: 34 km" 등 표시에 사용 */
 export type VerificationMethodInfo = {
@@ -47,46 +48,6 @@ export type PendingSubmissionRow = {
     email: string | null
     dept_name: string | null
   }>
-}
-
-/** verification_data에서 PEER_SELECT 항목·루트 peer_user_ids 순서로 동료 ID 목록 (표시 순서 유지) */
-function collectPeerUserIdsOrdered(
-  vd: Record<string, unknown>,
-  methods: VerificationMethodInfo[]
-): string[] {
-  for (const m of methods) {
-    if (m.method_type !== 'PEER_SELECT') continue
-    const val = vd[m.method_id]
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
-      const ids = (val as { peer_user_ids?: unknown }).peer_user_ids
-      if (Array.isArray(ids) && ids.length > 0) {
-        const out: string[] = []
-        const seen = new Set<string>()
-        for (const x of ids) {
-          const s = typeof x === 'string' ? x.trim() : ''
-          if (s && !seen.has(s)) {
-            seen.add(s)
-            out.push(s)
-          }
-        }
-        if (out.length > 0) return out
-      }
-    }
-  }
-  const root = vd.peer_user_ids
-  if (Array.isArray(root) && root.length > 0) {
-    const out: string[] = []
-    const seen = new Set<string>()
-    for (const x of root) {
-      const s = typeof x === 'string' ? x.trim() : String(x).trim()
-      if (s && !seen.has(s)) {
-        seen.add(s)
-        out.push(s)
-      }
-    }
-    if (out.length > 0) return out
-  }
-  return []
 }
 
 function getRecipientUserIds(sub: {
