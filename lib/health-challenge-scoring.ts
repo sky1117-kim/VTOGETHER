@@ -37,6 +37,36 @@ export function validateSessionForTrack(track: HealthTrackRule, log: HealthLogIn
   return { ok: true }
 }
 
+/** 종목에 설정된 1회 최소(거리·속도·고도) 대비 제출값 — 심사 화면용 (승인 API는 별도 검증) */
+export function meetsMinimumSessionCriteria(
+  track: HealthTrackRule,
+  log: HealthLogInput
+): { ok: boolean; warnings: string[] } {
+  const warnings: string[] = []
+  if (track.metric === 'DISTANCE_KM') {
+    if (track.min_distance_km != null) {
+      const d = log.distance_km
+      if (d == null || Number.isNaN(d) || d < track.min_distance_km) {
+        warnings.push(`거리: 종목 최소 ${track.min_distance_km}km 이상 · 제출 ${d ?? '—'}km`)
+      }
+    }
+    if (track.min_speed_kmh != null) {
+      const s = log.speed_kmh
+      if (s == null || Number.isNaN(s) || s < track.min_speed_kmh) {
+        warnings.push(`속도: 종목 최소 ${track.min_speed_kmh}km/h 이상 · 제출 ${s ?? '—'}`)
+      }
+    }
+  } else if (track.metric === 'ELEVATION_M') {
+    if (track.min_elevation_m != null) {
+      const e = log.elevation_m
+      if (e == null || Number.isNaN(e) || e < track.min_elevation_m) {
+        warnings.push(`고도: 종목 최소 ${track.min_elevation_m}m 이상 · 제출 ${e ?? '—'}m`)
+      }
+    }
+  }
+  return { ok: warnings.length === 0, warnings }
+}
+
 /** 승인 시 월 누적에 더할 값 (거리 km 또는 고도 m) */
 export function contributedValueForApprovedLog(track: HealthTrackRule, log: HealthLogInput): number {
   if (track.metric === 'DISTANCE_KM') {

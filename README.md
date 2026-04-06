@@ -21,7 +21,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **이벤트 관리**: `/admin/events` — 목록, `/admin/events/new` — 등록 (보상: V.Credit/굿즈/커피쿠폰 복수 선택, 인증: 사진·텍스트·숫자·동료선택+텍스트 + 직원 안내문)
 - **칭찬 챌린지 인증 UX 개선**: 이벤트 인증 모달에서 동료 다중 선택(여러 명) + 추천 조직명 직접 입력 + 개선된 카드형 UI 지원 (2026.03.30)
 - **동료 선택 인원 설정**: 관리자 이벤트 등록에서 `동료 선택` 인증 항목별로 `개인형(1명)`/`조직형(여러 명)`을 지정 가능. 참여 모달·서버 검증이 동일 규칙 적용 (2026.03.30)
-- **인증 심사**: `/admin/verifications` — 이벤트 참여 인증 승인/반려, 일괄 처리
+- **인증 심사**: `/admin/verifications` — 이벤트 참여 인증 승인/반려, 일괄 처리 · 건강 챌린지 활동은 카드형·큰 사진·전체 화면 확대·대기/전체 필터·종목 최소/L1~L3·월 누적·예상 달성 레벨 표시 (2026.04.06)
 - **건강 챌린지**: 시즌은 **`/admin/events/new`** 에서 People 이벤트와 함께 등록(체크박스). 정산·시즌 목록: `/admin/health-challenges` · 활동 심사: `/admin/verifications`. DB: `033-health-challenge.sql`, `034-health-challenge-event-id.sql`
 - **기부처 관리**: `/admin/donation-targets` — 목표 수정, 오프라인 성금 합산
 - **상점 상품 관리**: `/admin/shop-products` — 상점 상품 등록/활성화/가격·재고·설명 수정 + 상품 이미지 업로드(드래그앤드롭/자동압축) + 검색/필터

@@ -651,6 +651,15 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
     const STATUS_LABEL: Record<string, string> = { PENDING: '승인대기', APPROVED: '승인', REJECTED: '반려' }
     const REWARD_LABEL: Record<string, string> = { V_CREDIT: 'V.Credit', POINTS: 'V.Credit', COFFEE_COUPON: '커피쿠폰', GOODS: '굿즈', COUPON: '쿠폰' }
 
+    const normalizeSummaryText = (value: unknown) =>
+      String(value)
+        .replace(/\r\n/g, ' ')
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120)
+
     const data: EventSubmissionExportRow[] = submissions.map((s) => {
       const round = s.round_id ? roundMap.get(s.round_id) : null
       const user = userMap.get(s.user_id)
@@ -662,11 +671,11 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
         if (val === undefined || val === null || val === '') continue
         if (method_type === 'PHOTO') {
           const count = Array.isArray(val) ? (val as string[]).length : 1
-          parts.push(count > 1 ? `사진 ${count}장` : '사진')
+          parts.push(count > 1 ? `사진 ${count}장` : '사진 1장')
         }
-        else if (method_type === 'TEXT') parts.push(String(val).slice(0, 80))
-        else if (method_type === 'PEER_SELECT') parts.push(peer?.name ?? '동료 선택됨')
-        else if (method_type === 'VALUE') parts.push(String(val))
+        else if (method_type === 'TEXT') parts.push(`내용: ${normalizeSummaryText(val)}`)
+        else if (method_type === 'PEER_SELECT') parts.push(`추천대상: ${peer?.name ?? '동료 선택됨'}`)
+        else if (method_type === 'VALUE') parts.push(`입력값: ${normalizeSummaryText(val)}`)
       }
       return {
         이벤트명: event.title,
@@ -677,7 +686,7 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
         제출일시: new Date(s.created_at).toLocaleString('ko-KR'),
         보상유형: s.reward_type ? (REWARD_LABEL[s.reward_type] ?? s.reward_type) : '—',
         반려사유: s.rejection_reason ?? '',
-        인증요약: parts.join(' / ') || '—',
+        인증요약: parts.join(' | ') || '—',
       }
     })
 

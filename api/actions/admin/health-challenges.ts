@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import {
   achievedLevelFromTotal,
   contributedValueForApprovedLog,
+  meetsMinimumSessionCriteria,
   medalsFromLevelSum,
   validateSessionForTrack,
   type HealthTrackRule,
@@ -137,8 +138,24 @@ async function upsertHealthTracksForSeason(
 export type HealthActivityLogAdminRow = {
   log_id: string
   season_id: string
+  season_name: string | null
   track_id: string
   track_title: string
+  /** 거리(km) 또는 고도(m) 집계 기준 */
+  track_metric: 'DISTANCE_KM' | 'ELEVATION_M'
+  min_distance_km: number | null
+  min_speed_kmh: number | null
+  min_elevation_m: number | null
+  /** 월 누적 L1~L3 목표값 (종목 설정) */
+  level_thresholds: { level: number; target_value: number }[]
+  /** 해당 연·월에 이미 승인되어 반영된 합계(이 로그·대기 건 미포함) */
+  rollup_approved_total: number
+  /** 위 합계 기준 달성 레벨 0~3 */
+  rollup_achieved_level: number
+  /** 로그 1건 승인 시 rollup에 더해지는 값 (km 또는 m) */
+  contributed_per_log: number
+  /** 종목 최소 조건 대비 부족 시 안내 문구(심사 참고용) */
+  minimum_session_warnings: string[]
   user_id: string
   user_name: string | null
   user_email: string | null
@@ -190,31 +207,116 @@ export async function getHealthActivityLogsForAdmin(): Promise<{
 
     const trackIds = [...new Set(logs.map((l) => l.track_id))]
     const userIds = [...new Set(logs.map((l) => l.user_id))]
+    const seasonIds = [...new Set(logs.map((l) => l.season_id))]
 
-    const [tracksRes, usersRes] = await Promise.all([
-      admin.from('health_challenge_tracks').select('track_id, title').in('track_id', trackIds).is('deleted_at', null),
+    const [tracksRes, usersRes, thresholdsRes, rollupsRes, seasonsRes] = await Promise.all([
+      admin
+        .from('health_challenge_tracks')
+        .select('track_id, title, metric, min_distance_km, min_speed_kmh, min_elevation_m')
+        .in('track_id', trackIds)
+        .is('deleted_at', null),
       admin.from('users').select('user_id, name, email').in('user_id', userIds).is('deleted_at', null),
+      admin
+        .from('health_challenge_level_thresholds')
+        .select('track_id, level, target_value')
+        .in('track_id', trackIds)
+        .is('deleted_at', null)
+        .order('level', { ascending: true }),
+      admin
+        .from('health_challenge_monthly_rollups')
+        .select('season_id, track_id, user_id, year, month, approved_total, achieved_level')
+        .in('season_id', seasonIds)
+        .in('user_id', userIds)
+        .in('track_id', trackIds)
+        .is('deleted_at', null),
+      admin.from('health_challenge_seasons').select('season_id, name').in('season_id', seasonIds).is('deleted_at', null),
     ])
 
-    const tMap = new Map((tracksRes.data ?? []).map((t) => [t.track_id, t.title]))
+    const trackById = new Map(
+      (tracksRes.data ?? []).map((t) => [
+        t.track_id,
+        {
+          title: t.title,
+          metric: t.metric as HealthTrackRule['metric'],
+          min_distance_km: t.min_distance_km != null ? Number(t.min_distance_km) : null,
+          min_speed_kmh: t.min_speed_kmh != null ? Number(t.min_speed_kmh) : null,
+          min_elevation_m: t.min_elevation_m != null ? Number(t.min_elevation_m) : null,
+        },
+      ])
+    )
+
+    const thByTrack = new Map<string, { level: number; target_value: number }[]>()
+    for (const row of thresholdsRes.data ?? []) {
+      const tid = row.track_id
+      if (!thByTrack.has(tid)) thByTrack.set(tid, [])
+      thByTrack.get(tid)!.push({ level: row.level, target_value: Number(row.target_value) })
+    }
+    for (const [, arr] of thByTrack) {
+      arr.sort((a, b) => a.level - b.level)
+    }
+
+    const rollupMap = new Map<
+      string,
+      { approved_total: number; achieved_level: number }
+    >()
+    for (const r of rollupsRes.data ?? []) {
+      const key = `${r.season_id}|${r.track_id}|${r.user_id}|${r.year}|${r.month}`
+      rollupMap.set(key, {
+        approved_total: Number(r.approved_total ?? 0),
+        achieved_level: Number(r.achieved_level ?? 0),
+      })
+    }
+
+    const seasonNameById = new Map((seasonsRes.data ?? []).map((s) => [s.season_id, s.name ?? null]))
     const uMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
 
-    const rows: HealthActivityLogAdminRow[] = logs.map((l) => ({
-      log_id: l.log_id,
-      season_id: l.season_id,
-      track_id: l.track_id,
-      track_title: tMap.get(l.track_id) ?? '—',
-      user_id: l.user_id,
-      user_name: uMap.get(l.user_id)?.name ?? null,
-      user_email: uMap.get(l.user_id)?.email ?? null,
-      activity_date: l.activity_date,
-      distance_km: l.distance_km != null ? Number(l.distance_km) : null,
-      speed_kmh: l.speed_kmh != null ? Number(l.speed_kmh) : null,
-      elevation_m: l.elevation_m != null ? Number(l.elevation_m) : null,
-      photo_urls: Array.isArray(l.photo_urls) ? (l.photo_urls as string[]) : [],
-      status: l.status,
-      created_at: l.created_at,
-    }))
+    const rows: HealthActivityLogAdminRow[] = logs.map((l) => {
+      const tr = trackById.get(l.track_id)
+      const title = tr?.title ?? '—'
+      const metric = tr?.metric ?? 'DISTANCE_KM'
+      const rule: HealthTrackRule = {
+        metric,
+        min_distance_km: tr?.min_distance_km ?? null,
+        min_speed_kmh: tr?.min_speed_kmh ?? null,
+        min_elevation_m: tr?.min_elevation_m ?? null,
+      }
+      const logInput = {
+        distance_km: l.distance_km != null ? Number(l.distance_km) : null,
+        speed_kmh: l.speed_kmh != null ? Number(l.speed_kmh) : null,
+        elevation_m: l.elevation_m != null ? Number(l.elevation_m) : null,
+      }
+      const ym = yearMonthFromISODate(l.activity_date)
+      const rk = ym ? `${l.season_id}|${l.track_id}|${l.user_id}|${ym.year}|${ym.month}` : ''
+      const rollup = rk ? rollupMap.get(rk) : undefined
+      const minCheck = meetsMinimumSessionCriteria(rule, logInput)
+
+      return {
+        log_id: l.log_id,
+        season_id: l.season_id,
+        season_name: seasonNameById.get(l.season_id) ?? null,
+        track_id: l.track_id,
+        track_title: title,
+        track_metric: metric,
+        min_distance_km: rule.min_distance_km,
+        min_speed_kmh: rule.min_speed_kmh,
+        min_elevation_m: rule.min_elevation_m,
+        level_thresholds: thByTrack.get(l.track_id) ?? [],
+        rollup_approved_total: rollup?.approved_total ?? 0,
+        rollup_achieved_level: rollup?.achieved_level ?? 0,
+        contributed_per_log: contributedValueForApprovedLog(rule, logInput),
+        minimum_session_warnings: minCheck.warnings,
+        user_id: l.user_id,
+        user_name: uMap.get(l.user_id)?.name ?? null,
+        user_email: uMap.get(l.user_id)?.email ?? null,
+        activity_date: l.activity_date,
+        distance_km: logInput.distance_km,
+        speed_kmh: logInput.speed_kmh,
+        elevation_m: logInput.elevation_m,
+        photo_urls: Array.isArray(l.photo_urls) ? (l.photo_urls as string[]) : [],
+        status: l.status,
+        created_at: l.created_at,
+      }
+    })
 
     return { data: rows, error: null }
   } catch (e) {

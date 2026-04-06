@@ -175,12 +175,9 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
             <span className="h-8 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
             이벤트 & 챌린지
           </h2>
-          {/* 좁은 화면: 여러 줄로 읽기, 필요 시 가로 스크롤 */}
-          <div className="mt-1 overflow-x-auto overscroll-x-contain">
-            <p className="max-w-prose text-sm leading-relaxed text-gray-500 sm:whitespace-nowrap sm:leading-normal">
-              People 이벤트는 V.Medal, V.Together 이벤트는 V.Credit이 지급됩니다. 지급 수량은 칩에 표시됩니다.
-            </p>
-          </div>
+          <p className="mt-1 max-w-prose text-sm leading-relaxed text-gray-500">
+            People 이벤트는 V.Medal, V.Together 이벤트는 V.Credit이 지급됩니다. 지급 수량은 칩에 표시됩니다.
+          </p>
         </div>
         <div className="-mx-1 w-full min-w-0 overflow-x-auto px-1 pb-1 md:w-auto md:overflow-visible md:pb-0">
           <div className="flex w-max max-w-none gap-1.5 rounded-xl bg-white/60 p-1.5 shadow-soft backdrop-blur-sm md:w-auto md:flex-wrap">
