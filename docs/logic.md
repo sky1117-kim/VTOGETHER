@@ -73,7 +73,7 @@
 - **이벤트 참여**: 상시 이벤트는 사용자당 1회만, 기간제는 구간(round)당 1회만 참여 가능 (DB Unique Index).
 - **이벤트 제출 → 관리자 인증 필수**: 사용자가 제출한 모든 이벤트 인증은 **항상 `status: 'PENDING'`** 으로만 저장됨. 관리자가 `/admin/verifications` 인증 심사에서 승인(또는 반려)하기 전까지 보상 지급 없음. 자동 승인 경로 없음.
 - **반려 후 재제출 허용**: 이벤트 인증이 `REJECTED`인 경우에는 동일 이벤트(상시) 또는 동일 구간(기간제)으로 다시 제출할 수 있습니다. 중복 제한은 `PENDING`/`APPROVED` 상태에만 적용됩니다.
-- **승인 대기 Chat 알림**: 이벤트 인증이 `PENDING`으로 저장되면 서버 액션(`submitEventSubmission`)에서 Google Chat Webhook 알림을 발송합니다. 알림에는 이벤트명·제출자 ID·관리자 확인 링크(`/admin/verifications`)가 포함됩니다. 알림 전송 실패 시에도 제출 저장은 실패시키지 않습니다.
+- **승인 대기 Chat 알림**: 이벤트 인증이 `PENDING`으로 저장되면 서버 액션(`submitEventSubmission`)에서 Google Chat Webhook 알림을 발송합니다. 알림 헤더에 `user_email`·`user_name`·시간이 있고, 본문에는 이벤트명·관리자 확인 링크(`/admin/verifications`) 등이 포함됩니다(상시/구간 구분은 Chat 본문에 넣지 않음, 심사 화면에서 확인). 알림 전송 실패 시에도 제출 저장은 실패시키지 않습니다.
 - **이벤트 운영 방식 (타입별)**:
   - **SEASONAL**: 구간별 기간·1회 참여. 상태는 LOCKED/OPEN/SUBMITTED/APPROVED/DONE/FAILED (자세한 조건은 `docs/plan-events-operations.md`).
   - **ALWAYS**: 기간 없음, 참여 빈도만 제한. `events.frequency_limit`(ONCE/DAILY/WEEKLY/MONTHLY)으로 일/주/월 1회 등 제어. 최근 제출일은 `event_submissions`에서 조회.

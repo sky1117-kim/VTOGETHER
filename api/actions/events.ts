@@ -239,10 +239,8 @@ export async function submitEventSubmission(
       process.env.NEXT_PUBLIC_DEV_APP_URL?.trim() ||
       'http://localhost:3000'
     const adminVerificationLink = `${appUrl.replace(/\/+$/, '')}/admin/verifications`
-    const roundText = roundId ? '구간 제출' : '상시 제출'
     await sendGoogleChatAdminAlert({
       title: '새 인증 제출(승인 대기)',
-      userId,
       userEmail: user.email ?? undefined,
       userName:
         (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
@@ -250,9 +248,6 @@ export async function submitEventSubmission(
         undefined,
       message: [
         `이벤트: ${event.title ?? '이벤트명 없음'}`,
-        `제출자 ID: ${userId}`,
-        `제출자 이메일: ${user.email ?? '알 수 없음'}`,
-        `유형: ${roundText}`,
         `확인 링크: ${adminVerificationLink}`,
       ].join('\n'),
     })

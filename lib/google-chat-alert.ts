@@ -59,7 +59,6 @@ export async function sendGoogleChatAlert(payload: GoogleChatAlertPayload) {
 interface AdminGoogleChatAlertPayload {
   title: string
   message: string
-  userId?: string
   userEmail?: string
   userName?: string
 }
@@ -71,8 +70,6 @@ export async function sendGoogleChatAdminAlert(payload: AdminGoogleChatAlertPayl
 
   const lines = [
     `📌 [ADMIN] ${payload.title}`,
-    `- env: ${process.env.NODE_ENV ?? 'unknown'}`,
-    payload.userId ? `- user_id: ${payload.userId}` : null,
     payload.userEmail ? `- user_email: ${payload.userEmail}` : null,
     payload.userName ? `- user_name: ${payload.userName}` : null,
     `- time: ${new Date().toISOString()}`,

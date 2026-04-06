@@ -206,7 +206,6 @@ export async function submitHealthActivityLogsBatch(
     const adminVerificationLink = `${appUrl.replace(/\/+$/, '')}/admin/verifications`
     await sendGoogleChatAdminAlert({
       title: '새 건강 챌린지 인증(승인 대기)',
-      userId: user.id,
       userEmail: user.email ?? undefined,
       userName:
         (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
@@ -215,8 +214,6 @@ export async function submitHealthActivityLogsBatch(
       message: [
         `시즌: ${season.name ?? '이름 없음'}`,
         `제출 건수: ${rows.length}건`,
-        `제출자 ID: ${user.id}`,
-        `제출자 이메일: ${user.email ?? '알 수 없음'}`,
         `확인 링크: ${adminVerificationLink}`,
       ].join('\n'),
     })
