@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { getDonationTargetDisplayName } from '@/constants/donationTargets'
 
 interface RecentDonation {
   donation_id: string
@@ -48,7 +49,9 @@ export function RecentDonations({ donations }: RecentDonationsProps) {
           >
             <div>
               <p className="font-medium text-black dark:text-zinc-50">
-                {donation.donation_targets?.name || '알 수 없음'}
+                {donation.donation_targets?.name
+                  ? getDonationTargetDisplayName(donation.donation_targets.name)
+                  : '알 수 없음'}
               </p>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
                 {new Date(donation.created_at).toLocaleDateString('ko-KR', {

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { donatePoints } from '@/api/actions/donation'
 import { useRouter } from 'next/navigation'
+import { getDonationTargetDisplayName } from '@/constants/donationTargets'
 import { DonationSuccessModal } from './DonationSuccessModal'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 
@@ -32,6 +33,7 @@ function clampAmount(value: number, max: number): number {
 }
 
 export function DonationModal({ target, userPoints, disabled, children }: DonationModalProps) {
+  const targetDisplayName = getDonationTargetDisplayName(target.name)
   const [isOpen, setIsOpen] = useState(false)
   const [amount, setAmount] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -80,7 +82,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
       } else {
         setIsOpen(false)
         setAmount(0)
-        setSuccessPayload({ targetName: target.name, amount, levelUp: result.levelUp ?? null })
+        setSuccessPayload({ targetName: targetDisplayName, amount, levelUp: result.levelUp ?? null })
         router.refresh()
       }
     } catch {
@@ -149,7 +151,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
           >
             <div className="mb-5 flex items-center justify-between">
               <h2 id="donation-modal-title" className="text-lg font-bold text-gray-900">
-                {target.name}에 기부하기
+                {targetDisplayName}에 기부하기
               </h2>
               <button
                 type="button"

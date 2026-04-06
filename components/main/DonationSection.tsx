@@ -2,7 +2,7 @@ import Image from 'next/image'
 import {
   DEFAULT_TARGET_IMAGES,
   TARGET_CATEGORY_TAGS,
-  TARGET_DISPLAY_NAMES,
+  getDonationTargetDisplayName,
   getTargetTheme,
 } from '@/constants/donationTargets'
 import { DonationModal } from '@/components/donation/DonationModal'
@@ -25,11 +25,6 @@ function getTargetImageUrl(target: DonationTarget): string {
 /** 기부처 이름으로 좌측 상단 카테고리 태그 정보 반환 */
 function getCategoryTag(target: DonationTarget) {
   return TARGET_CATEGORY_TAGS[target.name] ?? { label: '기부', className: 'bg-gray-100 text-gray-700 border-gray-300' }
-}
-
-/** 화면에 표시할 기부처 이름 (예전 DB 이름 → 새 이름 매핑) */
-function getDisplayName(target: DonationTarget): string {
-  return TARGET_DISPLAY_NAMES[target.name] ?? target.name
 }
 
 interface DonationSectionProps {
@@ -145,7 +140,7 @@ export function DonationSection({
               <div className="flex flex-1 flex-col p-5">
                 {/* 기부처 이름: 달성률 바로 위에 배치 (예전 DB명은 표시명으로 치환) */}
                 <h3 className="mb-2 text-base font-bold text-gray-900">
-                  {getDisplayName(target)}
+                  {getDonationTargetDisplayName(target.name)}
                 </h3>
                 <div className="mt-auto">
                   <div className="mb-1 flex justify-between text-xs">

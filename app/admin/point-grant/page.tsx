@@ -1,5 +1,9 @@
 import Link from 'next/link'
 import { getUsersForAdmin, getPointTransactionsForAdmin } from '@/api/actions/admin'
+import {
+  getDonationTargetDisplayName,
+  rewriteLegacyDonationTargetNamesInText,
+} from '@/constants/donationTargets'
 import { getEarnedDisplay } from '@/lib/point-display'
 import { GrantPointsForm } from '../components/GrantPointsForm'
 import { AdminPageHeader } from '../components/AdminPageHeader'
@@ -30,7 +34,8 @@ function getCompactDescription(row: {
   const raw = row.description?.trim() ?? ''
   const relatedType = (row.related_type ?? '').trim().toUpperCase()
 
-  if (row.type === 'DONATED' && row.donation_target_name) return `${row.donation_target_name} 기부`
+  if (row.type === 'DONATED' && row.donation_target_name)
+    return `${getDonationTargetDisplayName(row.donation_target_name)} 기부`
   if (!raw && !row.donation_target_name) return '—'
 
   if (relatedType === 'EVENT' && row.type === 'EARNED') {
@@ -38,7 +43,9 @@ function getCompactDescription(row: {
   }
   if (relatedType === 'HEALTH_CHALLENGE_SETTLEMENT') return '건강 챌린지 정산'
   if (relatedType === 'ADMIN_GRANT') return '관리자 지급'
-  return raw || row.donation_target_name || '—'
+  const fallback = raw || row.donation_target_name || '—'
+  if (row.type === 'DONATED') return rewriteLegacyDonationTargetNamesInText(fallback)
+  return fallback
 }
 
 /** 관리자 전용: 수동 지급 + 지급/적립/사용 내역을 한 화면에서 관리 */

@@ -3,6 +3,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import {
+  getDonationTargetDisplayName,
+  rewriteLegacyDonationTargetNamesInText,
+} from '@/constants/donationTargets'
 import { getEarnedDisplay } from '@/lib/point-display'
 
 export type PointTransactionRow = {
@@ -76,11 +80,15 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
   const renderTransactionRow = (t: PointTransactionRow) => {
     const isEarned = t.type === 'EARNED'
     const isDonated = t.type === 'DONATED'
-    const displayDesc =
-      t.description?.trim() ||
-      (isDonated && t.donation_target_name
-        ? `${t.donation_target_name}에 기부`
-        : TYPE_LABEL[t.type] ?? t.type)
+    const displayDesc = (() => {
+      if (isDonated) {
+        const stored = t.donation_target_name?.trim()
+        if (stored) return `${getDonationTargetDisplayName(stored)}에 기부`
+        const fromDesc = rewriteLegacyDonationTargetNamesInText(t.description?.trim() || '')
+        return fromDesc || '기부'
+      }
+      return (t.description?.trim() || TYPE_LABEL[t.type]) ?? t.type
+    })()
     const amount = t.amount
     const isPlus = amount > 0
     const earnedDisplay = isEarned ? getEarnedDisplay(t.description) : null

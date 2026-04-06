@@ -27,6 +27,20 @@ export const TARGET_DISPLAY_NAMES: Record<string, string> = {
   '한국사회복지협의회': '국제구조위원회',
 }
 
+/** 기부처 DB 이름 → 사용자에게 보여줄 이름 (카드·모달·내역 공통) */
+export function getDonationTargetDisplayName(dbName: string): string {
+  return TARGET_DISPLAY_NAMES[dbName] ?? dbName
+}
+
+/** 거래 설명 등 긴 문자열 속 예전 기부처명을 표시명으로 치환 */
+export function rewriteLegacyDonationTargetNamesInText(text: string): string {
+  let out = text
+  for (const [legacy, display] of Object.entries(TARGET_DISPLAY_NAMES)) {
+    if (legacy !== display) out = out.split(legacy).join(display)
+  }
+  return out
+}
+
 /** 기부처별 좌측 상단 카테고리 태그 (색상 구분) */
 export const TARGET_CATEGORY_TAGS: Record<
   string,

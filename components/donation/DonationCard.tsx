@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { getDonationTargetDisplayName } from '@/constants/donationTargets'
 import { DonationModal } from './DonationModal'
 
 interface DonationCardProps {
@@ -15,6 +16,7 @@ interface DonationCardProps {
 }
 
 export function DonationCard({ target, userPoints }: DonationCardProps) {
+  const displayName = getDonationTargetDisplayName(target.name)
   const progress = target.target_amount > 0 
     ? (target.current_amount / target.target_amount) * 100 
     : 0
@@ -39,7 +41,7 @@ export function DonationCard({ target, userPoints }: DonationCardProps) {
         {target.image_url ? (
           <Image
             src={target.image_url}
-            alt={target.name}
+            alt={displayName}
             fill
             className="object-cover"
           />
@@ -49,8 +51,8 @@ export function DonationCard({ target, userPoints }: DonationCardProps) {
           </div>
         )}
         <div className="absolute left-3 top-3 max-w-[min(100%-1.5rem,14rem)] rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-gray-800 shadow-sm">
-          <span className="block truncate" title={target.name}>
-            {target.name}
+          <span className="block truncate" title={displayName}>
+            {displayName}
           </span>
         </div>
       </div>
