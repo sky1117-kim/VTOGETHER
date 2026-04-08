@@ -11,6 +11,7 @@ import {
   Users,
   CircleDollarSign,
   Store,
+  ShoppingBag,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { href: '/admin/point-grant', label: '지급/적립 내역', icon: CircleDollarSign, badgeKey: null },
   { href: '/admin/events', label: '이벤트', icon: Gift, badgeKey: null },
   { href: '/admin/shop-products', label: '상점 상품', icon: Store, badgeKey: null },
+  { href: '/admin/shop-orders', label: '상점 주문', icon: ShoppingBag, badgeKey: null },
   { href: '/admin/verifications', label: '인증 심사', icon: ClipboardCheck, badgeKey: 'verification' as const },
   { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송', icon: Package, badgeKey: null },
   { href: '/admin/donation-targets', label: '기부처', icon: Heart, badgeKey: null },

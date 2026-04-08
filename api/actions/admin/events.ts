@@ -604,7 +604,14 @@ export type EventSubmissionExportRow = {
   제출일시: string
   보상유형: string
   반려사유: string
-  인증요약: string
+  /** TEXT 인증(칭찬 내용 등) */
+  인증내용: string
+  /** PEER_SELECT 인증(칭찬·추천 대상) */
+  추천대상: string
+  /** PHOTO 인증 요약 */
+  사진: string
+  /** VALUE 타입 추가 입력 */
+  입력값: string
 }
 
 export async function getEventSubmissionsForExport(eventId: string): Promise<{
@@ -665,18 +672,25 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
       const user = userMap.get(s.user_id)
       const peer = s.peer_user_id ? userMap.get(s.peer_user_id) : null
       const vd = (s.verification_data as Record<string, unknown>) ?? {}
-      const parts: string[] = []
+      const textParts: string[] = []
+      const photoParts: string[] = []
+      const peerParts: string[] = []
+      const valueParts: string[] = []
       for (const { method_id, method_type } of methods) {
         const val = vd[method_id]
         if (val === undefined || val === null || val === '') continue
         if (method_type === 'PHOTO') {
           const count = Array.isArray(val) ? (val as string[]).length : 1
-          parts.push(count > 1 ? `사진 ${count}장` : '사진 1장')
+          photoParts.push(count > 1 ? `사진 ${count}장` : '사진 1장')
+        } else if (method_type === 'TEXT') {
+          textParts.push(normalizeSummaryText(val))
+        } else if (method_type === 'PEER_SELECT') {
+          peerParts.push(peer?.name ?? '동료 선택됨')
+        } else if (method_type === 'VALUE') {
+          valueParts.push(normalizeSummaryText(val))
         }
-        else if (method_type === 'TEXT') parts.push(`내용: ${normalizeSummaryText(val)}`)
-        else if (method_type === 'PEER_SELECT') parts.push(`추천대상: ${peer?.name ?? '동료 선택됨'}`)
-        else if (method_type === 'VALUE') parts.push(`입력값: ${normalizeSummaryText(val)}`)
       }
+      const dash = '—'
       return {
         이벤트명: event.title,
         구간: round ? `${round.round_number}구간` : '상시',
@@ -686,7 +700,10 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
         제출일시: new Date(s.created_at).toLocaleString('ko-KR'),
         보상유형: s.reward_type ? (REWARD_LABEL[s.reward_type] ?? s.reward_type) : '—',
         반려사유: s.rejection_reason ?? '',
-        인증요약: parts.join(' | ') || '—',
+        인증내용: textParts.length ? textParts.join(' | ') : dash,
+        추천대상: peerParts.length ? peerParts.join(' | ') : dash,
+        사진: photoParts.length ? photoParts.join(' | ') : dash,
+        입력값: valueParts.length ? valueParts.join(' | ') : dash,
       }
     })
 

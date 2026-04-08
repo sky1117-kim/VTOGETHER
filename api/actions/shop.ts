@@ -87,11 +87,13 @@ export async function purchaseShopProduct(productId: string, quantity = 1): Prom
     const admin = createAdminClient()
     const { data: me, error: meErr } = await admin
       .from('users')
-      .select('current_medals')
+      .select('current_medals, name, email')
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .single()
     if (meErr || !me) return { success: false, error: '사용자 정보를 찾을 수 없습니다.' }
+    const snapshotName = typeof me.name === 'string' && me.name.trim() ? me.name.trim() : null
+    const snapshotEmail = typeof me.email === 'string' && me.email.trim() ? me.email.trim() : null
 
     const { data: product, error: productErr } = await admin
       .from('shop_products')
@@ -136,6 +138,8 @@ export async function purchaseShopProduct(productId: string, quantity = 1): Prom
       related_id: product.product_id,
       related_type: 'SHOP_PURCHASE',
       description: `상점 구매: ${product.name} x${safeQuantity}`,
+      user_name: snapshotName,
+      user_email: snapshotEmail,
     })
 
     if (totalCreditGranted > 0) {
@@ -163,6 +167,8 @@ export async function purchaseShopProduct(productId: string, quantity = 1): Prom
         related_id: product.product_id,
         related_type: 'SHOP_EXCHANGE',
         description: `V.Medal 전환: ${product.name} x${safeQuantity}`,
+        user_name: snapshotName,
+        user_email: snapshotEmail,
       })
     }
 

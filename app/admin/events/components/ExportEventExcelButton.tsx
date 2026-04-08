@@ -28,7 +28,22 @@ export function ExportEventExcelButton({
       }
       const fileName = `${title ?? eventTitle}_제출목록_${new Date().toISOString().slice(0, 10)}.xlsx`
       if (!data || data.length === 0) {
-        const ws = XLSX.utils.json_to_sheet([{ 이벤트명: title, 구간: '', 참여자명: '', 이메일: '', 상태: '', 제출일시: '', 보상유형: '', 반려사유: '', 인증요약: '제출 건 없음' }])
+        const ws = XLSX.utils.json_to_sheet([
+          {
+            이벤트명: title,
+            구간: '',
+            참여자명: '',
+            이메일: '',
+            상태: '',
+            제출일시: '',
+            보상유형: '',
+            반려사유: '',
+            인증내용: '제출 건 없음',
+            추천대상: '',
+            사진: '',
+            입력값: '',
+          },
+        ])
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, '제출목록')
         XLSX.writeFile(wb, fileName)
