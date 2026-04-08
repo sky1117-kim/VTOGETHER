@@ -89,14 +89,17 @@ export async function getRoundsWithStatusForUser(
     const roundIds = rounds.map((r) => r.round_id)
     const { data: submissions } = await supabase
       .from('event_submissions')
-      .select('submission_id, round_id, status, reward_received')
+      .select('submission_id, round_id, status, reward_received, created_at')
       .eq('event_id', eventId)
       .eq('user_id', userId)
       .in('round_id', roundIds)
       .is('deleted_at', null)
+      .order('created_at', { ascending: false })
 
+    // 구간당 여러 행(040 마이그레이션 후 반려+재제출 이력)이 있으면 최신 행만 반영
     const submissionByRound = new Map<string | null, SubmissionRow>()
     for (const s of submissions ?? []) {
+      if (submissionByRound.has(s.round_id)) continue
       submissionByRound.set(s.round_id, s as SubmissionRow)
     }
 

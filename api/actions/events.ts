@@ -218,42 +218,91 @@ export async function submitEventSubmission(
         ? { ...verificationData, peer_user_ids: normalizedPeerUserIds }
         : verificationData
 
-    const { error: insertErr } = await supabase.from('event_submissions').insert({
+    const insertRow = {
       event_id: eventId,
       round_id: roundId,
       user_id: userId,
-      status: 'PENDING',
+      status: 'PENDING' as const,
       verification_data: payloadVerificationData,
-      // 기존 스키마 호환: 대표 수신자 1명은 peer_user_id에 유지
       peer_user_id: normalizedPeerUserIds[0] ?? null,
       is_anonymous: hasPeerSelect && !!isAnonymous,
-    })
-    if (insertErr) {
-      if (insertErr.code === '23505') return { success: false, error: '이미 해당 구간에 제출했습니다.' }
-      return { success: false, error: insertErr.message }
     }
 
-    // 관리자 승인 대기 건이 생성되면 Google Chat으로 알림을 전송합니다.
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-      process.env.NEXT_PUBLIC_DEV_APP_URL?.trim() ||
-      'http://localhost:3000'
-    const adminVerificationLink = `${appUrl.replace(/\/+$/, '')}/admin/verifications`
-    await sendGoogleChatAdminAlert({
-      title: '새 인증 제출(승인 대기)',
-      userEmail: user.email ?? undefined,
-      userName:
-        (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
-        (typeof user.user_metadata?.name === 'string' && user.user_metadata.name) ||
-        undefined,
-      message: [
-        `이벤트: ${event.title ?? '이벤트명 없음'}`,
-        `확인 링크: ${adminVerificationLink}`,
-      ].join('\n'),
-    })
+    const sendSubmitAdminAlert = async () => {
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+        process.env.NEXT_PUBLIC_DEV_APP_URL?.trim() ||
+        'http://localhost:3000'
+      const adminVerificationLink = `${appUrl.replace(/\/+$/, '')}/admin/verifications`
+      await sendGoogleChatAdminAlert({
+        title: '새 인증 제출(승인 대기)',
+        userEmail: user.email ?? undefined,
+        userName:
+          (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
+          (typeof user.user_metadata?.name === 'string' && user.user_metadata.name) ||
+          undefined,
+        message: [
+          `이벤트: ${event.title ?? '이벤트명 없음'}`,
+          `확인 링크: ${adminVerificationLink}`,
+        ].join('\n'),
+      })
+    }
 
-    revalidatePath('/')
-    return { success: true, error: null }
+    const { error: insertErr } = await supabase.from('event_submissions').insert(insertRow)
+
+    if (!insertErr) {
+      await sendSubmitAdminAlert()
+      revalidatePath('/')
+      return { success: true, error: null }
+    }
+
+    // DB에 020 유니크만 적용된 경우: 반려 행이 남아 있으면 INSERT가 23505로 막힘.
+    // RLS상 사용자는 UPDATE 불가이므로, 본인·REJECTED·해당 구간만 관리자 클라이언트로 갱신합니다.
+    if (insertErr.code === '23505') {
+      const admin = createAdminClient()
+      let rejectedQ = admin
+        .from('event_submissions')
+        .select('submission_id')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('status', 'REJECTED')
+        .is('deleted_at', null)
+      rejectedQ = roundId === null ? rejectedQ.is('round_id', null) : rejectedQ.eq('round_id', roundId)
+      const { data: rejectedRow, error: rejFetchErr } = await rejectedQ
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (rejFetchErr || !rejectedRow?.submission_id) {
+        return { success: false, error: '이미 해당 구간에 제출했습니다.' }
+      }
+
+      const { data: updated, error: upErr } = await admin
+        .from('event_submissions')
+        .update({
+          status: 'PENDING',
+          verification_data: payloadVerificationData,
+          peer_user_id: normalizedPeerUserIds[0] ?? null,
+          is_anonymous: hasPeerSelect && !!isAnonymous,
+          rejection_reason: null,
+          reviewed_by: null,
+          reviewed_at: null,
+        })
+        .eq('submission_id', rejectedRow.submission_id)
+        .eq('user_id', userId)
+        .eq('status', 'REJECTED')
+        .select('submission_id')
+        .maybeSingle()
+
+      if (upErr) return { success: false, error: upErr.message }
+      if (!updated) return { success: false, error: '이미 해당 구간에 제출했습니다.' }
+
+      await sendSubmitAdminAlert()
+      revalidatePath('/')
+      return { success: true, error: null }
+    }
+
+    return { success: false, error: insertErr.message }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '제출 중 오류가 발생했습니다.' }
   }

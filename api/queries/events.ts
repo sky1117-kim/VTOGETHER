@@ -134,11 +134,13 @@ export async function getEventsWithRoundsForPublic(
     if (roundIds.length > 0) {
       const { data: subs } = await supabase
         .from('event_submissions')
-        .select('round_id, status, reward_received')
+        .select('round_id, status, reward_received, created_at')
         .eq('user_id', userId)
         .in('round_id', roundIds)
         .is('deleted_at', null)
+        .order('created_at', { ascending: false })
       for (const s of subs ?? []) {
+        if (submissionsByRound.has(s.round_id)) continue
         submissionsByRound.set(s.round_id, {
           status: s.status,
           reward_received: s.reward_received ?? false,

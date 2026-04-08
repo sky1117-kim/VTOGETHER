@@ -42,6 +42,7 @@ const ROUND_STATUS_LABEL: Record<string, string> = {
   APPROVED: '승인 완료',
   DONE: '완료',
   FAILED: '마감',
+  REJECTED: '반려됨 · 재제출 가능',
 }
 interface EventVerifyModalProps {
   eventId: string | null
@@ -133,7 +134,9 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
         }
         setData(res.data)
         const openRound = res.data.rounds.find((r) => r.status === 'OPEN')
+        const rejectedRound = res.data.rounds.find((r) => r.status === 'REJECTED')
         if (openRound) setSelectedRoundId(openRound.round_id)
+        else if (rejectedRound) setSelectedRoundId(rejectedRound.round_id)
         else if (res.data.rounds.length > 0) setSelectedRoundId(res.data.rounds[0].round_id)
       })
       .finally(() => {
@@ -187,6 +190,13 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     if (data.event.type === 'SEASONAL' && !roundId) {
       setError('구간을 선택하세요.')
       return
+    }
+    if (data.event.type === 'SEASONAL' && roundId) {
+      const sel = data.rounds.find((r) => r.round_id === roundId)
+      if (sel && sel.status !== 'OPEN' && sel.status !== 'REJECTED') {
+        setError('선택한 구간에는 지금 인증할 수 없습니다.')
+        return
+      }
     }
     const verificationData: Record<string, unknown> = {}
     const missing: string[] = []
@@ -338,16 +348,17 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                 <p className="text-sm font-bold text-gray-700">인증할 구간</p>
                 <div className="flex flex-wrap gap-2">
                   {data.rounds.map((r) => {
-                    const isOpen = r.status === 'OPEN'
+                    // 반려된 구간도 동일 구간으로 다시 제출할 수 있어야 함 (OPEN과 동일하게 선택 가능)
+                    const canSelectRound = r.status === 'OPEN' || r.status === 'REJECTED'
                     const isSelected = selectedRoundId === r.round_id
                     return (
                       <button
                         key={r.round_id}
                         type="button"
-                        onClick={() => isOpen && setSelectedRoundId(r.round_id)}
-                        disabled={!isOpen}
+                        onClick={() => canSelectRound && setSelectedRoundId(r.round_id)}
+                        disabled={!canSelectRound}
                         className={`rounded-xl border-2 px-4 py-2.5 text-sm font-semibold transition ${
-                          !isOpen
+                          !canSelectRound
                             ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
                             : isSelected
                               ? 'border-green-500 bg-green-50 text-green-700'
