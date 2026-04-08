@@ -13,6 +13,7 @@ export type UserRow = {
   name: string | null
   dept_name: string | null
   current_points: number
+  current_medals: number
   total_donated_amount: number
   level: string
   is_admin: boolean
@@ -48,7 +49,8 @@ export type AdminPointTransactionRow = {
 export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; error: string | null }> {
   try {
     const supabase = createAdminClient()
-    let selectColumns = 'user_id, email, name, dept_name, current_points, total_donated_amount, level, is_admin, last_active_at'
+    let selectColumns =
+      'user_id, email, name, dept_name, current_points, current_medals, total_donated_amount, level, is_admin, last_active_at'
     let { data, error } = await supabase
       .from('users')
       .select(selectColumns)
@@ -56,7 +58,8 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
       .order('created_at', { ascending: false })
     // last_active_at 컬럼 없음(016 미실행) 시 제외하고 재시도
     if (error?.message?.includes('last_active_at')) {
-      selectColumns = 'user_id, email, name, dept_name, current_points, total_donated_amount, level, is_admin'
+      selectColumns =
+        'user_id, email, name, dept_name, current_points, current_medals, total_donated_amount, level, is_admin'
       const retry = await supabase.from('users').select(selectColumns).is('deleted_at', null).order('created_at', { ascending: false })
       data = retry.data
       error = retry.error
@@ -64,7 +67,12 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
         return {
           data: (data ?? []).map((r) => {
             const row = r as unknown as Record<string, unknown>
-            return { ...row, is_admin: !!(row.is_admin as boolean), last_active_at: null } as UserRow
+            return {
+              ...row,
+              is_admin: !!(row.is_admin as boolean),
+              current_medals: Number(row.current_medals ?? 0),
+              last_active_at: null,
+            } as UserRow
           }),
           error: null,
         }
@@ -75,14 +83,37 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
       if (error.message?.includes('is_admin') || error.message?.includes('column')) {
         const { data: dataFallback, error: err2 } = await supabase
           .from('users')
-          .select('user_id, email, name, dept_name, current_points, total_donated_amount, level')
+          .select('user_id, email, name, dept_name, current_points, current_medals, total_donated_amount, level')
           .is('deleted_at', null)
           .order('created_at', { ascending: false })
-        if (err2) return { data: null, error: err2.message }
+        if (err2) {
+          // current_medals 컬럼이 아직 없는 구버전 스키마 대응
+          if (err2.message?.includes('current_medals')) {
+            const retryNoMedals = await supabase
+              .from('users')
+              .select('user_id, email, name, dept_name, current_points, total_donated_amount, level')
+              .is('deleted_at', null)
+              .order('created_at', { ascending: false })
+            if (retryNoMedals.error) return { data: null, error: retryNoMedals.error.message }
+            return {
+              data: (retryNoMedals.data ?? []).map((r) => {
+                const row = r as unknown as Record<string, unknown>
+                return { ...row, is_admin: false, current_medals: 0, last_active_at: null } as UserRow
+              }),
+              error: null,
+            }
+          }
+          return { data: null, error: err2.message }
+        }
         return {
           data: (dataFallback ?? []).map((r) => {
             const row = r as unknown as Record<string, unknown>
-            return { ...row, is_admin: false, last_active_at: null } as UserRow
+            return {
+              ...row,
+              is_admin: false,
+              current_medals: Number(row.current_medals ?? 0),
+              last_active_at: null,
+            } as UserRow
           }),
           error: null,
         }
@@ -92,7 +123,12 @@ export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; erro
     return {
       data: (data ?? []).map((r) => {
         const row = r as unknown as Record<string, unknown>
-        return { ...row, is_admin: !!(row.is_admin as boolean), last_active_at: (row.last_active_at as string | null) ?? null } as UserRow
+        return {
+          ...row,
+          is_admin: !!(row.is_admin as boolean),
+          current_medals: Number(row.current_medals ?? 0),
+          last_active_at: (row.last_active_at as string | null) ?? null,
+        } as UserRow
       }),
       error: null,
     }
@@ -314,6 +350,62 @@ export async function updateUserAdmin(
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '설정 저장 실패' }
+  }
+}
+
+/** 관리자 전용: 사용자 계정 삭제(soft delete) */
+export async function deleteUserAccountByAdmin(
+  userId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabaseAuth = await createClient()
+    const {
+      data: { user: caller },
+    } = await supabaseAuth.auth.getUser()
+    if (!caller) return { success: false, error: '로그인이 필요합니다.' }
+    if (caller.id === userId) {
+      return { success: false, error: '본인 계정은 관리자 목록에서 삭제할 수 없습니다. 마이페이지에서 탈퇴해주세요.' }
+    }
+
+    const admin = createAdminClient()
+    const { data: me, error: meError } = await admin
+      .from('users')
+      .select('is_admin')
+      .eq('user_id', caller.id)
+      .is('deleted_at', null)
+      .single()
+    if (meError || !me?.is_admin) {
+      return { success: false, error: '관리자만 계정을 삭제할 수 있습니다.' }
+    }
+
+    const nowIso = new Date().toISOString()
+    const { error: softDeleteError } = await admin
+      .from('users')
+      .update({
+        deleted_at: nowIso,
+        is_admin: false,
+        updated_at: nowIso,
+      })
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+    if (softDeleteError) {
+      return { success: false, error: softDeleteError.message }
+    }
+
+    // auth.users 계정도 함께 제거 시도 (없거나 권한 이슈여도 서비스 계정 삭제는 유지)
+    try {
+      await admin.auth.admin.deleteUser(userId)
+    } catch {
+      // 수동 생성 테스트 계정 등은 auth.users에 없을 수 있음
+    }
+
+    revalidatePath('/admin')
+    revalidatePath('/admin/recent-users')
+    revalidatePath('/', 'layout')
+    revalidatePath('/my')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '계정 삭제 실패' }
   }
 }
 

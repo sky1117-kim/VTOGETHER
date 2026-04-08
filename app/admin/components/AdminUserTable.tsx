@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { UserRow } from '@/api/actions/admin'
 import { AdminToggle } from './AdminToggle'
+import { UserDeleteButton } from './UserDeleteButton'
 import { Search, Users } from 'lucide-react'
 
 interface AdminUserTableProps {
@@ -91,7 +92,7 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-6 py-3 font-medium">이름 / 이메일</th>
@@ -100,7 +101,9 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
                 )}
                 <th className="whitespace-nowrap px-6 py-3 font-medium">부서</th>
                 <th className="whitespace-nowrap px-6 py-3 font-medium">관리자</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium">계정 관리</th>
                 <th className="whitespace-nowrap px-6 py-3 font-medium text-right">보유 C</th>
+                <th className="whitespace-nowrap px-6 py-3 font-medium text-right">보유 M</th>
                 <th className="whitespace-nowrap px-6 py-3 font-medium text-right">누적 기부</th>
                 <th className="whitespace-nowrap px-6 py-3 font-medium">등급</th>
               </tr>
@@ -130,8 +133,18 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
                       isSelf={u.user_id === currentUserId}
                     />
                   </td>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    {u.user_id === currentUserId ? (
+                      <span className="text-xs text-gray-500">본인 계정</span>
+                    ) : (
+                      <UserDeleteButton userId={u.user_id} userEmail={u.email} userName={u.name} />
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right font-bold text-gray-900">
                     {u.current_points.toLocaleString()} C
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right font-bold text-gray-900">
+                    {u.current_medals.toLocaleString()} M
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-gray-600">
                     {u.total_donated_amount.toLocaleString()} C

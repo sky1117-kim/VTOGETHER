@@ -12,6 +12,50 @@ export async function signOut() {
   redirect('/login')
 }
 
+/**
+ * 본인 계정을 삭제(소프트 삭제)하고 즉시 로그아웃합니다.
+ * - users.deleted_at 설정
+ * - 가능하면 Supabase Auth 계정도 삭제 시도
+ */
+export async function deleteMyAccount(): Promise<void> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/login')
+  }
+
+  const nowIso = new Date().toISOString()
+  const admin = createAdminClient()
+
+  const { error: softDeleteError } = await admin
+    .from('users')
+    .update({
+      deleted_at: nowIso,
+      is_admin: false,
+      updated_at: nowIso,
+    })
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+
+  if (softDeleteError) {
+    throw new Error(`계정 삭제 실패: ${softDeleteError.message}`)
+  }
+
+  // auth.users에 있는 실제 인증 계정도 정리 시도 (실패해도 소프트삭제는 유지)
+  try {
+    await admin.auth.admin.deleteUser(user.id)
+  } catch {
+    // 일부 테스트/수동 계정은 auth.users에 없을 수 있어 무시
+  }
+
+  await supabase.auth.signOut()
+  revalidatePath('/', 'layout')
+  redirect('/login')
+}
+
 /** 로그인 없이 테스트할 때 사용할 테스트 유저 ID (운영 환경에서는 비활성화) */
 const GUEST_TEST_USER_ID = (process.env.GUEST_TEST_USER_ID || '').trim()
 export async function getCurrentUser() {
@@ -63,21 +107,16 @@ export async function getCurrentUser() {
     .select('*')
     .eq('user_id', user.id)
     .is('deleted_at', null)
-    .single()
+    .maybeSingle()
 
-  if (error || !userData) {
-    return {
-      id: user.id,
-      user_id: user.id,
-      email: user.email ?? null,
-      name: user.user_metadata?.full_name || user.user_metadata?.name || null,
-      dept_name: null,
-      current_points: 0,
-      current_medals: 0,
-      total_donated_amount: 0,
-      level: 'ECO_KEEPER',
-      is_admin: false,
-    }
+  if (error) {
+    return null
+  }
+
+  // users에서 soft delete 되었으면 서비스 접근을 막습니다.
+  if (!userData) {
+    await supabase.auth.signOut()
+    return null
   }
 
   // MAU 집계용: 접속 시 last_active_at 갱신 (비동기, 응답 지연 최소화)

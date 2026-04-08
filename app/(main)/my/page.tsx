@@ -6,6 +6,7 @@ import { EventParticipationSection } from '@/components/my/EventParticipationSec
 import { PointDisplay } from '@/components/my/PointDisplay'
 import { PointHistorySection } from '@/components/my/PointHistorySection'
 import { ReceivedComplimentsSection } from '@/components/my/ReceivedComplimentsSection'
+import { MyAccountDeleteButton } from '@/components/my/MyAccountDeleteButton'
 
 export default async function MyPage() {
   const user = await getCurrentUser()
@@ -104,6 +105,7 @@ export default async function MyPage() {
                   </div>
                 )}
               </dl>
+              <MyAccountDeleteButton />
             </div>
           </div>
         </section>

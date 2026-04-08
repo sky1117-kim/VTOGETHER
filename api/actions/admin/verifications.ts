@@ -48,6 +48,8 @@ export type PendingSubmissionRow = {
     email: string | null
     dept_name: string | null
   }>
+  /** 사후 반영(수신) 거래 건수 */
+  backfill_applied_count?: number
 }
 
 function getRecipientUserIds(sub: {
@@ -139,18 +141,35 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
         ...extraPeerIds,
       ]),
     ] as string[]
+    const submissionIds = [...new Set(submissions.map((s) => s.submission_id))]
 
-    const [eventsRes, roundsRes, usersRes] = await Promise.all([
+    const [eventsRes, roundsRes, usersRes, backfillTxRes] = await Promise.all([
       eventIds.length ? supabase.from('events').select('event_id, title').in('event_id', eventIds).is('deleted_at', null) : { data: [] },
       roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds).is('deleted_at', null) : { data: [] },
       userIds.length
         ? supabase.from('users').select('user_id, name, email, dept_name').in('user_id', userIds).is('deleted_at', null)
+        : { data: [] },
+      submissionIds.length
+        ? supabase
+            .from('point_transactions')
+            .select('related_id')
+            .in('related_id', submissionIds)
+            .eq('type', 'EARNED')
+            .eq('related_type', 'EVENT')
+            .ilike('description', '칭찬챌린지 (사후 반영 수신)%')
+            .is('deleted_at', null)
         : { data: [] },
     ])
 
     const eventMap = new Map((eventsRes.data ?? []).map((e) => [e.event_id, e]))
     const roundMap = new Map((roundsRes.data ?? []).map((r) => [r.round_id, r]))
     const userMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
+    const backfillCountBySubmission = new Map<string, number>()
+    for (const tx of backfillTxRes.data ?? []) {
+      const key = tx.related_id ?? ''
+      if (!key) continue
+      backfillCountBySubmission.set(key, (backfillCountBySubmission.get(key) ?? 0) + 1)
+    }
 
     const rows: PendingSubmissionRow[] = submissions.map((s) => {
       const event = eventMap.get(s.event_id)
@@ -233,6 +252,7 @@ export async function getPendingSubmissionsForAdmin(): Promise<{
         preview_value,
         created_at: s.created_at,
         peer_recipients,
+        backfill_applied_count: backfillCountBySubmission.get(s.submission_id) ?? 0,
       }
     })
 
@@ -506,4 +526,345 @@ export async function bulkRejectSubmissionIds(
     else return { success: false, processed, error: result.error }
   }
   return { success: true, processed, error: null }
+}
+
+/**
+ * 승인 완료된 칭찬 챌린지(BOTH)에서,
+ * 당시 계정이 없어서 누락된 팀원(organization_name 기준)을 사후 반영합니다.
+ * - verification_data.peer_user_ids / PEER_SELECT 내부 peer_user_ids를 보강
+ * - 보상 지급 건이면 수신자 적립 + 거래내역 생성 (알림 벨에 표시됨)
+ */
+export type BackfillRecipientCandidate = {
+  user_id: string
+  name: string | null
+  email: string | null
+  dept_name: string | null
+}
+
+export type BackfillHistoryItem = {
+  transaction_id: string
+  user_id: string
+  user_name: string | null
+  user_email: string | null
+  amount: number
+  currency_type: 'V_CREDIT' | 'V_MEDAL'
+  description: string | null
+  created_at: string
+}
+
+export async function getBackfillRecipientCandidatesByTeam(submissionId: string): Promise<{
+  success: boolean
+  error: string | null
+  organizationName?: string
+  candidates?: BackfillRecipientCandidate[]
+  currentRecipients?: BackfillRecipientCandidate[]
+  history?: BackfillHistoryItem[]
+}> {
+  const auth = await requireAdminReviewer()
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  try {
+    const supabase = createAdminClient()
+
+    const { data: sub, error: subError } = await supabase
+      .from('event_submissions')
+      .select(
+        'submission_id, event_id, user_id, peer_user_id, verification_data, status, reward_received, reward_type, reward_amount'
+      )
+      .eq('submission_id', submissionId)
+      .is('deleted_at', null)
+      .single()
+
+    if (subError || !sub) return { success: false, error: '제출 건을 찾을 수 없습니다.' }
+    if (sub.status !== 'APPROVED') return { success: false, error: '승인 완료 건만 사후 반영할 수 있습니다.' }
+
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('event_id, title, reward_policy')
+      .eq('event_id', sub.event_id)
+      .is('deleted_at', null)
+      .single()
+    if (eventError || !event) return { success: false, error: '이벤트 정보를 찾을 수 없습니다.' }
+    if (event.reward_policy !== 'BOTH') {
+      return { success: false, error: '쌍방 보상(BOTH) 이벤트만 사후 반영할 수 있습니다.' }
+    }
+
+    const { data: peerMethods } = await supabase
+      .from('event_verification_methods')
+      .select('method_id, method_type')
+      .eq('event_id', event.event_id)
+      .eq('method_type', 'PEER_SELECT')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+    const peerMethodId = peerMethods?.[0]?.method_id ?? null
+
+    const vd = ((sub.verification_data as Record<string, unknown> | null) ?? {}) as Record<string, unknown>
+    const rawPeerPayload =
+      peerMethodId && vd[peerMethodId] && typeof vd[peerMethodId] === 'object' && !Array.isArray(vd[peerMethodId])
+        ? (vd[peerMethodId] as { organization_name?: unknown; peer_user_ids?: unknown })
+        : null
+    const organizationName =
+      rawPeerPayload && typeof rawPeerPayload.organization_name === 'string'
+        ? rawPeerPayload.organization_name.trim()
+        : ''
+    const existingRecipientIds = getRecipientUserIds(sub)
+    const { data: backfillTxRows } = await supabase
+      .from('point_transactions')
+      .select('transaction_id, user_id, amount, currency_type, description, created_at, user_name, user_email')
+      .eq('related_id', sub.submission_id)
+      .eq('type', 'EARNED')
+      .eq('related_type', 'EVENT')
+      .ilike('description', '칭찬챌린지 (사후 반영 수신)%')
+      .is('deleted_at', null)
+
+    const backfillRecipientIds = [...new Set((backfillTxRows ?? []).map((r) => r.user_id).filter(Boolean))]
+    const currentRecipientIds = [...new Set([...existingRecipientIds, ...backfillRecipientIds])]
+
+    const { data: existingRecipientsData } = currentRecipientIds.length
+      ? await supabase
+          .from('users')
+          .select('user_id, name, email, dept_name')
+          .in('user_id', currentRecipientIds)
+          .is('deleted_at', null)
+      : { data: [] }
+
+    let missingRecipients: BackfillRecipientCandidate[] = []
+    if (organizationName) {
+      const { data: teamUsers, error: teamUsersError } = await supabase
+        .from('users')
+        .select('user_id, name, email, dept_name')
+        .eq('dept_name', organizationName)
+        .is('deleted_at', null)
+      if (teamUsersError) return { success: false, error: `팀 사용자 조회 실패: ${teamUsersError.message}` }
+      missingRecipients = (teamUsers ?? [])
+        .filter((u) => u.user_id !== sub.user_id)
+        .filter((u) => !existingRecipientIds.includes(u.user_id))
+        .map((u) => ({
+          user_id: u.user_id,
+          name: u.name ?? null,
+          email: u.email ?? null,
+          dept_name: u.dept_name ?? null,
+        }))
+    }
+    return {
+      success: true,
+      error: null,
+      organizationName,
+      candidates: missingRecipients,
+      currentRecipients: (existingRecipientsData ?? []).map((u) => ({
+        user_id: u.user_id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+        dept_name: u.dept_name ?? null,
+      })),
+      history: (backfillTxRows ?? []).map((r) => ({
+        transaction_id: r.transaction_id,
+        user_id: r.user_id,
+        user_name: r.user_name ?? null,
+        user_email: r.user_email ?? null,
+        amount: Number(r.amount ?? 0),
+        currency_type: r.currency_type as 'V_CREDIT' | 'V_MEDAL',
+        description: r.description ?? null,
+        created_at: r.created_at,
+      })),
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '후보 조회 실패' }
+  }
+}
+
+export async function searchBackfillUsers(
+  keyword: string,
+  limit = 15
+): Promise<{ success: boolean; error: string | null; users?: BackfillRecipientCandidate[] }> {
+  const auth = await requireAdminReviewer()
+  if (!auth.ok) return { success: false, error: auth.error }
+  const q = keyword.trim()
+  if (!q) return { success: true, error: null, users: [] }
+
+  try {
+    const supabase = createAdminClient()
+    const query = supabase
+      .from('users')
+      .select('user_id, name, email, dept_name')
+      .is('deleted_at', null)
+      .or(`name.ilike.%${q}%,email.ilike.%${q}%,dept_name.ilike.%${q}%,user_id.eq.${q}`)
+      .limit(Math.min(Math.max(limit, 1), 30))
+    const { data, error } = await query
+    if (error) return { success: false, error: error.message }
+    return {
+      success: true,
+      error: null,
+      users: (data ?? []).map((u) => ({
+        user_id: u.user_id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+        dept_name: u.dept_name ?? null,
+      })),
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '사용자 검색 실패' }
+  }
+}
+
+export async function backfillApprovedComplimentRecipientsByTeam(
+  submissionId: string,
+  selectedRecipientUserIds: string[]
+): Promise<{
+  success: boolean
+  error: string | null
+  addedRecipients?: number
+  pointsGranted?: number
+}> {
+  const auth = await requireAdminReviewer()
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  try {
+    const supabase = createAdminClient()
+
+    const { data: sub, error: subError } = await supabase
+      .from('event_submissions')
+      .select(
+        'submission_id, event_id, user_id, peer_user_id, verification_data, status, reward_received, reward_type, reward_amount'
+      )
+      .eq('submission_id', submissionId)
+      .is('deleted_at', null)
+      .single()
+
+    if (subError || !sub) return { success: false, error: '제출 건을 찾을 수 없습니다.' }
+    if (sub.status !== 'APPROVED') return { success: false, error: '승인 완료 건만 사후 반영할 수 있습니다.' }
+
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('event_id, title, reward_policy')
+      .eq('event_id', sub.event_id)
+      .is('deleted_at', null)
+      .single()
+    if (eventError || !event) return { success: false, error: '이벤트 정보를 찾을 수 없습니다.' }
+    if (event.reward_policy !== 'BOTH') {
+      return { success: false, error: '쌍방 보상(BOTH) 이벤트만 사후 반영할 수 있습니다.' }
+    }
+
+    const { data: peerMethods } = await supabase
+      .from('event_verification_methods')
+      .select('method_id')
+      .eq('event_id', event.event_id)
+      .eq('method_type', 'PEER_SELECT')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+    const peerMethodId = peerMethods?.[0]?.method_id ?? null
+
+    const vd = ((sub.verification_data as Record<string, unknown> | null) ?? {}) as Record<string, unknown>
+    const existingRecipientIds = getRecipientUserIds(sub)
+    const selectedIds = [...new Set(selectedRecipientUserIds.map((id) => id.trim()).filter(Boolean))]
+    const idsToAdd = selectedIds.filter((id) => !existingRecipientIds.includes(id) && id !== sub.user_id)
+    if (idsToAdd.length === 0) {
+      return { success: true, error: null, addedRecipients: 0, pointsGranted: 0 }
+    }
+
+    const { data: usersToAdd, error: usersToAddErr } = await supabase
+      .from('users')
+      .select('user_id, current_points, current_medals, name, email')
+      .in('user_id', idsToAdd)
+      .is('deleted_at', null)
+    if (usersToAddErr) return { success: false, error: `반영 대상 조회 실패: ${usersToAddErr.message}` }
+    const targets = usersToAdd ?? []
+    if (targets.length === 0) return { success: true, error: null, addedRecipients: 0, pointsGranted: 0 }
+
+    // 승인 당시 지급 재화/금액이 남아있는 경우에만 동일 규칙으로 사후 지급합니다.
+    const rewardType = sub.reward_type === 'V_CREDIT' || sub.reward_type === 'V_MEDAL' ? sub.reward_type : null
+    const rewardAmount = Number(sub.reward_amount ?? 0)
+    let totalGranted = 0
+    if (sub.reward_received && rewardType && rewardAmount > 0) {
+      for (const target of targets) {
+        // 이미 동일 제출건으로 사후 반영 수신 적립이 있으면 건너뜁니다.
+        const { data: existedTx } = await supabase
+          .from('point_transactions')
+          .select('transaction_id')
+          .eq('related_id', sub.submission_id)
+          .eq('user_id', target.user_id)
+          .eq('type', 'EARNED')
+          .eq('related_type', 'EVENT')
+          .eq('currency_type', rewardType)
+          .eq('amount', rewardAmount)
+          .ilike('description', '칭찬챌린지 (사후 반영 수신)%')
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle()
+        if (existedTx?.transaction_id) continue
+
+        const updatePayload =
+          rewardType === 'V_MEDAL'
+            ? { current_medals: (target.current_medals ?? 0) + rewardAmount }
+            : { current_points: (target.current_points ?? 0) + rewardAmount }
+        const { error: updateErr } = await supabase.from('users').update(updatePayload).eq('user_id', target.user_id)
+        if (updateErr) return { success: false, error: `사후 지급 실패: ${updateErr.message}` }
+
+        if (rewardType === 'V_CREDIT') {
+          const { error: lotErr } = await supabase.from('credit_lots').insert({
+            user_id: target.user_id,
+            source_type: 'ACTIVITY',
+            initial_amount: rewardAmount,
+            remaining_amount: rewardAmount,
+            related_id: sub.submission_id,
+            description: `${event.title} 사후 수신자 보상`,
+          })
+          if (lotErr) return { success: false, error: `크레딧 lot 생성 실패: ${lotErr.message}` }
+        }
+
+        const unitLabel = rewardType === 'V_MEDAL' ? 'M' : 'C'
+        const { error: txErr } = await supabase.from('point_transactions').insert({
+          user_id: target.user_id,
+          type: 'EARNED',
+          amount: rewardAmount,
+          currency_type: rewardType,
+          related_id: sub.submission_id,
+          related_type: 'EVENT',
+          description: `칭찬챌린지 (사후 반영 수신): ${rewardAmount.toLocaleString()} ${unitLabel} 적립`,
+          user_email: target.email ?? null,
+          user_name: target.name ?? null,
+        })
+        if (txErr) return { success: false, error: `거래 기록 실패: ${txErr.message}` }
+        totalGranted += rewardAmount
+      }
+    }
+
+    const mergedRecipientIds = [...new Set([...existingRecipientIds, ...targets.map((u) => u.user_id)])]
+    const nextVerificationData = { ...vd, peer_user_ids: mergedRecipientIds } as Record<string, unknown>
+    if (peerMethodId) {
+      const prevObj =
+        vd[peerMethodId] && typeof vd[peerMethodId] === 'object' && !Array.isArray(vd[peerMethodId])
+          ? (vd[peerMethodId] as Record<string, unknown>)
+          : {}
+      nextVerificationData[peerMethodId] = {
+        ...prevObj,
+        peer_user_ids: mergedRecipientIds,
+        organization_name: organizationName,
+      }
+    }
+
+    const { error: updateSubErr } = await supabase
+      .from('event_submissions')
+      .update({
+        verification_data: nextVerificationData,
+        peer_user_id: mergedRecipientIds[0] ?? sub.peer_user_id ?? null,
+      })
+      .eq('submission_id', sub.submission_id)
+      .is('deleted_at', null)
+    if (updateSubErr) return { success: false, error: `제출 데이터 업데이트 실패: ${updateSubErr.message}` }
+
+    revalidatePath('/admin/verifications')
+    revalidatePath('/my')
+    revalidatePath('/')
+    return {
+      success: true,
+      error: null,
+      addedRecipients: targets.length,
+      pointsGranted: totalGranted,
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '사후 반영 실패' }
+  }
 }

@@ -4,14 +4,7 @@ import {
   getShopOrdersForAdmin,
   type ShopOrderKindFilter,
 } from '@/api/actions/admin/shop-orders'
-
-function productTypeLabel(t: string): string {
-  const k = t.toUpperCase()
-  if (k === 'GOODS') return '실물 굿즈'
-  if (k === 'CREDIT_PACK') return 'V.Credit 전환'
-  if (k === 'ALMAENG_STORE') return '알맹 스토어'
-  return t
-}
+import { ShopOrdersTable } from './ShopOrdersTable'
 
 /** 관리자: 상점 주문 — 누가 어떤 상품을 샀는지(실물 지급용) */
 export default async function AdminShopOrdersPage({
@@ -96,56 +89,7 @@ export default async function AdminShopOrdersPage({
         </form>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-[720px] w-full text-left text-sm">
-          <thead className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
-            <tr>
-              <th className="whitespace-nowrap px-3 py-3">일시</th>
-              <th className="px-3 py-3">구매자</th>
-              <th className="px-3 py-3">상품</th>
-              <th className="whitespace-nowrap px-3 py-3">유형</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">메달</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">적립 C</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
-                  주문 내역이 없습니다.
-                </td>
-              </tr>
-            )}
-            {rows.map((row) => (
-              <tr key={row.order_id} className="hover:bg-green-50/30">
-                <td className="whitespace-nowrap px-3 py-2 text-gray-700">
-                  {new Date(row.created_at).toLocaleString('ko-KR')}
-                </td>
-                <td className="px-3 py-2 text-gray-900">
-                  <div className="font-medium">{row.user_name?.trim() || '이름 없음'}</div>
-                  <div className="max-w-[200px] truncate text-xs text-gray-500">
-                    {row.user_email?.trim() || row.user_id}
-                  </div>
-                  {row.dept_name?.trim() ? (
-                    <div className="text-xs text-gray-400">{row.dept_name.trim()}</div>
-                  ) : null}
-                </td>
-                <td className="px-3 py-2 text-gray-800">
-                  <span className="font-medium">{row.product_snapshot_name}</span>
-                  <div className="mt-0.5 font-mono text-[10px] text-gray-400">{row.product_id.slice(0, 8)}…</div>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-gray-700">{productTypeLabel(row.product_type)}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-rose-700">
-                  −{row.payment_medal.toLocaleString()} M
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-emerald-700">
-                  {row.credit_granted > 0 ? `+${row.credit_granted.toLocaleString()} C` : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ShopOrdersTable rows={rows} />
 
       {totalPages > 1 && (
         <div className="flex flex-wrap items-center justify-center gap-2">

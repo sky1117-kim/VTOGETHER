@@ -4,9 +4,16 @@
 import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import type { PendingSubmissionRow } from '@/api/actions/admin/verifications'
+import type {
+  PendingSubmissionRow,
+  BackfillRecipientCandidate,
+  BackfillHistoryItem,
+} from '@/api/actions/admin/verifications'
 import {
   approveSubmission,
+  backfillApprovedComplimentRecipientsByTeam,
+  getBackfillRecipientCandidatesByTeam,
+  searchBackfillUsers,
   rejectSubmission,
   bulkApproveSubmissionIds,
   bulkRejectSubmissionIds,
@@ -42,6 +49,15 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectTarget, setRejectTarget] = useState<{ ids: string[]; isBulk: boolean } | null>(null)
+  const [showBackfillModal, setShowBackfillModal] = useState(false)
+  const [backfillSubmissionId, setBackfillSubmissionId] = useState<string | null>(null)
+  const [backfillOrganization, setBackfillOrganization] = useState<string>('')
+  const [backfillCandidates, setBackfillCandidates] = useState<BackfillRecipientCandidate[]>([])
+  const [backfillCurrentRecipients, setBackfillCurrentRecipients] = useState<BackfillRecipientCandidate[]>([])
+  const [backfillSelectedIds, setBackfillSelectedIds] = useState<Set<string>>(new Set())
+  const [manualSearchKeyword, setManualSearchKeyword] = useState('')
+  const [manualSearchResults, setManualSearchResults] = useState<BackfillRecipientCandidate[]>([])
+  const [backfillHistory, setBackfillHistory] = useState<BackfillHistoryItem[]>([])
   const [filterEventId, setFilterEventId] = useState<string>('')
   const [filterRoundId, setFilterRoundId] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('PENDING') // 기본: 승인대기만 보기 (자주 쓰는 작업)
@@ -187,6 +203,104 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
     }
   }
 
+  const handleBackfillRecipients = async (id: string) => {
+    setMessage(null)
+    setPending(`backfill:${id}`)
+    const result = await getBackfillRecipientCandidatesByTeam(id)
+    setPending(null)
+    if (result.error) {
+      setMessage({ type: 'error', text: result.error })
+      return
+    }
+    setBackfillSubmissionId(id)
+    setBackfillOrganization(result.organizationName ?? '')
+    setBackfillCandidates(result.candidates ?? [])
+    setBackfillCurrentRecipients(result.currentRecipients ?? [])
+    setBackfillHistory(result.history ?? [])
+    setBackfillSelectedIds(new Set())
+    setManualSearchKeyword('')
+    setManualSearchResults([])
+    setShowBackfillModal(true)
+  }
+
+  const toggleBackfillCandidate = (userId: string) => {
+    setBackfillSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
+      return next
+    })
+  }
+
+  const confirmBackfillRecipients = async () => {
+    if (!backfillSubmissionId) return
+    const selectedIds = [...backfillSelectedIds]
+    if (selectedIds.length === 0) {
+      setMessage({ type: 'error', text: '반영할 직원을 1명 이상 선택해주세요.' })
+      return
+    }
+    const ok = window.confirm(`선택한 ${selectedIds.length}명을 누락 수신자로 반영할까요?`)
+    if (!ok) return
+    setMessage(null)
+    setPending(`backfill:confirm:${backfillSubmissionId}`)
+    const result = await backfillApprovedComplimentRecipientsByTeam(backfillSubmissionId, selectedIds)
+    setPending(null)
+    if (result.error) {
+      setMessage({ type: 'error', text: result.error })
+      return
+    }
+    const added = result.addedRecipients ?? 0
+    const granted = result.pointsGranted ?? 0
+    setShowBackfillModal(false)
+    setBackfillSubmissionId(null)
+    setBackfillCandidates([])
+    setBackfillCurrentRecipients([])
+    setBackfillHistory([])
+    setBackfillSelectedIds(new Set())
+    setManualSearchKeyword('')
+    setManualSearchResults([])
+    if (added === 0) {
+      setMessage({ type: 'ok', text: '선택한 대상 중 새로 반영된 수신자가 없습니다.' })
+    } else if (granted > 0) {
+      setMessage({ type: 'ok', text: `선택한 ${added}명 반영 완료, 총 ${granted.toLocaleString()} 포인트 사후 지급 완료.` })
+    } else {
+      setMessage({ type: 'ok', text: `선택한 ${added}명 수신자를 반영했습니다.` })
+    }
+    router.refresh()
+  }
+
+  const removeBackfillCandidate = (userId: string) => {
+    setBackfillCandidates((prev) => prev.filter((c) => c.user_id !== userId))
+    setBackfillSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.delete(userId)
+      return next
+    })
+  }
+
+  const addBackfillCandidate = (candidate: BackfillRecipientCandidate) => {
+    setBackfillCandidates((prev) => {
+      if (prev.some((c) => c.user_id === candidate.user_id)) return prev
+      return [...prev, candidate]
+    })
+  }
+
+  const runManualSearch = async () => {
+    const q = manualSearchKeyword.trim()
+    if (!q) return
+    setPending('backfill:search')
+    const result = await searchBackfillUsers(q, 20)
+    setPending(null)
+    if (result.error) {
+      setMessage({ type: 'error', text: result.error })
+      return
+    }
+    const existingIds = new Set(backfillCandidates.map((c) => c.user_id))
+    const senderId = filteredRows.find((r) => r.submission_id === backfillSubmissionId)?.user_id
+    const users = (result.users ?? []).filter((u) => !existingIds.has(u.user_id) && u.user_id !== senderId)
+    setManualSearchResults(users)
+  }
+
   return (
     <>
       {message && (
@@ -262,7 +376,9 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
               onToggle={() => toggle(row.submission_id)}
               onApprove={() => handleApprove(row.submission_id)}
               onReject={() => handleRejectOne(row.submission_id)}
+              onBackfill={() => handleBackfillRecipients(row.submission_id)}
               pending={pending === row.submission_id}
+              backfillPending={pending === `backfill:${row.submission_id}`}
               isResolved={row.status !== 'PENDING'}
             />
           ))}
@@ -271,7 +387,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
         /* 테이블형: 기본 */
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] table-fixed text-left">
+            <table className="w-full min-w-[920px] text-left">
               <colgroup>
                 <col className="w-12" />
                 <col className="w-24" />
@@ -305,6 +421,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                 {filteredRows.map((row) => {
                   const isResolved = row.status !== 'PENDING'
                   const peerArrow = formatPeerHeaderSummary(row)
+                  const isGroupPraise = (row.peer_recipients?.length ?? 0) > 1
                   return (
                   <tr
                     key={row.submission_id}
@@ -332,17 +449,32 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                         {STATUS_LABEL[row.status] ?? row.status}
                       </span>
                     </td>
-                    <td className={`truncate px-4 py-4 text-sm font-medium ${isResolved ? 'text-gray-500' : 'text-gray-900'}`} title={row.event_title}>{row.event_title}</td>
+                    <td className={`px-4 py-4 text-sm font-medium whitespace-normal break-words ${isResolved ? 'text-gray-500' : 'text-gray-900'}`}>
+                      {row.event_title}
+                    </td>
                     <td className={`whitespace-nowrap px-4 py-4 text-sm ${isResolved ? 'text-gray-500' : 'text-gray-600'}`}>{row.round_number != null ? `${row.round_number}구간` : '상시'}</td>
                     <td className="overflow-hidden px-4 py-4">
                       <div
                         className="flex min-w-0 items-center gap-1 overflow-hidden"
                         title={`${row.user_name ?? row.user_email ?? row.user_id}${peerArrow ? ` → ${peerArrow}` : ''}${row.is_anonymous ? ' (익명 제출)' : ''}`}
                       >
-                        <span className={`min-w-0 truncate text-sm font-medium ${isResolved ? 'text-gray-500' : 'text-gray-900'}`}>
-                          {row.user_name ?? row.user_email ?? row.user_id}
-                          {peerArrow && ` → ${peerArrow}`}
-                        </span>
+                        <div className="min-w-0">
+                          {isGroupPraise && peerArrow ? (
+                            <>
+                              <p className={`text-sm font-semibold whitespace-normal break-words ${isResolved ? 'text-gray-500' : 'text-gray-900'}`}>
+                                조직 칭찬: {peerArrow}
+                              </p>
+                              <p className="mt-0.5 text-xs text-gray-500 whitespace-normal break-words">
+                                제출자: {row.user_name ?? row.user_email ?? row.user_id}
+                              </p>
+                            </>
+                          ) : (
+                            <p className={`text-sm font-medium whitespace-normal break-words ${isResolved ? 'text-gray-500' : 'text-gray-900'}`}>
+                              {row.user_name ?? row.user_email ?? row.user_id}
+                              {peerArrow && ` → ${peerArrow}`}
+                            </p>
+                          )}
+                        </div>
                         {row.is_anonymous && (
                           <span className="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600" title="칭찬 수신자에게는 익명 표시">
                             익명
@@ -358,9 +490,28 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                     </td>
                     <td className={`whitespace-nowrap border-l border-gray-100 px-4 py-4 ${isResolved ? 'bg-gray-50/70' : 'bg-white group-hover:bg-gray-50/50'}`}>
                       {isResolved ? (
-                        <span className="block truncate text-sm text-gray-400" title={row.rejection_reason ? `반려: ${row.rejection_reason}` : undefined}>
-                          {row.status === 'APPROVED' ? '승인됨' : row.rejection_reason ? `반려: ${row.rejection_reason}` : '반려됨'}
-                        </span>
+                        row.status === 'APPROVED' ? (
+                          <div className="flex items-center gap-2">
+                            <span className="block truncate text-sm text-gray-400">승인됨</span>
+                            {(row.backfill_applied_count ?? 0) > 0 && (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                                {(row.backfill_applied_count ?? 0)}회 반영됨
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleBackfillRecipients(row.submission_id)}
+                              disabled={pending !== null}
+                              className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50"
+                            >
+                              {pending === `backfill:${row.submission_id}` ? '불러오는 중' : '누락 수신자 확인'}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="block truncate text-sm text-gray-400" title={row.rejection_reason ? `반려: ${row.rejection_reason}` : undefined}>
+                            {row.rejection_reason ? `반려: ${row.rejection_reason}` : '반려됨'}
+                          </span>
+                        )
                       ) : (
                         <div className="flex shrink-0 flex-nowrap gap-2">
                           <button
@@ -446,6 +597,177 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
           </div>
         </div>
       )}
+
+      {showBackfillModal && backfillSubmissionId && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">누락 수신자 검토 후 반영</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              팀 기준 후보를 확인한 뒤, 실제로 지급/반영할 직원만 선택하세요.
+            </p>
+            {backfillOrganization ? (
+              <p className="mt-1 text-xs text-emerald-700">기준 팀: {backfillOrganization}</p>
+            ) : (
+              <p className="mt-1 text-xs text-amber-700">팀명이 없어 자동 후보가 적을 수 있습니다. 아래에서 수동 검색으로 추가하세요.</p>
+            )}
+            {backfillCurrentRecipients.length > 0 && (
+              <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                현재 수신자: {backfillCurrentRecipients.map((u) => u.name || u.email || u.user_id).join(', ')}
+              </div>
+            )}
+            <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-3">
+              {backfillCandidates.length === 0 && (
+                <p className="text-sm text-gray-500">현재 후보가 없습니다. 아래 검색으로 직접 추가해주세요.</p>
+              )}
+              {backfillCurrentRecipients.map((c) => (
+                <div
+                  key={`current-${c.user_id}`}
+                  className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2"
+                >
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                    이미 반영됨
+                  </span>
+                  <span className="text-sm text-gray-800">
+                    {[c.name ?? '이름없음', c.dept_name, c.email].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+              ))}
+              {backfillCandidates.map((c) => (
+                <div
+                  key={c.user_id}
+                  className="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={backfillSelectedIds.has(c.user_id)}
+                    onChange={() => toggleBackfillCandidate(c.user_id)}
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-gray-800">
+                    {[c.name ?? '이름없음', c.dept_name, c.email].filter(Boolean).join(' · ')}
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                    반영 후보
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeBackfillCandidate(c.user_id)}
+                    className="ml-auto rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                  >
+                    후보 삭제
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-xl border border-gray-200 p-3">
+              <p className="text-xs font-semibold text-gray-700">수동 입력/검색 추가</p>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={manualSearchKeyword}
+                  onChange={(e) => setManualSearchKeyword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return
+                    e.preventDefault()
+                    void runManualSearch()
+                  }}
+                  placeholder="이름, 이메일, 팀명, UUID 입력"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <button
+                  type="button"
+                  onClick={runManualSearch}
+                  disabled={pending === 'backfill:search'}
+                  className="min-w-[64px] shrink-0 whitespace-nowrap rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+                >
+                  검색
+                </button>
+              </div>
+              {manualSearchResults.length > 0 && (
+                <div className="mt-3 max-h-44 space-y-2 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-2">
+                  {manualSearchResults.map((u) => (
+                    <div key={u.user_id} className="flex items-center gap-2 rounded bg-white px-2 py-1.5">
+                      <span className="text-xs text-gray-700">
+                        {[u.name ?? '이름없음', u.dept_name, u.email].filter(Boolean).join(' · ')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => addBackfillCandidate(u)}
+                        className="ml-auto rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                      >
+                        후보에 추가
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {backfillHistory.length > 0 && (
+              <div className="mt-4 rounded-xl border border-gray-200 p-3">
+                <p className="text-xs font-semibold text-gray-700">사후 반영 이력</p>
+                <div className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-2">
+                  {backfillHistory
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((h) => (
+                      <div key={h.transaction_id} className="rounded bg-white px-2 py-1.5 text-xs text-gray-700">
+                        {new Date(h.created_at).toLocaleString('ko-KR', {
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        · {h.user_name ?? h.user_email ?? h.user_id} · +{h.amount}{' '}
+                        {h.currency_type === 'V_MEDAL' ? 'M' : 'C'}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setBackfillSelectedIds(new Set(backfillCandidates.map((c) => c.user_id)))}
+                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+              >
+                전체 선택
+              </button>
+              <button
+                type="button"
+                onClick={() => setBackfillSelectedIds(new Set())}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                선택 해제
+              </button>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBackfillModal(false)
+                  setBackfillSubmissionId(null)
+                  setBackfillCandidates([])
+                  setBackfillCurrentRecipients([])
+                  setBackfillHistory([])
+                  setBackfillSelectedIds(new Set())
+                  setManualSearchKeyword('')
+                  setManualSearchResults([])
+                }}
+                className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={confirmBackfillRecipients}
+                disabled={pending === `backfill:confirm:${backfillSubmissionId}`}
+                className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {pending === `backfill:confirm:${backfillSubmissionId}` ? '반영 중…' : '선택한 직원만 반영(확인)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -457,7 +779,9 @@ function SubmissionCard({
   onToggle,
   onApprove,
   onReject,
+  onBackfill,
   pending,
+  backfillPending,
   isResolved,
 }: {
   row: PendingSubmissionRow
@@ -465,13 +789,16 @@ function SubmissionCard({
   onToggle: () => void
   onApprove: () => void
   onReject: () => void
+  onBackfill: () => void
   pending: boolean
+  backfillPending: boolean
   isResolved?: boolean
 }) {
   const methods = row.verification_methods ?? []
   const vd = row.verification_data ?? {}
   const resolved = isResolved ?? row.status !== 'PENDING'
   const peerArrow = formatPeerHeaderSummary(row)
+  const isGroupPraise = (row.peer_recipients?.length ?? 0) > 1
 
   return (
     <div className={`flex flex-col overflow-hidden rounded-2xl border shadow-sm transition ${resolved ? 'border-gray-200 bg-gray-50/80 opacity-80' : 'border-gray-200 bg-white hover:shadow-md'}`}>
@@ -493,12 +820,24 @@ function SubmissionCard({
             {STATUS_LABEL[row.status] ?? row.status}
           </span>
           <div className="min-w-0 overflow-hidden">
-            <p className={`truncate text-sm font-semibold ${resolved ? 'text-gray-500' : 'text-gray-900'}`} title={`${row.user_name ?? row.user_email ?? row.user_id}${peerArrow ? ` → ${peerArrow}` : ''}`}>
-              {row.user_name ?? row.user_email ?? row.user_id}
-              {peerArrow && ` → ${peerArrow}`}
-              {row.is_anonymous && ' (익명)'}
-            </p>
-            <p className="mt-0.5 truncate text-xs text-gray-500">
+            {isGroupPraise && peerArrow ? (
+              <>
+                <p className={`text-sm font-semibold whitespace-normal break-words ${resolved ? 'text-gray-500' : 'text-gray-900'}`}>
+                  조직 칭찬: {peerArrow}
+                  {row.is_anonymous && ' (익명)'}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500 whitespace-normal break-words">
+                  제출자: {row.user_name ?? row.user_email ?? row.user_id}
+                </p>
+              </>
+            ) : (
+              <p className={`text-sm font-semibold whitespace-normal break-words ${resolved ? 'text-gray-500' : 'text-gray-900'}`}>
+                {row.user_name ?? row.user_email ?? row.user_id}
+                {peerArrow && ` → ${peerArrow}`}
+                {row.is_anonymous && ' (익명)'}
+              </p>
+            )}
+            <p className="mt-0.5 text-xs text-gray-500 whitespace-normal break-words">
               {row.round_number != null ? `${row.round_number}구간` : '상시'} · {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
               {resolved && row.rejection_reason && ` · 반려: ${row.rejection_reason}`}
             </p>
@@ -579,9 +918,28 @@ function SubmissionCard({
       {/* 액션: 승인대기만 버튼 표시 */}
       <div className="flex gap-2 border-t border-gray-100 p-4">
         {resolved ? (
-          <span className="flex-1 py-2.5 text-center text-sm text-gray-400">
-            {row.status === 'APPROVED' ? '승인됨' : row.rejection_reason ? `반려: ${row.rejection_reason}` : '반려됨'}
-          </span>
+          row.status === 'APPROVED' ? (
+            <div className="flex w-full items-center gap-2">
+              <span className="flex-1 py-2.5 text-center text-sm text-gray-400">승인됨</span>
+              {(row.backfill_applied_count ?? 0) > 0 && (
+                <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                  {(row.backfill_applied_count ?? 0)}회 반영됨
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={onBackfill}
+                disabled={pending || backfillPending}
+                className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50"
+              >
+                {backfillPending ? '불러오는 중' : '누락 수신자 확인'}
+              </button>
+            </div>
+          ) : (
+            <span className="flex-1 py-2.5 text-center text-sm text-gray-400">
+              {row.rejection_reason ? `반려: ${row.rejection_reason}` : '반려됨'}
+            </span>
+          )
         ) : (
           <>
             <button

@@ -8,6 +8,7 @@ type SyncResult = {
   error?: string
   orgUnitsUpserted?: number
   employeesUpserted?: number
+  usersSoftDeleted?: number
 }
 
 function normalizeEmail(value: unknown): string | null {
@@ -99,10 +100,63 @@ export async function syncSeahOrgsyncSnapshot(): Promise<SyncResult> {
       }
     }
 
+    // 퇴사/미재직 계정 자동 정리:
+    // - users 중 활성 계정(deleted_at IS NULL)에서
+    // - 관리자가 아닌 계정만 대상으로
+    // - @vntg.co.kr 이메일인데, seah_employees에 재직(status_code != 'N')이 없으면 soft delete
+    const { data: activeEmployees, error: employeeReadError } = await admin
+      .from('seah_employees')
+      .select('email, status_code')
+
+    if (employeeReadError) {
+      return { success: false, error: `직원 스냅샷 조회 실패: ${employeeReadError.message}` }
+    }
+
+    const activeEmailSet = new Set(
+      (activeEmployees ?? [])
+        .filter((row) => row.status_code !== 'N')
+        .map((row) => row.email?.trim().toLowerCase())
+        .filter((email): email is string => !!email)
+    )
+
+    const { data: currentUsers, error: usersReadError } = await admin
+      .from('users')
+      .select('user_id, email, is_admin')
+      .is('deleted_at', null)
+
+    if (usersReadError) {
+      return { success: false, error: `사용자 조회 실패: ${usersReadError.message}` }
+    }
+
+    const toSoftDeleteIds = (currentUsers ?? [])
+      .filter((u) => !u.is_admin)
+      .filter((u) => {
+        const email = (u.email ?? '').trim().toLowerCase()
+        if (!email.endsWith('@vntg.co.kr')) return false
+        return !activeEmailSet.has(email)
+      })
+      .map((u) => u.user_id)
+
+    let usersSoftDeleted = 0
+    if (toSoftDeleteIds.length > 0) {
+      const now = new Date().toISOString()
+      const { data: updatedRows, error: softDeleteError } = await admin
+        .from('users')
+        .update({ deleted_at: now, is_admin: false, updated_at: now })
+        .in('user_id', toSoftDeleteIds)
+        .is('deleted_at', null)
+        .select('user_id')
+      if (softDeleteError) {
+        return { success: false, error: `퇴사자 계정 정리 실패: ${softDeleteError.message}` }
+      }
+      usersSoftDeleted = (updatedRows ?? []).length
+    }
+
     return {
       success: true,
       orgUnitsUpserted: normalizedOrgRows.length,
       employeesUpserted: normalizedEmployees.length,
+      usersSoftDeleted,
     }
   } catch (error) {
     return {

@@ -51,6 +51,10 @@
   - `V.Medal -> V.Credit` 전환 lot(`MEDAL_EXCHANGE`)에서 차감된 금액만 매칭 인정
 - 관리자 대시보드 매칭 지표:
   - 이벤트 카테고리별 적립 + lot 기반 매칭금 집계로 계산
+- 상점 실물 지급 체크(2026.04.08):
+  - `/admin/shop-orders`에서 `GOODS`/`ALMAENG_STORE` 주문은 **지급 필요/지급 완료** 체크 가능
+  - DB는 `shop_orders.fulfilled_at`(NULL=미지급, 값 있음=지급 완료)으로 관리
+  - `CREDIT_PACK`은 결제 시 자동 적립이므로 지급 체크 대상에서 제외
 
 ## Phase 2: 이벤트 & 챌린지
 
@@ -82,6 +86,8 @@
   - **칭찬 챌린지 익명 옵션**: 제출 시 "익명으로 칭찬 보내기"를 선택할 수 있음. 선택 시 칭찬 수신자에게는 포인트 내역에 "익명의 동료가 나를 칭찬하여"로 표시되며, 관리자(/admin/verifications)는 제출자 이름을 그대로 확인 가능.
   - **칭찬 수신자의 제출 행 조회(RLS)**: 마이페이지「받은 칭찬」은 `event_submissions`에서 `peer_user_id` 또는 `verification_data.peer_user_ids`에 본인이 포함된 승인 건을 읽습니다. `026` 이전에는 SELECT가 제출자·관리자만 허용되어 수신자가 행을 읽지 못했음 → `041-event-submissions-peer-recipient-select-rls.sql`로 수신 조건을 추가함.
   - **받은 칭찬 본문 추출**: 조직형 등에서 TEXT가 SHORT(팀·조직명)·LONG(추천 사유)로 나뉠 때, 수신자 화면에는 **LONG(또는 input_style 미지정 기본)** 에 적힌 내용을 추천 사유로 우선 표시한다. 예전 로직처럼 “모든 TEXT 중 가장 긴 문자열”만 고르면 조직명만 보일 수 있다.
+- **칭찬 수신자 사후 반영 (2026.04.08)**: `/admin/verifications`의 승인 건 액션 `누락 수신자 반영`은 팀형 제출의 `organization_name`을 기준으로 현재 `users.dept_name` 사용자 중, 기존 수신자 목록에 없는 계정을 `verification_data.peer_user_ids`에 추가한다. 승인 당시 재화 지급 건(`reward_received=true`, `reward_type`이 `V_CREDIT`/`V_MEDAL`, `reward_amount>0`)이면 누락 수신자에게 동일 금액을 사후 적립하고 `point_transactions`를 남긴다(알림 벨에도 표시).
+- **사후 반영 중복 방지 (2026.04.08)**: `point_transactions`에 `045-point-transactions-backfill-recipient-unique.sql` 유니크 인덱스를 적용해, 같은 제출건(`related_id`)·같은 사용자·같은 금액/재화의 `칭찬챌린지 (사후 반영 수신)` 적립이 중복 저장되지 않도록 차단한다. 누락 모달에는 기존 수신자 + 사후 반영 이력(시간/대상/금액)이 함께 보이도록 하여 재지급 실수를 줄인다.
 - **이벤트 보상 (복수 선택)**:
   - 보상 유형: **V.Credit**, **굿즈**, **커피쿠폰**. 하나만 선택하거나 여러 개 선택 가능.
   - `event_rewards` 테이블에 이벤트별로 저장. V.Credit·커피쿠폰은 `amount` 필수, 굿즈는 금액 없음.
@@ -110,6 +116,13 @@
 
 - 모든 테이블에 `deleted_at` 컬럼 추가. 데이터 삭제 시 실제 DELETE 대신 `deleted_at = NOW()`로 플래그 처리.
 - 조회 시 `deleted_at IS NULL`인 행만 노출. 이벤트·구간·제출·기부·포인트 거래 등 모두 적용.
+
+## 계정 삭제 정책 (2026.04.08)
+
+- **본인 탈퇴**: `/my`에서 "내 계정 삭제하기" 버튼으로 본인 계정을 soft delete 합니다.
+- **관리자 삭제**: `/admin` 사용자 목록에서 관리자 권한으로 계정을 soft delete 할 수 있습니다. (본인 계정은 관리자 화면에서 삭제 불가)
+- **로그인 차단**: `users.deleted_at`이 설정된 사용자는 로그인하더라도 서비스에서 즉시 로그아웃 처리되어 접근이 차단됩니다.
+- **자동 정리(퇴사자)**: 세아웍스 배치(`/api/cron/seah-orgsync`) 성공 후, `@vntg.co.kr` 계정 중 스냅샷에서 재직(`status_code != 'N'`)으로 확인되지 않는 계정은 관리자 계정을 제외하고 자동 soft delete 됩니다.
 
 ## 인증 방식 상세 (이벤트 제출)
 

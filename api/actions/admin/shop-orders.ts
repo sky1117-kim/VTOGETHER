@@ -1,6 +1,8 @@
 'use server'
 
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { revalidatePath } from 'next/cache'
 
 export type ShopOrderAdminRow = {
   order_id: string
@@ -14,6 +16,7 @@ export type ShopOrderAdminRow = {
   payment_medal: number
   credit_granted: number
   status: string
+  fulfilled_at: string | null
   created_at: string
 }
 
@@ -61,7 +64,7 @@ export async function getShopOrdersForAdmin(options: {
     let query = admin
       .from('shop_orders')
       .select(
-        'order_id, user_id, product_id, product_snapshot_name, product_type, payment_medal, credit_granted, status, created_at',
+        'order_id, user_id, product_id, product_snapshot_name, product_type, payment_medal, credit_granted, status, fulfilled_at, created_at',
         { count: 'exact' }
       )
       .eq('status', 'COMPLETED')
@@ -84,7 +87,32 @@ export async function getShopOrdersForAdmin(options: {
       }
     }
 
-    const { data: orderRows, count, error } = await query.range(from, to)
+    let { data: orderRows, count, error } = await query.range(from, to)
+    if (error?.message?.includes('fulfilled_at')) {
+      const fallbackQuery = admin
+        .from('shop_orders')
+        .select(
+          'order_id, user_id, product_id, product_snapshot_name, product_type, payment_medal, credit_granted, status, created_at',
+          { count: 'exact' }
+        )
+        .eq('status', 'COMPLETED')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+      let q2 = fallbackQuery
+      if (kind === 'PHYSICAL') q2 = q2.in('product_type', ['GOODS', 'ALMAENG_STORE'])
+      else if (kind === 'CREDIT_PACK') q2 = q2.eq('product_type', 'CREDIT_PACK')
+      if (qSafe.length > 0) {
+        const productPat = `product_snapshot_name.ilike.%${qSafe}%`
+        const uidSlice = userIdsFromSearch.slice(0, 80)
+        if (uidSlice.length > 0) q2 = q2.or(`${productPat},user_id.in.(${uidSlice.join(',')})`)
+        else q2 = q2.ilike('product_snapshot_name', `%${qSafe}%`)
+      }
+      const fallback = await q2.range(from, to)
+      if (fallback.error) return { data: [], total: 0, page, pageSize, error: fallback.error.message }
+      orderRows = (fallback.data ?? []).map((r) => ({ ...r, fulfilled_at: null }))
+      count = fallback.count
+      error = null
+    }
     if (error) return { data: [], total: 0, page, pageSize, error: error.message }
 
     const orders = (orderRows ?? []) as Omit<ShopOrderAdminRow, 'user_name' | 'user_email' | 'dept_name'>[]
@@ -123,5 +151,50 @@ export async function getShopOrdersForAdmin(options: {
       pageSize,
       error: e instanceof Error ? e.message : '상점 주문 조회 실패',
     }
+  }
+}
+
+/** 관리자: 상점 주문 지급 완료 체크/해제 */
+export async function setShopOrderFulfillment(
+  orderId: string,
+  fulfilled: boolean
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const auth = await createClient()
+    const {
+      data: { user },
+    } = await auth.auth.getUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+
+    const admin = createAdminClient()
+    const { data: me, error: meErr } = await admin
+      .from('users')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .single()
+    if (meErr || !me?.is_admin) {
+      return { success: false, error: '관리자만 지급 상태를 변경할 수 있습니다.' }
+    }
+
+    const now = new Date().toISOString()
+    const { error } = await admin
+      .from('shop_orders')
+      .update({ fulfilled_at: fulfilled ? now : null })
+      .eq('order_id', orderId)
+      .is('deleted_at', null)
+      .in('product_type', ['GOODS', 'ALMAENG_STORE'])
+      .eq('status', 'COMPLETED')
+    if (error) {
+      if (error.message?.includes('fulfilled_at')) {
+        return { success: false, error: '마이그레이션이 필요합니다: 044-shop-orders-fulfillment.sql 실행 후 다시 시도하세요.' }
+      }
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath('/admin/shop-orders')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '지급 상태 변경 실패' }
   }
 }
