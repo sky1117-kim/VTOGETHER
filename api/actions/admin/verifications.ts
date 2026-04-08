@@ -757,6 +757,14 @@ export async function backfillApprovedComplimentRecipientsByTeam(
     const peerMethodId = peerMethods?.[0]?.method_id ?? null
 
     const vd = ((sub.verification_data as Record<string, unknown> | null) ?? {}) as Record<string, unknown>
+    const rawPeerPayload =
+      peerMethodId && vd[peerMethodId] && typeof vd[peerMethodId] === 'object' && !Array.isArray(vd[peerMethodId])
+        ? (vd[peerMethodId] as { organization_name?: unknown })
+        : null
+    const organizationName =
+      rawPeerPayload && typeof rawPeerPayload.organization_name === 'string'
+        ? rawPeerPayload.organization_name.trim()
+        : ''
     const existingRecipientIds = getRecipientUserIds(sub)
     const selectedIds = [...new Set(selectedRecipientUserIds.map((id) => id.trim()).filter(Boolean))]
     const idsToAdd = selectedIds.filter((id) => !existingRecipientIds.includes(id) && id !== sub.user_id)
