@@ -29,6 +29,7 @@
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "recharts": "^3.7.0",
+    "sharp": "^0.34.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -38,7 +39,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
