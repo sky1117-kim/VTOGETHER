@@ -13,6 +13,7 @@ import {
 } from '@/lib/health-challenge-scoring'
 import { yearMonthFromISODate } from '@/lib/health-challenge-time'
 import { HEALTH_CHALLENGE_RELATED_TYPE } from '@/constants/health-challenges'
+import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
 import { DEFAULT_HEALTH_TRACK_SEEDS, slugifyHealthSeasonSlug } from '@/lib/health-challenge-default-season'
 
 /** 시즌 4종목 저장용 (등록·수정 공통) */
@@ -166,6 +167,26 @@ export type HealthActivityLogAdminRow = {
   photo_urls: string[]
   status: string
   created_at: string
+}
+
+type HealthLogApprovalTarget = {
+  log_id: string
+  season_id: string
+  track_id: string
+  user_id: string
+  activity_date: string
+  distance_km: number | null
+  speed_kmh: number | null
+  elevation_m: number | null
+  photo_urls: string[] | null
+  status: string
+  created_at: string
+}
+
+function buildHealthLogGroupKey(log: HealthLogApprovalTarget): string {
+  const metricKey = `${log.distance_km ?? ''}|${log.speed_kmh ?? ''}|${log.elevation_m ?? ''}`
+  const photosKey = [...(log.photo_urls ?? [])].sort().join('|')
+  return [log.user_id, log.track_id, log.status, log.created_at, metricKey, photosKey].join('::')
 }
 
 export async function getPendingHealthChallengeLogCount(): Promise<number> {
@@ -333,26 +354,61 @@ async function getReviewerId(): Promise<string | null> {
 }
 
 export async function approveHealthActivityLog(logId: string): Promise<{ success: boolean; error: string | null }> {
+  return approveHealthActivityLogGroup([logId])
+}
+
+export async function approveHealthActivityLogGroup(
+  logIds: string[]
+): Promise<{ success: boolean; error: string | null }> {
   const gate = await assertIsAdmin()
   if ('error' in gate) return { success: false, error: gate.error }
   const reviewerId = gate.userId
 
   try {
     const admin = createAdminClient()
-    const { data: log, error: lErr } = await admin
-      .from('health_challenge_activity_logs')
-      .select('log_id, season_id, track_id, user_id, activity_date, distance_km, speed_kmh, elevation_m, status')
-      .eq('log_id', logId)
-      .is('deleted_at', null)
-      .single()
+    const normalizedLogIds = [...new Set(logIds.map((id) => id.trim()).filter(Boolean))]
+    if (normalizedLogIds.length === 0) {
+      return { success: false, error: '승인할 로그 ID가 없습니다.' }
+    }
 
-    if (lErr || !log) return { success: false, error: '로그를 찾을 수 없습니다.' }
-    if (log.status !== 'PENDING') return { success: false, error: '이미 처리된 건입니다.' }
+    const { data: logs, error: lErr } = await admin
+      .from('health_challenge_activity_logs')
+      .select(
+        'log_id, season_id, track_id, user_id, activity_date, distance_km, speed_kmh, elevation_m, photo_urls, status, created_at'
+      )
+      .in('log_id', normalizedLogIds)
+      .is('deleted_at', null)
+      .order('activity_date', { ascending: true })
+
+    if (lErr) return { success: false, error: '로그를 찾을 수 없습니다.' }
+    if (!logs?.length) return { success: false, error: '로그를 찾을 수 없습니다.' }
+    if (logs.length !== normalizedLogIds.length) {
+      return { success: false, error: '일부 로그를 찾을 수 없습니다.' }
+    }
+    if (logs.some((x) => x.status !== 'PENDING')) {
+      return { success: false, error: '이미 처리된 건이 포함되어 있습니다.' }
+    }
+
+    const base = logs[0] as HealthLogApprovalTarget
+    const baseGroupKey = buildHealthLogGroupKey(base)
+    for (const row of logs as HealthLogApprovalTarget[]) {
+      if (
+        row.season_id !== base.season_id ||
+        row.track_id !== base.track_id ||
+        row.user_id !== base.user_id ||
+        buildHealthLogGroupKey(row) !== baseGroupKey
+      ) {
+        return {
+          success: false,
+          error: '서로 다른 묶음의 로그가 함께 선택되었습니다. 같은 제출 묶음만 승인할 수 있습니다.',
+        }
+      }
+    }
 
     const { data: track, error: tErr } = await admin
       .from('health_challenge_tracks')
       .select('track_id, title, metric, min_distance_km, min_speed_kmh, min_elevation_m')
-      .eq('track_id', log.track_id)
+      .eq('track_id', base.track_id)
       .is('deleted_at', null)
       .single()
 
@@ -366,22 +422,23 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
     }
 
     const logInput = {
-      distance_km: log.distance_km != null ? Number(log.distance_km) : null,
-      speed_kmh: log.speed_kmh != null ? Number(log.speed_kmh) : null,
-      elevation_m: log.elevation_m != null ? Number(log.elevation_m) : null,
+      distance_km: base.distance_km != null ? Number(base.distance_km) : null,
+      speed_kmh: base.speed_kmh != null ? Number(base.speed_kmh) : null,
+      elevation_m: base.elevation_m != null ? Number(base.elevation_m) : null,
     }
 
     const v = validateSessionForTrack(rule, logInput)
     if (!v.ok) return { success: false, error: v.message }
 
+    // 같은 묶음(활동일 여러 개 선택) 제출이어도 제출값은 한 번만 반영
     const contributed = contributedValueForApprovedLog(rule, logInput)
-    const ym = yearMonthFromISODate(log.activity_date)
+    const ym = yearMonthFromISODate(base.activity_date)
     if (!ym) return { success: false, error: '활동일이 올바르지 않습니다.' }
 
     const { data: thresholds } = await admin
       .from('health_challenge_level_thresholds')
       .select('level, target_value')
-      .eq('track_id', log.track_id)
+      .eq('track_id', base.track_id)
       .is('deleted_at', null)
       .order('level', { ascending: true })
 
@@ -393,18 +450,17 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
     const { data: existingRollup } = await admin
       .from('health_challenge_monthly_rollups')
       .select('rollup_id, approved_total, achieved_level')
-      .eq('season_id', log.season_id)
-      .eq('track_id', log.track_id)
-      .eq('user_id', log.user_id)
+      .eq('season_id', base.season_id)
+      .eq('track_id', base.track_id)
+      .eq('user_id', base.user_id)
       .eq('year', ym.year)
       .eq('month', ym.month)
       .is('deleted_at', null)
       .maybeSingle()
 
-    const prev = existingRollup ? Number(existingRollup.approved_total) : 0
-    const prevAchieved = existingRollup ? Number(existingRollup.achieved_level ?? 0) : 0
-    const newTotal = prev + contributed
-    const achieved = achievedLevelFromTotal(newTotal, thList)
+    // 사용자 요청 정책: 기존 월 누적과 무관하게 "이번 제출값"만으로 레벨 산정
+    const newTotal = contributed
+    const achieved = achievedLevelFromTotal(contributed, thList)
 
     if (existingRollup) {
       const { error: uErr } = await admin
@@ -414,9 +470,9 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
       if (uErr) return { success: false, error: uErr.message }
     } else {
       const { error: iErr } = await admin.from('health_challenge_monthly_rollups').insert({
-        season_id: log.season_id,
-        track_id: log.track_id,
-        user_id: log.user_id,
+        season_id: base.season_id,
+        track_id: base.track_id,
+        user_id: base.user_id,
         year: ym.year,
         month: ym.month,
         approved_total: newTotal,
@@ -425,7 +481,12 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
       if (iErr) return { success: false, error: iErr.message }
     }
 
-    const { data: updatedLog, error: logUpd } = await admin
+    const leadLogId = base.log_id
+    const secondaryLogIds = (logs as HealthLogApprovalTarget[])
+      .map((x) => x.log_id)
+      .filter((id) => id !== leadLogId)
+
+    const { data: updatedLeadLog, error: leadUpdErr } = await admin
       .from('health_challenge_activity_logs')
       .update({
         status: 'APPROVED',
@@ -433,23 +494,37 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
         reviewed_by: reviewerId,
         reviewed_at: new Date().toISOString(),
       })
-      .eq('log_id', logId)
+      .eq('log_id', leadLogId)
       .eq('status', 'PENDING')
       .select('log_id')
       .maybeSingle()
 
-    if (logUpd) return { success: false, error: logUpd.message }
-    if (!updatedLog) return { success: false, error: '이미 처리된 건입니다.' }
+    if (leadUpdErr) return { success: false, error: leadUpdErr.message }
+    if (!updatedLeadLog) return { success: false, error: '이미 처리된 건입니다.' }
 
-    // 승인 즉시 지급: 달성 레벨 상승분(delta) 만큼 V.Medal 지급
-    const deltaLevel = Math.max(0, achieved - prevAchieved)
-    if (deltaLevel > 0) {
+    if (secondaryLogIds.length > 0) {
+      const { error: restUpdErr } = await admin
+        .from('health_challenge_activity_logs')
+        .update({
+          status: 'APPROVED',
+          contributed_value: 0,
+          reviewed_by: reviewerId,
+          reviewed_at: new Date().toISOString(),
+        })
+        .in('log_id', secondaryLogIds)
+        .eq('status', 'PENDING')
+      if (restUpdErr) return { success: false, error: restUpdErr.message }
+    }
+
+    // 승인 즉시 지급: 기존 레벨과 무관하게 "이번 제출 레벨"만큼 V.Medal 지급
+    const levelForThisApproval = Math.max(0, achieved)
+    if (levelForThisApproval > 0) {
       // 시즌 연결 이벤트의 V.Medal 보상 수량을 레벨당 지급량으로 사용 (없으면 1)
       let perLevelMedals = 1
       const seasonMeta = await admin
         .from('health_challenge_seasons')
         .select('event_id')
-        .eq('season_id', log.season_id)
+        .eq('season_id', base.season_id)
         .is('deleted_at', null)
         .maybeSingle()
 
@@ -473,26 +548,26 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
         if (Number.isFinite(amt) && amt > 0) perLevelMedals = amt
       }
 
-      const medalAmount = deltaLevel * perLevelMedals
+      const medalAmount = levelForThisApproval * perLevelMedals
       if (medalAmount > 0) {
         const { data: urow, error: uErr } = await admin
           .from('users')
           .select('user_id, current_medals, name, email')
-          .eq('user_id', log.user_id)
+          .eq('user_id', base.user_id)
           .is('deleted_at', null)
           .single()
         if (uErr || !urow) return { success: false, error: '사용자 메달 적립 대상 조회 실패' }
 
         const newMedals = Number(urow.current_medals ?? 0) + medalAmount
-        const { error: upUser } = await admin.from('users').update({ current_medals: newMedals }).eq('user_id', log.user_id)
+        const { error: upUser } = await admin.from('users').update({ current_medals: newMedals }).eq('user_id', base.user_id)
         if (upUser) return { success: false, error: upUser.message }
 
         // 월별 누적 지급 스냅샷(중복 정산 방지용)
         const { data: paidRow } = await admin
           .from('health_challenge_monthly_settlements')
           .select('settlement_id, medal_amount')
-          .eq('season_id', log.season_id)
-          .eq('user_id', log.user_id)
+          .eq('season_id', base.season_id)
+          .eq('user_id', base.user_id)
           .eq('year', ym.year)
           .eq('month', ym.month)
           .is('deleted_at', null)
@@ -501,8 +576,8 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
         const { data: monthRollups } = await admin
           .from('health_challenge_monthly_rollups')
           .select('achieved_level')
-          .eq('season_id', log.season_id)
-          .eq('user_id', log.user_id)
+          .eq('season_id', base.season_id)
+          .eq('user_id', base.user_id)
           .eq('year', ym.year)
           .eq('month', ym.month)
           .is('deleted_at', null)
@@ -520,8 +595,8 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
             .eq('settlement_id', paidRow.settlement_id)
         } else {
           await admin.from('health_challenge_monthly_settlements').insert({
-            season_id: log.season_id,
-            user_id: log.user_id,
+            season_id: base.season_id,
+            user_id: base.user_id,
             year: ym.year,
             month: ym.month,
             level_sum: levelSum,
@@ -532,16 +607,29 @@ export async function approveHealthActivityLog(logId: string): Promise<{ success
         }
 
         const trackLabel = (track.title ?? '').trim() || '건강 챌린지'
-        await admin.from('point_transactions').insert({
-          user_id: log.user_id,
-          type: 'EARNED',
+        const healthEarnedDescription = `${trackLabel} 레벨 ${achieved} 달성`
+        const { data: healthTxRow } = await admin
+          .from('point_transactions')
+          .insert({
+            user_id: base.user_id,
+            type: 'EARNED',
+            amount: medalAmount,
+            currency_type: 'V_MEDAL',
+            related_id: leadLogId,
+            related_type: HEALTH_CHALLENGE_RELATED_TYPE,
+            description: healthEarnedDescription,
+            user_email: urow.email ?? null,
+            user_name: urow.name ?? null,
+          })
+          .select('transaction_id')
+          .single()
+        scheduleEarnedNotificationEmail({
+          toEmail: urow.email,
+          userName: urow.name,
+          description: healthEarnedDescription,
           amount: medalAmount,
-          currency_type: 'V_MEDAL',
-          related_id: log.log_id,
-          related_type: HEALTH_CHALLENGE_RELATED_TYPE,
-          description: `${trackLabel} 레벨 ${achieved} 달성`,
-          user_email: urow.email ?? null,
-          user_name: urow.name ?? null,
+          currencyType: 'V_MEDAL',
+          transactionId: healthTxRow?.transaction_id,
         })
       }
     }
@@ -608,7 +696,9 @@ export async function approveAllPendingHealthActivityLogsForUser(
     const admin = createAdminClient()
     const { data: logs, error } = await admin
       .from('health_challenge_activity_logs')
-      .select('log_id')
+      .select(
+        'log_id, season_id, track_id, user_id, activity_date, distance_km, speed_kmh, elevation_m, photo_urls, status, created_at'
+      )
       .eq('user_id', userId)
       .eq('status', 'PENDING')
       .is('deleted_at', null)
@@ -618,8 +708,16 @@ export async function approveAllPendingHealthActivityLogsForUser(
     if (!logs?.length) return { success: true, approved: 0, error: null }
 
     let approved = 0
-    for (const row of logs) {
-      const r = await approveHealthActivityLog(row.log_id)
+    const grouped = new Map<string, string[]>()
+    for (const row of logs as HealthLogApprovalTarget[]) {
+      const key = buildHealthLogGroupKey(row)
+      const list = grouped.get(key) ?? []
+      list.push(row.log_id)
+      grouped.set(key, list)
+    }
+
+    for (const groupLogIds of grouped.values()) {
+      const r = await approveHealthActivityLogGroup(groupLogIds)
       if (!r.success) {
         return {
           success: false,
@@ -627,7 +725,7 @@ export async function approveAllPendingHealthActivityLogsForUser(
           error: r.error ?? `${approved + 1}번째 승인 처리 중 오류가 발생했습니다.`,
         }
       }
-      approved++
+      approved += groupLogIds.length
     }
     return { success: true, approved, error: null }
   } catch (e) {
@@ -816,16 +914,29 @@ export async function runHealthChallengeMonthlySettlement(
       const { error: upUser } = await admin.from('users').update({ current_medals: newMedals }).eq('user_id', userId)
       if (upUser) continue
 
-      await admin.from('point_transactions').insert({
-        user_id: userId,
-        type: 'EARNED',
+      const settlementDescription = `건강 챌린지 ${year}년 ${month}월 정산 (${levelSum}레벨 합 → ${medalAmount} M)`
+      const { data: settlementTxRow } = await admin
+        .from('point_transactions')
+        .insert({
+          user_id: userId,
+          type: 'EARNED',
+          amount: medalAmount,
+          currency_type: 'V_MEDAL',
+          related_id: settlementId ?? null,
+          related_type: HEALTH_CHALLENGE_RELATED_TYPE,
+          description: settlementDescription,
+          user_email: urow.email ?? null,
+          user_name: urow.name ?? null,
+        })
+        .select('transaction_id')
+        .single()
+      scheduleEarnedNotificationEmail({
+        toEmail: urow.email,
+        userName: urow.name,
+        description: settlementDescription,
         amount: medalAmount,
-        currency_type: 'V_MEDAL',
-        related_id: settlementId ?? null,
-        related_type: HEALTH_CHALLENGE_RELATED_TYPE,
-        description: `건강 챌린지 ${year}년 ${month}월 정산 (${levelSum}레벨 합 → ${medalAmount} M)`,
-        user_email: urow.email ?? null,
-        user_name: urow.name ?? null,
+        currencyType: 'V_MEDAL',
+        transactionId: settlementTxRow?.transaction_id,
       })
 
       paidUsers++

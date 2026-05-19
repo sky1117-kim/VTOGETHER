@@ -17,7 +17,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **메인**: `/` — 대시보드, 기부, **이벤트 & 챌린지**(필터 하단에 **건강 챌린지** People 블록 → 그 아래 일반 이벤트 카드), 명예의 전당(분기별 TOP 10)
 - **상점**: `/shop` — `V.Medal`로 굿즈 구매 또는 `V.Credit` 전환 상품 구매
 - **관리자**: `/admin` — 대시보드(전사 기부·목표 달성률·승인 대기·**MAU**·**이벤트 적립 현황** People/V.Together/매칭금), 메인 문구 편집, 사용자·관리자 설정. 네비에 승인 대기 배지, 설정 섹션 접기/펼치기 지원
-- **지급/적립 내역**: `/admin/point-grant` — 수동 지급 + 직원 전체 지급/적립/사용 거래 통합 조회(이름/이메일/사유 검색, 유형·재화·기간 필터, 페이지 이동)
+- **지급/적립 내역**: `/admin/point-grant` — **V.Credit·V.Medal 수동 지급** + 직원 전체 지급/적립/사용 거래 통합 조회(이름/이메일/사유 검색, 유형·재화·기간 필터, 페이지 이동) (2026.05.13)
 - **이벤트 관리**: `/admin/events` — 목록, `/admin/events/new` — 등록 (보상: V.Credit/굿즈/커피쿠폰 복수 선택, 인증: 사진·텍스트·숫자·동료선택+텍스트 + 직원 안내문)
 - **칭찬 챌린지 인증 UX 개선**: 이벤트 인증 모달에서 동료 다중 선택(여러 명) + 추천 조직명 직접 입력 + 개선된 카드형 UI 지원 (2026.03.30)
 - **동료 선택 인원 설정**: 관리자 이벤트 등록에서 `동료 선택` 인증 항목별로 `개인형(1명)`/`조직형(여러 명)`을 지정 가능. 참여 모달·서버 검증이 동일 규칙 적용 (2026.03.30)
@@ -38,6 +38,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **세아웍스 인사 연동(배치형)**: `seah_org_units`(조직) + `seah_employees`(직원) 스냅샷 테이블로 분리 저장 후 서비스에서 필요 시 조인 사용. 외부 API는 `/api/cron/seah-orgsync`를 하루 1회 호출해 동기화 (`docs/seah-orgsync-api.md` 참고)
 - **Google Chat 에러 알림**: 서버/클라이언트 에러 발생 시 에러 전용 Chat 스페이스로 알림 전송 (`GOOGLE_CHAT_WEBHOOK_URL`)
 - **Google Chat 승인 대기 알림**: 이벤트·건강 챌린지 인증이 제출되면 관리자 전용 Chat 스페이스로 승인 대기 알림 전송 (`GOOGLE_CHAT_ADMIN_WEBHOOK_URL`, `/admin/verifications`)
+- **적립 알림 이메일**: 헤더 벨과 동일한 `EARNED` 적립 시 HTML 메일 발송 (SMTP 설정 시, 바로가기: Cloud Run 운영 URL) (2026.05.19)
 
 ## Getting Started
 

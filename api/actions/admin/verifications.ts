@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { collectPeerUserIdsOrdered } from '@/lib/peer-select-display'
+import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
 
 /** 이벤트별 인증 방식 (카드/테이블 렌더링용). label·unit은 심사 시 "거리: 34 km" 등 표시에 사용 */
 export type VerificationMethodInfo = {
@@ -402,18 +403,30 @@ export async function approveSubmission(submissionId: string): Promise<{
               : `칭찬챌린지 (발신): ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
             : `${event.title} ${roundDesc} ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
 
-        const { error: txErr } = await supabase.from('point_transactions').insert({
-          user_id: uid,
-          type: 'EARNED',
-          amount: rewardAmount,
-          currency_type: primaryCurrency,
-          related_id: sub.submission_id,
-          related_type: 'EVENT',
-          description,
-          user_email: u.email ?? null,
-          user_name: u.name ?? null,
-        })
+        const { data: txRow, error: txErr } = await supabase
+          .from('point_transactions')
+          .insert({
+            user_id: uid,
+            type: 'EARNED',
+            amount: rewardAmount,
+            currency_type: primaryCurrency,
+            related_id: sub.submission_id,
+            related_type: 'EVENT',
+            description,
+            user_email: u.email ?? null,
+            user_name: u.name ?? null,
+          })
+          .select('transaction_id')
+          .single()
         if (txErr) return { success: false, error: '거래 기록 실패' }
+        scheduleEarnedNotificationEmail({
+          toEmail: u.email,
+          userName: u.name,
+          description,
+          amount: rewardAmount,
+          currencyType: primaryCurrency,
+          transactionId: txRow?.transaction_id,
+        })
       }
     }
 
@@ -823,18 +836,31 @@ export async function backfillApprovedComplimentRecipientsByTeam(
         }
 
         const unitLabel = rewardType === 'V_MEDAL' ? 'M' : 'C'
-        const { error: txErr } = await supabase.from('point_transactions').insert({
-          user_id: target.user_id,
-          type: 'EARNED',
-          amount: rewardAmount,
-          currency_type: rewardType,
-          related_id: sub.submission_id,
-          related_type: 'EVENT',
-          description: `칭찬챌린지 (사후 반영 수신): ${rewardAmount.toLocaleString()} ${unitLabel} 적립`,
-          user_email: target.email ?? null,
-          user_name: target.name ?? null,
-        })
+        const backfillDescription = `칭찬챌린지 (사후 반영 수신): ${rewardAmount.toLocaleString()} ${unitLabel} 적립`
+        const { data: txRow, error: txErr } = await supabase
+          .from('point_transactions')
+          .insert({
+            user_id: target.user_id,
+            type: 'EARNED',
+            amount: rewardAmount,
+            currency_type: rewardType,
+            related_id: sub.submission_id,
+            related_type: 'EVENT',
+            description: backfillDescription,
+            user_email: target.email ?? null,
+            user_name: target.name ?? null,
+          })
+          .select('transaction_id')
+          .single()
         if (txErr) return { success: false, error: `거래 기록 실패: ${txErr.message}` }
+        scheduleEarnedNotificationEmail({
+          toEmail: target.email,
+          userName: target.name,
+          description: backfillDescription,
+          amount: rewardAmount,
+          currencyType: rewardType,
+          transactionId: txRow?.transaction_id,
+        })
         totalGranted += rewardAmount
       }
     }

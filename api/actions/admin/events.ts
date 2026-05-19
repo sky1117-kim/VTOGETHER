@@ -606,13 +606,21 @@ export type EventSubmissionExportRow = {
   반려사유: string
   /** TEXT 인증(칭찬 내용 등) */
   인증내용: string
-  /** PEER_SELECT 인증(칭찬·추천 대상) */
-  추천대상: string
+  /** 텍스트 입력(예: "세아M&S 프로젝트 팀 | ...")에서 앞부분 조직명 */
+  칭찬조직: string
+  /** PEER_SELECT 인증(메달 지급 대상) */
+  메달지급대상: string
+  /** PEER_SELECT 조직(메달 지급용 조직) */
+  메달지급조직: string
+  /** 칭찬 챌린지 핵심가치 */
+  핵심가치: string
+  /** 칭찬/추천 사유 */
+  사유: string
   /** PHOTO 인증 요약 */
   사진: string
   /** VALUE 타입 추가 입력 */
   입력값: string
-}
+} & Record<string, string>
 
 export async function getEventSubmissionsForExport(eventId: string): Promise<{
   data: EventSubmissionExportRow[] | null
@@ -648,12 +656,16 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
     const [roundsRes, usersRes, methodsRes] = await Promise.all([
       roundIds.length ? supabase.from('event_rounds').select('round_id, round_number').in('round_id', roundIds).is('deleted_at', null) : { data: [] },
       userIds.length ? supabase.from('users').select('user_id, name, email').in('user_id', userIds).is('deleted_at', null) : { data: [] },
-      supabase.from('event_verification_methods').select('event_id, method_id, method_type').eq('event_id', eventId).is('deleted_at', null),
+      supabase
+        .from('event_verification_methods')
+        .select('event_id, method_id, method_type, label')
+        .eq('event_id', eventId)
+        .is('deleted_at', null),
     ])
 
     const roundMap = new Map((roundsRes.data ?? []).map((r) => [r.round_id, r]))
     const userMap = new Map((usersRes.data ?? []).map((u) => [u.user_id, u]))
-    const methods = (methodsRes.data ?? []) as { method_id: string; method_type: string }[]
+    const methods = (methodsRes.data ?? []) as { method_id: string; method_type: string; label: string | null }[]
 
     const STATUS_LABEL: Record<string, string> = { PENDING: '승인대기', APPROVED: '승인', REJECTED: '반려' }
     const REWARD_LABEL: Record<string, string> = { V_CREDIT: 'V.Credit', POINTS: 'V.Credit', COFFEE_COUPON: '커피쿠폰', GOODS: '굿즈', COUPON: '쿠폰' }
@@ -666,6 +678,19 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 120)
+    const normalizeLabel = (value: string | null | undefined) => (value ?? '').replace(/\s+/g, '').toLowerCase()
+    const splitOrgAndBody = (text: string): { org: string | null; body: string } => {
+      const normalized = text.replace(/[｜¦]/g, '|').trim()
+      const firstSep = normalized.indexOf('|')
+      if (firstSep < 0) return { org: null, body: normalized }
+      const leftRaw = normalized.slice(0, firstSep).trim()
+      const right = normalized.slice(firstSep + 1).trim()
+      const left = leftRaw.replace(/^["']+|["']+$/g, '').trim()
+      if (!left || !right) return { org: null, body: normalized }
+      // 조직명은 짧은 토큰인 경우만 분리하고, 긴 문장은 본문으로 유지합니다.
+      if (left.length > 40) return { org: null, body: normalized }
+      return { org: left, body: right }
+    }
 
     const data: EventSubmissionExportRow[] = submissions.map((s) => {
       const round = s.round_id ? roundMap.get(s.round_id) : null
@@ -675,22 +700,109 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
       const textParts: string[] = []
       const photoParts: string[] = []
       const peerParts: string[] = []
+      const payoutOrgParts: string[] = []
+      const complimentOrgParts: string[] = []
+      const coreValueParts: string[] = []
+      const reasonParts: string[] = []
       const valueParts: string[] = []
-      for (const { method_id, method_type } of methods) {
+      const questionAnswers: Record<string, string> = {}
+      const usedQuestionColumns = new Set<string>()
+      const ensureUniqueQuestionColumn = (label: string): string => {
+        const base = label.trim() || '질문'
+        if (!usedQuestionColumns.has(base)) {
+          usedQuestionColumns.add(base)
+          return base
+        }
+        let idx = 2
+        while (usedQuestionColumns.has(`${base} (${idx})`)) idx += 1
+        const next = `${base} (${idx})`
+        usedQuestionColumns.add(next)
+        return next
+      }
+      for (const { method_id, method_type, label } of methods) {
         const val = vd[method_id]
         if (val === undefined || val === null || val === '') continue
+        const questionColumn = ensureUniqueQuestionColumn(
+          label?.trim() || (method_type === 'PHOTO'
+            ? '사진'
+            : method_type === 'PEER_SELECT'
+              ? '동료 선택'
+              : method_type === 'VALUE'
+                ? '입력값'
+                : '텍스트')
+        )
         if (method_type === 'PHOTO') {
           const count = Array.isArray(val) ? (val as string[]).length : 1
           photoParts.push(count > 1 ? `사진 ${count}장` : '사진 1장')
+          questionAnswers[questionColumn] = count > 1 ? `사진 ${count}장` : '사진 1장'
         } else if (method_type === 'TEXT') {
-          textParts.push(normalizeSummaryText(val))
+          const text = normalizeSummaryText(val)
+          const normalizedLabel = normalizeLabel(label)
+          if (normalizedLabel.includes('핵심가치')) {
+            coreValueParts.push(text)
+          } else if (normalizedLabel.includes('사유') || normalizedLabel.includes('이유')) {
+            const split = splitOrgAndBody(text)
+            if (split.org) complimentOrgParts.push(split.org)
+            reasonParts.push(split.body)
+          } else {
+            const split = splitOrgAndBody(text)
+            if (split.org) {
+              complimentOrgParts.push(split.org)
+              textParts.push(split.body)
+              questionAnswers[questionColumn] = split.org
+            } else {
+              textParts.push(text)
+              questionAnswers[questionColumn] = text
+            }
+          }
         } else if (method_type === 'PEER_SELECT') {
+          const orgName =
+            val && typeof val === 'object' && !Array.isArray(val)
+              ? (val as { organization_name?: unknown }).organization_name
+              : null
+          if (typeof orgName === 'string' && orgName.trim()) {
+            payoutOrgParts.push(orgName.trim())
+            questionAnswers[questionColumn] = orgName.trim()
+          } else {
+            questionAnswers[questionColumn] = peer?.name ?? '동료 선택됨'
+          }
           peerParts.push(peer?.name ?? '동료 선택됨')
         } else if (method_type === 'VALUE') {
-          valueParts.push(normalizeSummaryText(val))
+          const normalized = normalizeSummaryText(val)
+          valueParts.push(normalized)
+          questionAnswers[questionColumn] = normalized
         }
       }
+      // 라벨로 분류되지 않은 텍스트에 "조직 | 본문" 패턴이 남아있으면 마지막으로 한 번 더 분리합니다.
+      const sanitizedTextParts = textParts.map((raw) => {
+        const split = splitOrgAndBody(raw)
+        if (split.org) complimentOrgParts.push(split.org)
+        return split.body
+      })
       const dash = '—'
+      const uniqueComplimentOrgs = [...new Set(complimentOrgParts)]
+      const stripKnownOrgPrefix = (input: string): string => {
+        let out = input.trim()
+        for (const org of uniqueComplimentOrgs) {
+          const escaped = org.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const re = new RegExp(`^["']?\\s*${escaped}\\s*["']?\\s*[|｜¦]\\s*`, 'i')
+          out = out.replace(re, '').trim()
+        }
+        return out
+      }
+      const forceExtractOrgFromParts = (parts: string[]): string[] =>
+        parts
+          .map((raw) => {
+            const firstPass = stripKnownOrgPrefix(raw)
+            const split = splitOrgAndBody(firstPass)
+            if (split.org) uniqueComplimentOrgs.push(split.org)
+            return split.body
+          })
+          .map((v) => v.trim())
+          .filter((v) => !!v)
+      const cleanedTextParts = forceExtractOrgFromParts(sanitizedTextParts)
+      const cleanedReasonParts = forceExtractOrgFromParts(reasonParts)
+      const dedupedComplimentOrgs = [...new Set(uniqueComplimentOrgs)]
       return {
         이벤트명: event.title,
         구간: round ? `${round.round_number}구간` : '상시',
@@ -700,10 +812,15 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
         제출일시: new Date(s.created_at).toLocaleString('ko-KR'),
         보상유형: s.reward_type ? (REWARD_LABEL[s.reward_type] ?? s.reward_type) : '—',
         반려사유: s.rejection_reason ?? '',
-        인증내용: textParts.length ? textParts.join(' | ') : dash,
-        추천대상: peerParts.length ? peerParts.join(' | ') : dash,
+        인증내용: cleanedTextParts.length ? cleanedTextParts.join(' | ') : dash,
+        칭찬조직: dedupedComplimentOrgs.length ? dedupedComplimentOrgs.join(' | ') : dash,
+        메달지급대상: peerParts.length ? peerParts.join(' | ') : dash,
+        메달지급조직: payoutOrgParts.length ? [...new Set(payoutOrgParts)].join(' | ') : dash,
+        핵심가치: coreValueParts.length ? [...new Set(coreValueParts)].join(' | ') : dash,
+        사유: cleanedReasonParts.length ? cleanedReasonParts.join(' | ') : dash,
         사진: photoParts.length ? photoParts.join(' | ') : dash,
         입력값: valueParts.length ? valueParts.join(' | ') : dash,
+        ...questionAnswers,
       }
     })
 

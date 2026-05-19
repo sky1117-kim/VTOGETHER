@@ -59,7 +59,7 @@
 ## Phase 2: 이벤트 & 챌린지
 
 - **관리자 권한**: `users.is_admin = true` 인 사용자만 `/admin` 접근 및 이벤트 등록·인증 심사 가능.
-- **지급/적립 내역 통합 화면**: `/admin/point-grant`에서 수동 지급과 거래 내역 조회를 함께 처리. 수동 지급은 기존과 동일하게 `users.current_points` 증가 + `point_transactions`에 `type=EARNED`, `related_type=ADMIN_GRANT`, `description`=사유(없으면「관리자 지급」)로 기록.
+- **지급/적립 내역 통합 화면**: `/admin/point-grant`에서 수동 지급과 거래 내역 조회를 함께 처리. **V.Credit** 수동 지급은 `users.current_points` 증가 + `point_transactions`(`currency_type=V_CREDIT`, `type=EARNED`, `related_type=ADMIN_GRANT`) + `credit_lots`(`source_type=ADMIN_GRANT`). **V.Medal** 수동 지급은 `users.current_medals` 증가 + 동일한 `point_transactions` 패턴(`currency_type=V_MEDAL`, `credit_lots` 없음). **관리자 지급 취소**: 같은 화면 목록에서 `ADMIN_GRANT` 적립 건에 한해 버튼으로 되돌림 — 크레딧은 짝이 되는 `credit_lots`가 미사용(전액 remaining)일 때만, 메달은 현재 잔액이 지급액 이상일 때만 가능; 거래는 `deleted_at`으로 숨김(또는 구스키마 시 hard delete).
 - **관리자 거래 조회 기준**: 같은 페이지에서 `point_transactions` 전체를 대상으로 이름/이메일/사유 검색, 거래유형(`EARNED`/`DONATED`/`USED`), 재화(`V_CREDIT`/`V_MEDAL`), 출처코드(`related_type`), 기간 필터로 조회.
 - **Footer 관리자 링크**: 메인/기부/마이 페이지 하단 Footer의 "관리자" 링크는 **관리자(`is_admin = true`)일 때만** 표시됩니다. 일반 사용자에게는 노출되지 않습니다.
 - **최초 관리자 설정**: 한 명은 Supabase Table Editor에서 `users` 테이블 → 해당 행의 `is_admin`을 **true**로 수동 설정. 그 다음 로그인하여 `/admin` → **관리자 계정 설정** 섹션에서 다른 사용자에게도 관리자 체크를 줄 수 있음 (웹에서 설정).
@@ -194,6 +194,15 @@
 ## 이벤트별 엑셀 다운로드 (관리자)
 
 - **이벤트 목록** 또는 **이벤트 상세** 페이지에서 **엑셀 다운로드** 버튼 클릭 시, 해당 이벤트의 제출 목록(참여자명, 이메일, 구간, 상태, 제출일시, 보상유형, 반려사유, 인증요약)이 엑셀 파일(.xlsx)로 내려받기 됨.
+
+## 적립 알림 이메일 (벨 알림과 동일, 2026.05.19)
+
+- **대상:** `point_transactions`에 `type='EARNED'`로 기록될 때마다 (헤더 벨에 표시되는 적립과 동일).
+- **내용:** `getEarnedDisplay(description)`로 가공한 알림 문구 + 금액(M/C). 칭찬 수신 건도 벨과 같이 보낸 사람 이름은 메일에 넣지 않음.
+- **템플릿:** `lib/email/earned-notification-html.ts` (HTML 카드 + 「V.Together 바로가기」 버튼).
+- **바로가기 URL:** `NEXT_PUBLIC_APP_URL` → 없으면 `NEXT_PUBLIC_DEV_APP_URL` → 없으면 Cloud Run 기본 `https://vtogether-899896571605.asia-northeast3.run.app`. 링크는 `/my?highlight={transaction_id}#point-history` (ID 없으면 `/my#point-history`).
+- **발송:** `lib/send-earned-notification-email.ts`. `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`가 모두 있을 때만 발송. 없으면 스킵(적립·승인은 정상 처리).
+- **실패:** 메일 전송 실패가 승인/지급 API를 실패시키지 않음 (`scheduleEarnedNotificationEmail`).
 
 ## 에러 알림 (Google Chat Webhook)
 

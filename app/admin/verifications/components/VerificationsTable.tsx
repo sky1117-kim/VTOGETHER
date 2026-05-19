@@ -1232,7 +1232,7 @@ function VerificationDetailModal({
                 <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
                   {item.peerBlock.teamLabel ? (
                     <p className="text-sm font-bold text-gray-900">
-                      팀(부서){' '}
+                      칭찬 조직{' '}
                       <span className="font-semibold text-emerald-800">{item.peerBlock.teamLabel}</span>
                     </p>
                   ) : null}

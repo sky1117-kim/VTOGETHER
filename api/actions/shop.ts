@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
 
 type ShopProductRow = {
   product_id: string
@@ -159,16 +160,29 @@ export async function purchaseShopProduct(productId: string, quantity = 1): Prom
         related_id: product.product_id,
         description: `V.Medal 전환 구매: ${product.name} x${safeQuantity}`,
       })
-      await admin.from('point_transactions').insert({
-        user_id: user.id,
-        type: 'EARNED',
+      const shopEarnedDescription = `V.Medal 전환: ${product.name} x${safeQuantity}`
+      const { data: shopTxRow } = await admin
+        .from('point_transactions')
+        .insert({
+          user_id: user.id,
+          type: 'EARNED',
+          amount: totalCreditGranted,
+          currency_type: 'V_CREDIT',
+          related_id: product.product_id,
+          related_type: 'SHOP_EXCHANGE',
+          description: shopEarnedDescription,
+          user_name: snapshotName,
+          user_email: snapshotEmail,
+        })
+        .select('transaction_id')
+        .single()
+      scheduleEarnedNotificationEmail({
+        toEmail: snapshotEmail,
+        userName: snapshotName,
+        description: shopEarnedDescription,
         amount: totalCreditGranted,
-        currency_type: 'V_CREDIT',
-        related_id: product.product_id,
-        related_type: 'SHOP_EXCHANGE',
-        description: `V.Medal 전환: ${product.name} x${safeQuantity}`,
-        user_name: snapshotName,
-        user_email: snapshotEmail,
+        currencyType: 'V_CREDIT',
+        transactionId: shopTxRow?.transaction_id,
       })
     }
 

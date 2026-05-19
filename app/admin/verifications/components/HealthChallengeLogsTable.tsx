@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import {
   approveHealthActivityLog,
+  approveHealthActivityLogGroup,
   approveAllPendingHealthActivityLogsForUser,
   rejectAllPendingHealthActivityLogsForUser,
   rejectHealthActivityLog,
@@ -165,13 +166,14 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
 
   async function onApprove(group: GroupedLogRow) {
     setBusyId(group.group_id)
-    for (const logId of group.log_ids) {
-      const r = await approveHealthActivityLog(logId)
-      if (!r.success) {
-        setBusyId(null)
-        alert(r.error ?? '승인 실패')
-        return
-      }
+    const r =
+      group.log_ids.length > 1
+        ? await approveHealthActivityLogGroup(group.log_ids)
+        : await approveHealthActivityLog(group.log_ids[0]!)
+    if (!r.success) {
+      setBusyId(null)
+      alert(r.error ?? '승인 실패')
+      return
     }
     setBusyId(null)
     router.refresh()
@@ -344,31 +346,14 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
                     </p>
                     {(() => {
                       const th = [...row.level_thresholds].sort((a, b) => a.level - b.level)
-                      const groupAdd = row.contributed_per_log * group.log_ids.length
-                      const projectedTotal = row.rollup_approved_total + groupAdd
-                      const levelNow = row.rollup_achieved_level
-                      const levelAfter = achievedLevelFromTotal(projectedTotal, th)
-                      const deltaLevel = Math.max(0, levelAfter - levelNow)
+                      const levelFromThisSubmission = achievedLevelFromTotal(row.contributed_per_log, th)
                       return (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                          <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 font-semibold text-gray-700">
-                            현재 {levelNow <= 0 ? 'L0' : `L${levelNow}`}
-                          </span>
-                          <span className="text-gray-400">→</span>
                           <span
-                            className={`rounded-full px-2 py-0.5 font-bold ${
-                              deltaLevel > 0
-                                ? 'border border-emerald-300 bg-emerald-50 text-emerald-800'
-                                : 'border border-gray-300 bg-white text-gray-700'
-                            }`}
+                            className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800"
                           >
-                            승인 시 {levelAfter <= 0 ? 'L0' : `L${levelAfter}`}
+                            이번 제출 기준 {levelFromThisSubmission <= 0 ? 'L0' : `L${levelFromThisSubmission}`}
                           </span>
-                          {deltaLevel > 0 ? (
-                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
-                              +{deltaLevel}단계 지급
-                            </span>
-                          ) : null}
                         </div>
                       )
                     })()}
@@ -434,46 +419,19 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
                         const ymLabel = ym
                           ? `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`
                           : '해당 연·월'
-                        const groupAdd = row.contributed_per_log * group.log_ids.length
-                        const projectedTotal = row.rollup_approved_total + groupAdd
-                        const levelAfter = achievedLevelFromTotal(projectedTotal, th)
-                        const deltaLevel = Math.max(0, levelAfter - row.rollup_achieved_level)
+                        const levelFromThisSubmission = achievedLevelFromTotal(row.contributed_per_log, th)
                         return (
                           <div className="rounded-lg border border-gray-200/80 bg-white/90 p-3">
                             <p className="text-xs font-semibold text-gray-600">{ymLabel} · 레벨 기준</p>
                             <p className="mt-2 text-sm text-gray-800">
-                              <span className="font-semibold text-gray-900">현재 레벨</span>
+                              <span className="font-semibold text-gray-900">이번 제출 기준 레벨</span>
                               <span className="text-gray-500">: </span>
                               <span className="font-semibold text-emerald-800">
-                                {achievedLevelDisplay(row.rollup_achieved_level)}
-                              </span>
-                              <span className="ml-1 text-xs text-gray-500">
-                                (이미 승인된 기록 기준)
+                                {achievedLevelDisplay(levelFromThisSubmission)}
                               </span>
                             </p>
-                            {row.status === 'PENDING' && th.length > 0 ? (
-                              <p className="mt-2 border-t border-gray-100 pt-2 text-sm text-gray-800">
-                                <span className="font-semibold text-gray-900">이 묶음 승인 시 레벨</span>
-                                <span className="text-gray-500">: </span>
-                                <span
-                                  className={
-                                    levelAfter > row.rollup_achieved_level
-                                      ? 'font-bold text-emerald-700'
-                                      : 'font-semibold text-gray-900'
-                                  }
-                                >
-                                  {achievedLevelDisplay(levelAfter)}
-                                </span>
-                                {deltaLevel > 0 ? (
-                                  <span className="ml-1 text-xs font-medium text-emerald-600">
-                                    +{deltaLevel}단계 지급
-                                  </span>
-                                ) : null}
-                              </p>
-                            ) : null}
                             <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-                              참여자가 L1~L3 중 하나를 고르지는 않습니다. 월 기준으로 계산된 현재 레벨과 승인 시 레벨만
-                              보여줍니다.
+                              기존 승인 누적값은 제외하고, 이번 제출값만으로 L0~L3를 표시합니다.
                             </p>
                           </div>
                         )

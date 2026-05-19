@@ -691,6 +691,15 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                     ))}
                                   </div>
                                 )}
+                                {peerSelect.organization_name?.trim() && (
+                                  <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">칭찬 조직</p>
+                                    <p className="mt-1 text-xs text-gray-400">제출 답변</p>
+                                    <p className="mt-2 text-base font-medium text-gray-900">
+                                      {peerSelect.organization_name.trim()}
+                                    </p>
+                                  </div>
+                                )}
                                 {!hasSearch ? (
                                   <p className="mt-2 text-xs text-gray-500">
                                     이름/이메일/팀명 검색으로 대상자를 추가하세요.

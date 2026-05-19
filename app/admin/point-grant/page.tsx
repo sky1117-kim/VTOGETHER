@@ -7,6 +7,7 @@ import {
 import { getEarnedDisplay } from '@/lib/point-display'
 import { GrantPointsForm } from '../components/GrantPointsForm'
 import { AdminPageHeader } from '../components/AdminPageHeader'
+import { RevertAdminGrantButton } from './RevertAdminGrantButton'
 
 type TxType = 'ALL' | 'EARNED' | 'DONATED' | 'USED'
 type CurrencyType = 'ALL' | 'V_CREDIT' | 'V_MEDAL'
@@ -122,16 +123,30 @@ export default async function AdminPointGrantPage({
         ]}
       />
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
+      <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4 space-y-3">
+        <div className="flex flex-col gap-3 border-b border-gray-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">V.Credit 수동 지급</h2>
-            <p className="mt-1 text-sm text-gray-500">보정/특별 보상 지급 전용 영역</p>
+            <h2 className="text-base font-semibold text-gray-900">수동 지급 (C · M)</h2>
+            <p className="mt-0.5 text-xs text-gray-500">체크로 여러 명 선택 → 동일 금액 일괄 지급 (최대 80명).</p>
           </div>
+          <Link
+            href="/admin/point-grant?txType=EARNED&relatedType=ADMIN_GRANT&page=1"
+            className="shrink-0 self-start rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-800 transition hover:bg-green-100"
+          >
+            관리자 지급 내역만 보기 →
+          </Link>
         </div>
-        <p className="rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
-          <strong>팁:</strong> 사유란에 &quot;○○ 이벤트 누락 보정&quot;처럼 적어 두면 나중에 엑셀·감사 때 구분하기 쉽습니다. 비우면「관리자 지급」으로만 기록됩니다.
-        </p>
+        <details className="group rounded-xl border border-blue-100 bg-blue-50/80 text-sm text-blue-900 open:shadow-sm">
+          <summary className="cursor-pointer list-none px-4 py-3 font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+            <span className="underline-offset-2 group-open:underline">지급 시 참고 (펼치기)</span>
+            <span className="ml-2 text-xs font-normal text-blue-800/90">사유·실수 취소</span>
+          </summary>
+          <div className="border-t border-blue-100/80 px-4 pb-3 pt-0 text-sm leading-relaxed">
+            <strong>사유:</strong> &quot;○○ 이벤트 누락 보정&quot;처럼 적어 두면 엑셀·감사 때 구분하기 쉽습니다. 비우면「관리자 지급」으로만 기록됩니다.
+            <br />
+            <strong>실수:</strong> 같은 페이지 아래 목록에서 해당 줄의 <strong>지급 취소</strong>를 사용하세요 (조건 충족 시).
+          </div>
+        </details>
         {usersError && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             사용자 목록 조회 실패: {usersError}
@@ -245,12 +260,13 @@ export default async function AdminPointGrantPage({
                 <th className="px-3 py-2 text-right font-semibold">금액</th>
                 <th className="px-3 py-2 text-left font-semibold">출처</th>
                 <th className="px-3 py-2 text-left font-semibold">사유/설명</th>
+                <th className="w-[100px] px-2 py-2 text-center font-semibold">취소</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                     조건에 맞는 거래 내역이 없습니다.
                   </td>
                 </tr>
@@ -282,6 +298,16 @@ export default async function AdminPointGrantPage({
                   </td>
                   <td className="px-3 py-2 text-gray-700 whitespace-pre-wrap break-words leading-6 align-top">
                     {getCompactDescription(row)}
+                  </td>
+                  <td className="px-2 py-2 align-top">
+                    {row.type === 'EARNED' && row.related_type === 'ADMIN_GRANT' ? (
+                      <RevertAdminGrantButton
+                        transactionId={row.transaction_id}
+                        label={row.user_name || row.user_email || '직원'}
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

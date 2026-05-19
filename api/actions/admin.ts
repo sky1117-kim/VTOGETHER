@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getTotalDonationStats } from '@/api/queries/donation'
+import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
 
 export type SiteContentKey = 'hero_season_badge' | 'hero_title' | 'hero_subtitle'
 
@@ -242,6 +243,125 @@ export async function getRecentActiveUsersForAdmin(): Promise<{
   return { data: sorted, error: null }
 }
 
+type AdminDb = ReturnType<typeof createAdminClient>
+
+/** revalidate 없이 1명에게 C 지급. 실패 시 에러 문구, 성공 시 null */
+async function applyAdminCreditGrantOnce(
+  supabase: AdminDb,
+  userId: string,
+  amount: number,
+  description: string
+): Promise<string | null> {
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('current_points, name, email')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .single()
+  if (fetchError || !user) {
+    return '사용자를 찾을 수 없습니다.'
+  }
+  const newPoints = (user.current_points ?? 0) + amount
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ current_points: newPoints })
+    .eq('user_id', userId)
+  if (updateError) {
+    return updateError.message
+  }
+  const { data: txRow, error: txError } = await supabase
+    .from('point_transactions')
+    .insert({
+      user_id: userId,
+      type: 'EARNED',
+      amount,
+      currency_type: 'V_CREDIT',
+      related_id: null,
+      related_type: 'ADMIN_GRANT',
+      description,
+      user_email: user.email ?? null,
+      user_name: user.name ?? null,
+    })
+    .select('transaction_id')
+    .single()
+  if (txError) {
+    return '거래 기록 실패: ' + txError.message
+  }
+  scheduleEarnedNotificationEmail({
+    toEmail: user.email,
+    userName: user.name,
+    description,
+    amount,
+    currencyType: 'V_CREDIT',
+    transactionId: txRow?.transaction_id,
+  })
+  const { error: lotErr } = await supabase.from('credit_lots').insert({
+    user_id: userId,
+    source_type: 'ADMIN_GRANT',
+    initial_amount: amount,
+    remaining_amount: amount,
+    related_id: null,
+    description,
+  })
+  if (lotErr) {
+    return '크레딧 로트 기록 실패: ' + lotErr.message
+  }
+  return null
+}
+
+/** revalidate 없이 1명에게 M 지급 */
+async function applyAdminMedalGrantOnce(
+  supabase: AdminDb,
+  userId: string,
+  amount: number,
+  description: string
+): Promise<string | null> {
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('current_medals, name, email')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .single()
+  if (fetchError || !user) {
+    return '사용자를 찾을 수 없습니다.'
+  }
+  const newMedals = Number(user.current_medals ?? 0) + amount
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ current_medals: newMedals })
+    .eq('user_id', userId)
+  if (updateError) {
+    return updateError.message
+  }
+  const { data: txRow, error: txError } = await supabase
+    .from('point_transactions')
+    .insert({
+      user_id: userId,
+      type: 'EARNED',
+      amount,
+      currency_type: 'V_MEDAL',
+      related_id: null,
+      related_type: 'ADMIN_GRANT',
+      description,
+      user_email: user.email ?? null,
+      user_name: user.name ?? null,
+    })
+    .select('transaction_id')
+    .single()
+  if (txError) {
+    return '거래 기록 실패: ' + txError.message
+  }
+  scheduleEarnedNotificationEmail({
+    toEmail: user.email,
+    userName: user.name,
+    description,
+    amount,
+    currencyType: 'V_MEDAL',
+    transactionId: txRow?.transaction_id,
+  })
+  return null
+}
+
 export async function grantPoints(
   userId: string,
   amount: number,
@@ -269,46 +389,11 @@ export async function grantPoints(
     }
 
     const supabase = createAdminClient()
-    const { data: user, error: fetchError } = await supabase
-      .from('users')
-      .select('current_points, name, email')
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .single()
-    if (fetchError || !user) {
-      return { success: false, error: '사용자를 찾을 수 없습니다.' }
-    }
-    const newPoints = (user.current_points ?? 0) + amount
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ current_points: newPoints })
-      .eq('user_id', userId)
-    if (updateError) {
-      return { success: false, error: updateError.message }
-    }
     const description = reason?.trim() || '관리자 지급'
-    const { error: txError } = await supabase.from('point_transactions').insert({
-      user_id: userId,
-      type: 'EARNED',
-      amount,
-      currency_type: 'V_CREDIT',
-      related_id: null,
-      related_type: 'ADMIN_GRANT',
-      description,
-      user_email: user.email ?? null,
-      user_name: user.name ?? null,
-    })
-    if (txError) {
-      return { success: false, error: '거래 기록 실패: ' + txError.message }
+    const err = await applyAdminCreditGrantOnce(supabase, userId, amount, description)
+    if (err) {
+      return { success: false, error: err }
     }
-    await supabase.from('credit_lots').insert({
-      user_id: userId,
-      source_type: 'ADMIN_GRANT',
-      initial_amount: amount,
-      remaining_amount: amount,
-      related_id: null,
-      description,
-    })
     revalidatePath('/admin')
     revalidatePath('/')
     revalidatePath('/donation')
@@ -316,6 +401,329 @@ export async function grantPoints(
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '포인트 지급 실패' }
+  }
+}
+
+/** 관리자: 선택한 여러 명에게 동일 금액·동일 사유로 일괄 지급 (최대 80명) */
+export async function grantCurrencyBatchToUsers(params: {
+  userIds: string[]
+  currency: 'V_CREDIT' | 'V_MEDAL'
+  amount: number
+  reason?: string | null
+}): Promise<{
+  success: boolean
+  error: string | null
+  grantedCount: number
+  failed: { userId: string; detail: string }[]
+}> {
+  const MAX = 80
+  if (params.amount <= 0 || !Number.isInteger(params.amount)) {
+    return { success: false, error: '1 이상의 정수만 입력해주세요.', grantedCount: 0, failed: [] }
+  }
+  const rawIds = [...new Set(params.userIds.filter(Boolean))]
+  if (rawIds.length === 0) {
+    return { success: false, error: '지급할 직원을 한 명 이상 선택해주세요.', grantedCount: 0, failed: [] }
+  }
+  if (rawIds.length > MAX) {
+    return { success: false, error: `한 번에 지급 가능한 인원은 최대 ${MAX}명입니다.`, grantedCount: 0, failed: [] }
+  }
+  const unique = rawIds
+  try {
+    const supabaseAuth = await createClient()
+    const {
+      data: { user: caller },
+    } = await supabaseAuth.auth.getUser()
+    if (!caller) {
+      return { success: false, error: '로그인이 필요합니다.', grantedCount: 0, failed: [] }
+    }
+    const adminCheck = createAdminClient()
+    const { data: me, error: meErr } = await adminCheck
+      .from('users')
+      .select('is_admin')
+      .eq('user_id', caller.id)
+      .is('deleted_at', null)
+      .single()
+    if (meErr || !me?.is_admin) {
+      return {
+        success: false,
+        error: params.currency === 'V_CREDIT' ? '관리자만 V.Credit을 수동 지급할 수 있습니다.' : '관리자만 V.Medal을 수동 지급할 수 있습니다.',
+        grantedCount: 0,
+        failed: [],
+      }
+    }
+
+    const supabase = createAdminClient()
+    const description = params.reason?.trim() || '관리자 지급'
+    const failed: { userId: string; detail: string }[] = []
+    let grantedCount = 0
+
+    for (const userId of unique) {
+      const err =
+        params.currency === 'V_CREDIT'
+          ? await applyAdminCreditGrantOnce(supabase, userId, params.amount, description)
+          : await applyAdminMedalGrantOnce(supabase, userId, params.amount, description)
+      if (err) {
+        failed.push({ userId, detail: err })
+      } else {
+        grantedCount++
+      }
+    }
+
+    if (grantedCount > 0) {
+      revalidatePath('/admin')
+      revalidatePath('/admin/point-grant')
+      revalidatePath('/')
+      revalidatePath('/donation')
+      revalidatePath('/shop')
+      revalidatePath('/my')
+    }
+
+    const success = failed.length === 0 && grantedCount > 0
+    let error: string | null = null
+    if (grantedCount === 0 && failed.length > 0) {
+      error = failed.length === 1 ? failed[0].detail : `전원 지급 실패 (${failed.length}명). 첫 오류: ${failed[0].detail}`
+    } else if (failed.length > 0) {
+      error = `${failed.length}명만 실패했습니다. 나머지 ${grantedCount}명은 지급되었습니다.`
+    }
+
+    return { success, error, grantedCount, failed }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : '일괄 지급 실패',
+      grantedCount: 0,
+      failed: [],
+    }
+  }
+}
+
+/** 관리자: V.Medal 수동 지급 (users.current_medals + point_transactions, credit_lots 없음) */
+export async function grantMedals(
+  userId: string,
+  amount: number,
+  reason?: string | null
+): Promise<{ success: boolean; error: string | null }> {
+  if (amount <= 0 || !Number.isInteger(amount)) {
+    return { success: false, error: '1 이상의 정수만 입력해주세요.' }
+  }
+  try {
+    const supabaseAuth = await createClient()
+    const {
+      data: { user: caller },
+    } = await supabaseAuth.auth.getUser()
+    if (!caller) return { success: false, error: '로그인이 필요합니다.' }
+    const adminCheck = createAdminClient()
+    const { data: me, error: meErr } = await adminCheck
+      .from('users')
+      .select('is_admin')
+      .eq('user_id', caller.id)
+      .is('deleted_at', null)
+      .single()
+    if (meErr || !me?.is_admin) {
+      return { success: false, error: '관리자만 V.Medal을 수동 지급할 수 있습니다.' }
+    }
+
+    const supabase = createAdminClient()
+    const description = reason?.trim() || '관리자 지급'
+    const err = await applyAdminMedalGrantOnce(supabase, userId, amount, description)
+    if (err) {
+      return { success: false, error: err }
+    }
+    revalidatePath('/admin')
+    revalidatePath('/')
+    revalidatePath('/shop')
+    revalidatePath('/my')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '메달 지급 실패' }
+  }
+}
+
+/**
+ * 관리자 수동 지급(ADMIN_GRANT + 적립) 한 건을 되돌립니다.
+ * - V.Credit: 해당 지급으로 생긴 credit_lots가 **한 번도 차감되지 않았을 때만** 가능합니다.
+ * - V.Medal: 현재 잔액이 지급액 이상일 때만 차감합니다.
+ */
+export async function revertAdminGrantTransaction(
+  transactionId: string
+): Promise<{ success: boolean; error: string | null }> {
+  const nowIso = new Date().toISOString()
+  try {
+    const supabaseAuth = await createClient()
+    const {
+      data: { user: caller },
+    } = await supabaseAuth.auth.getUser()
+    if (!caller) return { success: false, error: '로그인이 필요합니다.' }
+
+    const supabase = createAdminClient()
+    const { data: me, error: meErr } = await supabase
+      .from('users')
+      .select('is_admin')
+      .eq('user_id', caller.id)
+      .is('deleted_at', null)
+      .single()
+    if (meErr || !me?.is_admin) {
+      return { success: false, error: '관리자만 지급 취소를 할 수 있습니다.' }
+    }
+
+    let txQuery = supabase
+      .from('point_transactions')
+      .select('transaction_id, user_id, type, amount, currency_type, related_type, created_at')
+      .eq('transaction_id', transactionId)
+      .is('deleted_at', null)
+      .single()
+
+    let { data: tx, error: txErr } = await txQuery
+    if (txErr?.message?.includes('deleted_at')) {
+      const retry = await supabase
+        .from('point_transactions')
+        .select('transaction_id, user_id, type, amount, currency_type, related_type, created_at')
+        .eq('transaction_id', transactionId)
+        .single()
+      tx = retry.data
+      txErr = retry.error
+    }
+    if (txErr || !tx) {
+      return { success: false, error: '거래를 찾을 수 없거나 이미 취소되었습니다.' }
+    }
+    const row = tx as {
+      user_id: string
+      type: string
+      amount: number
+      currency_type: string
+      related_type: string | null
+    }
+    if (row.type !== 'EARNED' || row.related_type !== 'ADMIN_GRANT') {
+      return { success: false, error: '관리자 수동 지급(적립) 건만 취소할 수 있습니다.' }
+    }
+    const amount = Number(row.amount)
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
+      return { success: false, error: '취소할 수 없는 금액입니다.' }
+    }
+
+    const { data: urow, error: uErr } = await supabase
+      .from('users')
+      .select('current_points, current_medals')
+      .eq('user_id', row.user_id)
+      .is('deleted_at', null)
+      .single()
+    if (uErr || !urow) {
+      return { success: false, error: '사용자를 찾을 수 없습니다.' }
+    }
+
+    /** 크레딧 취소 시 거래 soft-delete 실패하면 로트 복구에 사용 */
+    let matchedLotId: string | null = null
+
+    if (row.currency_type === 'V_CREDIT') {
+      const cur = Number((urow as { current_points: number }).current_points ?? 0)
+      if (cur < amount) {
+        return { success: false, error: '직원 C 잔액이 부족해 취소할 수 없습니다. (이미 사용·차감된 가능성)' }
+      }
+
+      const txTime = new Date((tx as { created_at: string }).created_at).getTime()
+      const { data: lots, error: lotErr } = await supabase
+        .from('credit_lots')
+        .select('lot_id, initial_amount, remaining_amount, created_at')
+        .eq('user_id', row.user_id)
+        .eq('source_type', 'ADMIN_GRANT')
+        .eq('initial_amount', amount)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(40)
+
+      if (lotErr) {
+        return { success: false, error: '크레딧 로트 조회 실패: ' + lotErr.message }
+      }
+      const untouched = (lots ?? []).filter(
+        (l) =>
+          Number((l as { initial_amount: number }).initial_amount) ===
+          Number((l as { remaining_amount: number }).remaining_amount)
+      )
+      let matched: { lot_id: string } | null = null
+      let bestDiff = Infinity
+      for (const l of untouched) {
+        const lotCreated = new Date((l as { created_at: string }).created_at).getTime()
+        const diff = Math.abs(lotCreated - txTime)
+        if (diff < bestDiff && diff <= 20_000) {
+          bestDiff = diff
+          matched = { lot_id: (l as { lot_id: string }).lot_id }
+        }
+      }
+      if (!matched) {
+        return {
+          success: false,
+          error:
+            '해당 지급과 짝이 되는 크레딧 로트를 찾지 못했거나, 이미 기부·사용으로 일부 소진되었습니다. 이 경우 자동 취소가 불가합니다.',
+        }
+      }
+      matchedLotId = matched.lot_id
+
+      const { error: upUser } = await supabase
+        .from('users')
+        .update({ current_points: cur - amount })
+        .eq('user_id', row.user_id)
+      if (upUser) return { success: false, error: upUser.message }
+
+      const { error: delLot } = await supabase
+        .from('credit_lots')
+        .update({ deleted_at: nowIso, updated_at: nowIso })
+        .eq('lot_id', matched.lot_id)
+        .is('deleted_at', null)
+      if (delLot) {
+        await supabase.from('users').update({ current_points: cur }).eq('user_id', row.user_id)
+        return { success: false, error: '로트 취소 실패: ' + delLot.message }
+      }
+    } else if (row.currency_type === 'V_MEDAL') {
+      const curM = Number((urow as { current_medals: number }).current_medals ?? 0)
+      if (curM < amount) {
+        return { success: false, error: '직원 M 잔액이 부족해 취소할 수 없습니다. (이미 상점 등에서 사용했을 수 있음)' }
+      }
+      const { error: upUser } = await supabase
+        .from('users')
+        .update({ current_medals: curM - amount })
+        .eq('user_id', row.user_id)
+      if (upUser) return { success: false, error: upUser.message }
+    } else {
+      return { success: false, error: '지원하지 않는 재화 유형입니다.' }
+    }
+
+    const delTxPayload = { deleted_at: nowIso }
+    let { error: delTxErr } = await supabase
+      .from('point_transactions')
+      .update(delTxPayload as never)
+      .eq('transaction_id', transactionId)
+      .is('deleted_at', null)
+
+    if (delTxErr?.message?.includes('deleted_at')) {
+      const retryDel = await supabase.from('point_transactions').delete().eq('transaction_id', transactionId)
+      delTxErr = retryDel.error
+    }
+    if (delTxErr) {
+      if (row.currency_type === 'V_CREDIT') {
+        const cur = Number((urow as { current_points: number }).current_points ?? 0)
+        await supabase.from('users').update({ current_points: cur }).eq('user_id', row.user_id)
+        if (matchedLotId) {
+          await supabase
+            .from('credit_lots')
+            .update({ deleted_at: null, updated_at: nowIso })
+            .eq('lot_id', matchedLotId)
+        }
+      } else {
+        const curM = Number((urow as { current_medals: number }).current_medals ?? 0)
+        await supabase.from('users').update({ current_medals: curM }).eq('user_id', row.user_id)
+      }
+      return { success: false, error: '거래 취소 기록 실패: ' + delTxErr.message }
+    }
+
+    revalidatePath('/admin/point-grant')
+    revalidatePath('/admin')
+    revalidatePath('/')
+    revalidatePath('/donation')
+    revalidatePath('/shop')
+    revalidatePath('/my')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '지급 취소 실패' }
   }
 }
 
