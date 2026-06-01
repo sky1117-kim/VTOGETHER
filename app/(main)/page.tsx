@@ -8,13 +8,12 @@ import {
 } from '@/api/queries/ranking'
 import { getEventsWithRoundsForPublic } from '@/api/queries/events'
 import {
-  getActiveHealthChallengeDefinition,
-  getHealthChallengeSubmittedTrackIdsThisMonth,
-  getHealthChallengeSubmittedTrackInfosThisMonth,
+  getActiveHealthChallengeDefinitions,
+  getHealthChallengeSubmittedTrackInfosForSeason,
 } from '@/api/queries/health-challenges'
 import { DashboardSection } from '@/components/main/DashboardSection'
 import { DonationSection } from '@/components/main/DonationSection'
-import { CampaignsSection } from '@/components/main/CampaignsSection'
+import { CampaignsSection, type HealthChallengeBundle } from '@/components/main/CampaignsSection'
 import { SalaryDonationSection } from '@/components/main/SalaryDonationSection'
 import { HonorsSection } from '@/components/main/HonorsSection'
 
@@ -31,13 +30,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   let personalRank: Awaited<ReturnType<typeof getPersonalRankingQuarterly>> = []
   let teamRank: Awaited<ReturnType<typeof getTeamRankingQuarterly>> = []
   let events: Awaited<ReturnType<typeof getEventsWithRoundsForPublic>> = []
-  let healthDefinition: Awaited<ReturnType<typeof getActiveHealthChallengeDefinition>> = {
-    season: null,
-    tracks: [],
-    error: null,
-  }
-  let healthSubmittedTrackIds: Awaited<ReturnType<typeof getHealthChallengeSubmittedTrackIdsThisMonth>> = []
-  let healthSubmittedTrackInfos: Awaited<ReturnType<typeof getHealthChallengeSubmittedTrackInfosThisMonth>> = []
+  let healthChallengesByEventId: Record<string, HealthChallengeBundle> = {}
 
   try {
     const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes] = await Promise.all([
@@ -58,21 +51,23 @@ export default async function HomePage({ searchParams }: PageProps) {
     // DB 미설정 시 기본값 유지
   }
 
-  // 건강 챌린지: 이벤트 표시와 별개로, 실패해도 메인 페이지가 죽지 않게 분리해서 처리
+  // 건강 챌린지: 5·6월 등 ACTIVE 시즌이 여러 개일 수 있음
   try {
-    const r = await getActiveHealthChallengeDefinition()
-    healthDefinition = r
-  } catch {
-    // ignore
-  }
-
-  try {
-    healthSubmittedTrackIds = await getHealthChallengeSubmittedTrackIdsThisMonth(user?.id ?? null)
-  } catch {
-    // ignore
-  }
-  try {
-    healthSubmittedTrackInfos = await getHealthChallengeSubmittedTrackInfosThisMonth(user?.id ?? null)
+    const healthDefs = await getActiveHealthChallengeDefinitions()
+    for (const def of healthDefs.definitions) {
+      const eventId = def.season.event_id
+      if (!eventId) continue
+      const submittedTrackInfos = await getHealthChallengeSubmittedTrackInfosForSeason(
+        user?.id ?? null,
+        def.season.season_id,
+      )
+      healthChallengesByEventId[eventId] = {
+        season: def.season,
+        tracks: def.tracks,
+        submittedTrackIds: submittedTrackInfos.map((x) => x.track_id),
+        submittedTrackInfos,
+      }
+    }
   } catch {
     // ignore
   }
@@ -116,16 +111,7 @@ export default async function HomePage({ searchParams }: PageProps) {
         <CampaignsSection
           events={events}
           isLoggedIn={!!user}
-          healthChallenge={
-            healthDefinition.season && healthDefinition.tracks.length
-              ? {
-                  season: healthDefinition.season,
-                  tracks: healthDefinition.tracks,
-                  submittedTrackIds: healthSubmittedTrackIds,
-                  submittedTrackInfos: healthSubmittedTrackInfos,
-                }
-              : undefined
-          }
+          healthChallengesByEventId={healthChallengesByEventId}
         />
       </div>
       <div className="animate-fade-up mt-8">

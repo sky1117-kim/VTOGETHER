@@ -1067,7 +1067,7 @@ export async function ensureDefaultTracksAndThresholds(
   }
 }
 
-/** 건강 챌린지 시즌 생성 후 4종목·레벨 구성(직접 지정 또는 기본값). ACTIVE로 열면 다른 ACTIVE 시즌은 보관 처리. */
+/** 건강 챌린지 시즌 생성 후 4종목·레벨 구성(직접 지정 또는 기본값). 여러 시즌을 ACTIVE로 둘 수 있음(월말→다음달 초 제출). */
 export async function createHealthSeason(input: {
   name: string
   slug: string
@@ -1137,14 +1137,6 @@ export async function createHealthSeason(input: {
       } else if (linkedQuery.data) {
         return { success: false, error: '이 이벤트는 이미 건강 챌린지 시즌과 연결되어 있습니다.' }
       }
-    }
-
-    if (input.status === 'ACTIVE') {
-      await admin
-        .from('health_challenge_seasons')
-        .update({ status: 'ARCHIVED' })
-        .eq('status', 'ACTIVE')
-        .is('deleted_at', null)
     }
 
     const criteriaUrl = input.criteriaAttachmentUrl?.trim() || null
@@ -1224,7 +1216,7 @@ export async function createHealthSeason(input: {
   }
 }
 
-/** 시즌 상태 변경. ACTIVE로 바꾸면 다른 ACTIVE 시즌은 ARCHIVED. */
+/** 시즌 상태 변경 */
 export async function updateHealthSeasonStatus(
   seasonId: string,
   status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
@@ -1234,14 +1226,6 @@ export async function updateHealthSeasonStatus(
 
   try {
     const admin = createAdminClient()
-    if (status === 'ACTIVE') {
-      await admin
-        .from('health_challenge_seasons')
-        .update({ status: 'ARCHIVED' })
-        .eq('status', 'ACTIVE')
-        .neq('season_id', seasonId)
-        .is('deleted_at', null)
-    }
     const { error } = await admin
       .from('health_challenge_seasons')
       .update({ status })
@@ -1473,15 +1457,6 @@ export async function updateLinkedHealthSeasonRules(
 
     if (!season) {
       return { success: false, error: '이 이벤트에 연결된 건강 챌린지 시즌이 없습니다. 먼저 시즌을 만드세요.' }
-    }
-
-    if (input.status === 'ACTIVE') {
-      await admin
-        .from('health_challenge_seasons')
-        .update({ status: 'ARCHIVED' })
-        .eq('status', 'ACTIVE')
-        .neq('season_id', season.season_id)
-        .is('deleted_at', null)
     }
 
     let uSeason: { message?: string } | null = null

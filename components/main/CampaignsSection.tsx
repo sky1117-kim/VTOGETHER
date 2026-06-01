@@ -53,17 +53,19 @@ function toPlainTextSummary(raw: unknown): string {
     .trim()
 }
 
+export type HealthChallengeBundle = {
+  season: HealthSeasonPublic
+  tracks: HealthTrackPublic[]
+  submittedTrackIds: string[]
+  submittedTrackInfos: HealthSubmittedTrackInfo[]
+}
+
 interface CampaignsSectionProps {
   events: PublicEvent[]
   /** 로그인 여부 (true면 '추후 적용 예정' 문구 숨김, 인증하기 버튼 활성) */
   isLoggedIn?: boolean
-  /** 활성 건강 챌린지(현재 진행 중인 시즌/종목). People 이벤트 인증하기에서 사용 */
-  healthChallenge?: {
-    season: HealthSeasonPublic
-    tracks: HealthTrackPublic[]
-    submittedTrackIds: string[]
-    submittedTrackInfos: HealthSubmittedTrackInfo[]
-  }
+  /** ACTIVE 건강 챌린지 시즌 — event_id별 (5·6월 동시 진행) */
+  healthChallengesByEventId?: Record<string, HealthChallengeBundle>
 }
 
 function normalizeAlwaysParticipation(raw: unknown): { allowed: boolean; reason?: string } | null {
@@ -76,7 +78,11 @@ function normalizeAlwaysParticipation(raw: unknown): { allowed: boolean; reason?
   }
 }
 
-export function CampaignsSection({ events: rawEvents, isLoggedIn = false, healthChallenge }: CampaignsSectionProps) {
+export function CampaignsSection({
+  events: rawEvents,
+  isLoggedIn = false,
+  healthChallengesByEventId = {},
+}: CampaignsSectionProps) {
   const router = useRouter()
   const [filter, setFilter] = useState<Tab>('ALL')
   const [displayFilter, setDisplayFilter] = useState<Tab>('ALL')
@@ -104,20 +110,21 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
 
   const [verifyModalEventId, setVerifyModalEventId] = useState<string | null>(null)
   const [infoModalEvent, setInfoModalEvent] = useState<(typeof rawEvents)[0] | null>(null)
-  const [healthVerifyOpen, setHealthVerifyOpen] = useState(false)
+  const [healthVerifyEventId, setHealthVerifyEventId] = useState<string | null>(null)
   const [healthVerifyNonce, setHealthVerifyNonce] = useState(0)
 
-  const linkedHealthEventId = healthChallenge?.season.event_id ?? null
   const isHealthLinkedEvent = useCallback(
-    (eventId: string) => {
-      // 1) 정석: health_challenge_seasons.event_id로 1:1 매칭
-      if (linkedHealthEventId) return eventId === linkedHealthEventId
-      // 2) 안전장치: event_id가 비어있으면 People 카테고리를 건강 챌린지로 간주
-      const raw = rawEvents.find((e) => e.event_id === eventId)
-      return raw?.category === 'PEOPLE'
-    },
-    [linkedHealthEventId, rawEvents],
+    (eventId: string) => Boolean(healthChallengesByEventId[eventId]),
+    [healthChallengesByEventId],
   )
+
+  const openHealthVerify = useCallback((eventId: string) => {
+    setVerifyModalEventId(null)
+    setHealthVerifyEventId(eventId)
+    setHealthVerifyNonce((v) => v + 1)
+  }, [])
+
+  const activeHealthBundle = healthVerifyEventId ? healthChallengesByEventId[healthVerifyEventId] : null
 
   const events = rawEvents.map((e) => {
     const rewardInput = {
@@ -333,13 +340,11 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (healthChallenge && isHealthLinkedEvent(c.id)) {
-                            setVerifyModalEventId(null)
-                            setHealthVerifyNonce((v) => v + 1)
-                            setHealthVerifyOpen(true)
+                          if (isHealthLinkedEvent(c.id)) {
+                            openHealthVerify(c.id)
                             return
                           }
-                          setHealthVerifyOpen(false)
+                          setHealthVerifyEventId(null)
                           setVerifyModalEventId(c.id)
                         }}
                         className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-700 btn-press"
@@ -374,13 +379,11 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
         onClose={() => setInfoModalEvent(null)}
         onVerify={(eventId) => {
           setInfoModalEvent(null)
-          if (healthChallenge && isHealthLinkedEvent(eventId)) {
-            setVerifyModalEventId(null)
-            setHealthVerifyNonce((v) => v + 1)
-            setHealthVerifyOpen(true)
+          if (isHealthLinkedEvent(eventId)) {
+            openHealthVerify(eventId)
             return
           }
-          setHealthVerifyOpen(false)
+          setHealthVerifyEventId(null)
           setVerifyModalEventId(eventId)
         }}
         isLoggedIn={isLoggedIn}
@@ -394,18 +397,17 @@ export function CampaignsSection({ events: rawEvents, isLoggedIn = false, health
           router.refresh()
         }}
       />
-      {healthChallenge && (
+      {activeHealthBundle && (
         <HealthChallengeVerifyModal
-          key={healthVerifyNonce}
-          isOpen={healthVerifyOpen}
-          onClose={() => setHealthVerifyOpen(false)}
+          key={`${healthVerifyEventId}-${healthVerifyNonce}`}
+          isOpen={!!healthVerifyEventId}
+          onClose={() => setHealthVerifyEventId(null)}
           isLoggedIn={isLoggedIn}
-          season={healthChallenge.season}
-          tracks={healthChallenge.tracks}
-          submittedTrackIds={healthChallenge.submittedTrackIds}
-          submittedTrackInfos={healthChallenge.submittedTrackInfos}
+          season={activeHealthBundle.season}
+          tracks={activeHealthBundle.tracks}
+          submittedTrackIds={activeHealthBundle.submittedTrackIds}
+          submittedTrackInfos={activeHealthBundle.submittedTrackInfos}
           onSuccess={() => {
-            // 모달 내부에서 close + refresh도 수행하지만, 카드 상태 반영을 위해 한 번 더 갱신
             router.refresh()
           }}
         />

@@ -336,9 +336,12 @@ export function EventHealthChallengeEditor({
             className={inputClass}
           >
             <option value="DRAFT">DRAFT</option>
-            <option value="ACTIVE">ACTIVE (다른 ACTIVE 시즌은 보관)</option>
-            <option value="ARCHIVED">ARCHIVED</option>
+            <option value="ACTIVE">ACTIVE — 참여·제출 가능 (5·6월 등 여러 시즌 동시 ACTIVE 가능)</option>
+            <option value="ARCHIVED">ARCHIVED — 제출 마감·보관</option>
           </select>
+          <p className="mt-1 text-xs text-gray-500">
+            월말 활동을 다음 달 첫 주에 제출하려면 이전 달 시즌도 ACTIVE로 두세요. 마감 후 ARCHIVED로 변경합니다.
+          </p>
         </div>
         <div className="sm:col-span-2">
           <label className={labelClass}>참가 기준표 (PDF·이미지)</label>

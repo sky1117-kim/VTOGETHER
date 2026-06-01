@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getEventForParticipation } from '@/api/queries/events'
 import { sendGoogleChatAdminAlert } from '@/lib/google-chat-alert'
+import { parseChoiceOptions } from '@/lib/verification-choice-options'
 
 function isMultiPeerSelectMode(method: { options?: string[] | null }): boolean {
   return Array.isArray(method.options) && method.options.includes('MULTIPLE')
@@ -168,7 +169,7 @@ export async function submitEventSubmission(
     // 필수 인증 항목(사진·텍스트 등)이 모두 채워졌는지 서버에서 검증
     const { data: methods } = await supabase
       .from('event_verification_methods')
-      .select('method_id, method_type, options')
+      .select('method_id, method_type, input_style, options')
       .eq('event_id', eventId)
       .is('deleted_at', null)
     const methodList = methods ?? []
@@ -180,7 +181,8 @@ export async function submitEventSubmission(
     const requiredMethods = methodList as {
       method_id: string
       method_type: string
-      options?: string[] | null
+      input_style?: string | null
+      options?: unknown
     }[]
     for (const m of requiredMethods) {
       const val = verificationData[m.method_id]
@@ -210,6 +212,15 @@ export async function submitEventSubmission(
         }
       } else if (val === undefined || val === null || String(val).trim() === '') {
         return { success: false, error: '필수 인증 항목(사진·텍스트 등)을 모두 입력해주세요.' }
+      } else if (m.method_type === 'TEXT' && m.input_style === 'CHOICE') {
+        const allowed = parseChoiceOptions(m.options)
+        const picked = String(val).trim()
+        if (allowed.length < 2) {
+          return { success: false, error: '객관식 인증 설정이 올바르지 않습니다. 관리자에게 문의해주세요.' }
+        }
+        if (!allowed.includes(picked)) {
+          return { success: false, error: '선택한 답이 유효하지 않습니다. 다시 선택해주세요.' }
+        }
       }
     }
 

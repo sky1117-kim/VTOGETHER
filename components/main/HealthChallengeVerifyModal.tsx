@@ -265,7 +265,7 @@ export function HealthChallengeVerifyModal({
     }
 
     setSubmitting(true)
-    const r = await submitHealthActivityLogsBatch(payload)
+    const r = await submitHealthActivityLogsBatch(season.season_id, payload)
     setSubmitting(false)
 
     if (!r.success) {

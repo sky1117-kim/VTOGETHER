@@ -10,6 +10,7 @@ import { uploadEventPhotoClient } from '@/lib/upload-event-photo'
 import type { VerificationMethodRow, RoundForParticipation, PeerSelectionUserRow } from '@/api/queries/events'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDecimalWithCommas, sanitizeDecimalInput } from '@/lib/number-format'
+import { parseChoiceOptions } from '@/lib/verification-choice-options'
 
 type PeerSelectPayload = {
   peer_user_ids: string[]
@@ -762,7 +763,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                     }
                     const raw = formData[m.method_id] ?? ''
                     const isChoice = m.input_style === 'CHOICE'
-                    const choiceOptions = (m.options ?? []).filter((o) => typeof o === 'string' && o.trim())
+                    const choiceOptions = isChoice ? parseChoiceOptions(m.options) : []
                     return (
                         <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                         <label className="mb-2 block text-sm font-bold text-gray-800">
@@ -773,6 +774,11 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         )}
                         {isChoice ? (
                           <div className="space-y-2">
+                            {choiceOptions.length < 2 ? (
+                              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                객관식 선택지가 설정되지 않았습니다. 관리자에게 문의해주세요.
+                              </p>
+                            ) : null}
                             {choiceOptions.map((opt) => (
                               <label
                                 key={opt}

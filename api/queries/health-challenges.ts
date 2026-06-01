@@ -60,114 +60,150 @@ function isMissingEventIdColumnError(message?: string | null): boolean {
   return message.includes('event_id')
 }
 
-/** 메인·모달: 활성 시즌 + 종목·임계값 (공개 조회) */
+export type HealthChallengeDefinition = {
+  season: HealthSeasonPublic
+  tracks: HealthTrackPublic[]
+}
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
+
+/** ACTIVE 시즌 목록 조회 (event_id·criteria 컬럼 fallback 포함) */
+async function fetchActiveSeasonRows(
+  supabase: SupabaseServerClient
+): Promise<{ seasons: HealthSeasonPublic[]; error: string | null }> {
+  let seasons: HealthSeasonPublic[] = []
+  let sErr: { message?: string } | null = null
+
+  const withCriteria = await supabase
+    .from('health_challenge_seasons')
+    .select('season_id, name, slug, starts_at, ends_at, criteria_attachment_url, event_id')
+    .eq('status', 'ACTIVE')
+    .is('deleted_at', null)
+    .order('starts_at', { ascending: false })
+  seasons = (withCriteria.data ?? []) as HealthSeasonPublic[]
+  sErr = withCriteria.error
+
+  if (sErr && isMissingEventIdColumnError(sErr.message)) {
+    const fallback = await supabase
+      .from('health_challenge_seasons')
+      .select('season_id, name, slug, starts_at, ends_at, criteria_attachment_url')
+      .eq('status', 'ACTIVE')
+      .is('deleted_at', null)
+      .order('starts_at', { ascending: false })
+    seasons = (fallback.data ?? []).map(
+      (row) =>
+        ({
+          ...(row as Omit<HealthSeasonPublic, 'event_id'>),
+          event_id: null,
+        }) as HealthSeasonPublic
+    )
+    sErr = fallback.error
+  }
+
+  if (sErr && isMissingCriteriaAttachmentColumnError(sErr.message)) {
+    const fallback = await supabase
+      .from('health_challenge_seasons')
+      .select('season_id, name, slug, starts_at, ends_at, event_id')
+      .eq('status', 'ACTIVE')
+      .is('deleted_at', null)
+      .order('starts_at', { ascending: false })
+    seasons = (fallback.data ?? []).map(
+      (row) =>
+        ({
+          ...(row as Omit<HealthSeasonPublic, 'criteria_attachment_url'>),
+          criteria_attachment_url: null,
+        }) as HealthSeasonPublic
+    )
+    sErr = fallback.error
+  }
+
+  if (sErr) return { seasons: [], error: sErr.message ?? '건강 챌린지 조회 실패' }
+  return { seasons, error: null }
+}
+
+async function loadTracksForSeason(
+  supabase: SupabaseServerClient,
+  seasonId: string
+): Promise<{ tracks: HealthTrackPublic[]; error: string | null }> {
+  const { data: trackRows, error: tErr } = await supabase
+    .from('health_challenge_tracks')
+    .select('track_id, kind, title, sort_order, metric, min_distance_km, min_speed_kmh, min_elevation_m')
+    .eq('season_id', seasonId)
+    .is('deleted_at', null)
+    .order('sort_order', { ascending: true })
+
+  if (tErr) return { tracks: [], error: tErr.message }
+  const tracksList = trackRows ?? []
+  if (tracksList.length === 0) return { tracks: [], error: null }
+
+  const trackIds = tracksList.map((t) => t.track_id)
+  const { data: thRows } = await supabase
+    .from('health_challenge_level_thresholds')
+    .select('track_id, level, target_value')
+    .in('track_id', trackIds)
+    .is('deleted_at', null)
+    .order('level', { ascending: true })
+
+  const thByTrack = new Map<string, HealthThresholdRow[]>()
+  for (const th of thRows ?? []) {
+    const list = thByTrack.get(th.track_id) ?? []
+    list.push({ level: th.level, target_value: Number(th.target_value) })
+    thByTrack.set(th.track_id, list)
+  }
+
+  const tracks: HealthTrackPublic[] = tracksList.map((t) => ({
+    track_id: t.track_id,
+    kind: t.kind,
+    title: t.title,
+    sort_order: t.sort_order,
+    metric: t.metric as HealthTrackPublic['metric'],
+    min_distance_km: t.min_distance_km != null ? Number(t.min_distance_km) : null,
+    min_speed_kmh: t.min_speed_kmh != null ? Number(t.min_speed_kmh) : null,
+    min_elevation_m: t.min_elevation_m != null ? Number(t.min_elevation_m) : null,
+    thresholds: thByTrack.get(t.track_id) ?? [],
+  }))
+
+  return { tracks, error: null }
+}
+
+/** 메인·모달: ACTIVE 시즌 전부 + 종목·임계값 (5·6월 등 동시 진행 지원) */
+export async function getActiveHealthChallengeDefinitions(): Promise<{
+  definitions: HealthChallengeDefinition[]
+  error: string | null
+}> {
+  try {
+    const supabase = await createClient()
+    const { seasons, error } = await fetchActiveSeasonRows(supabase)
+    if (error) return { definitions: [], error }
+    if (!seasons.length) return { definitions: [], error: null }
+
+    const definitions: HealthChallengeDefinition[] = []
+    for (const season of seasons) {
+      const { tracks, error: trackErr } = await loadTracksForSeason(supabase, season.season_id)
+      if (trackErr) return { definitions: [], error: trackErr }
+      if (tracks.length === 0) continue
+      definitions.push({ season, tracks })
+    }
+
+    return { definitions, error: null }
+  } catch (e) {
+    return {
+      definitions: [],
+      error: e instanceof Error ? e.message : '건강 챌린지 조회 실패',
+    }
+  }
+}
+
+/** 하위호환: 가장 최근 ACTIVE 시즌 1개 */
 export async function getActiveHealthChallengeDefinition(): Promise<{
   season: HealthSeasonPublic | null
   tracks: HealthTrackPublic[]
   error: string | null
 }> {
-  try {
-    const supabase = await createClient()
-    let season: HealthSeasonPublic | null = null
-    let sErr: { message?: string } | null = null
-
-    const withCriteria = await supabase
-      .from('health_challenge_seasons')
-      .select('season_id, name, slug, starts_at, ends_at, criteria_attachment_url, event_id')
-      .eq('status', 'ACTIVE')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    season = withCriteria.data as HealthSeasonPublic | null
-    sErr = withCriteria.error
-
-    if (sErr && isMissingEventIdColumnError(sErr.message)) {
-      const fallback = await supabase
-        .from('health_challenge_seasons')
-        .select('season_id, name, slug, starts_at, ends_at, criteria_attachment_url')
-        .eq('status', 'ACTIVE')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      season = fallback.data
-        ? ({
-            ...(fallback.data as Omit<HealthSeasonPublic, 'event_id'>),
-            event_id: null,
-          } as HealthSeasonPublic)
-        : null
-      sErr = fallback.error
-    }
-
-    if (sErr && isMissingCriteriaAttachmentColumnError(sErr.message)) {
-      const fallback = await supabase
-        .from('health_challenge_seasons')
-        .select('season_id, name, slug, starts_at, ends_at, event_id')
-        .eq('status', 'ACTIVE')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      season = fallback.data
-        ? ({ ...(fallback.data as Omit<HealthSeasonPublic, 'criteria_attachment_url'>), criteria_attachment_url: null } as HealthSeasonPublic)
-        : null
-      sErr = fallback.error
-    }
-
-    // event_id / criteria_attachment_url 둘 중 하나라도 컬럼이 없으면, 최종적으로는 season이 null일 수 있음.
-    // 여기까지 왔는데도 오류가 있으면 실패로 처리.
-
-    if (sErr) return { season: null, tracks: [], error: sErr.message ?? '건강 챌린지 조회 실패' }
-    if (!season) return { season: null, tracks: [], error: null }
-
-    const { data: trackRows, error: tErr } = await supabase
-      .from('health_challenge_tracks')
-      .select('track_id, kind, title, sort_order, metric, min_distance_km, min_speed_kmh, min_elevation_m')
-      .eq('season_id', season.season_id)
-      .is('deleted_at', null)
-      .order('sort_order', { ascending: true })
-
-    if (tErr) return { season: season as HealthSeasonPublic, tracks: [], error: tErr.message }
-    const tracksList = trackRows ?? []
-    if (tracksList.length === 0) return { season: season as HealthSeasonPublic, tracks: [], error: null }
-
-    const trackIds = tracksList.map((t) => t.track_id)
-    const { data: thRows } = await supabase
-      .from('health_challenge_level_thresholds')
-      .select('track_id, level, target_value')
-      .in('track_id', trackIds)
-      .is('deleted_at', null)
-      .order('level', { ascending: true })
-
-    const thByTrack = new Map<string, HealthThresholdRow[]>()
-    for (const th of thRows ?? []) {
-      const list = thByTrack.get(th.track_id) ?? []
-      list.push({ level: th.level, target_value: Number(th.target_value) })
-      thByTrack.set(th.track_id, list)
-    }
-
-    const tracks: HealthTrackPublic[] = tracksList.map((t) => ({
-      track_id: t.track_id,
-      kind: t.kind,
-      title: t.title,
-      sort_order: t.sort_order,
-      metric: t.metric as HealthTrackPublic['metric'],
-      min_distance_km: t.min_distance_km != null ? Number(t.min_distance_km) : null,
-      min_speed_kmh: t.min_speed_kmh != null ? Number(t.min_speed_kmh) : null,
-      min_elevation_m: t.min_elevation_m != null ? Number(t.min_elevation_m) : null,
-      thresholds: thByTrack.get(t.track_id) ?? [],
-    }))
-
-    return { season: season as HealthSeasonPublic, tracks, error: null }
-  } catch (e) {
-    return {
-      season: null,
-      tracks: [],
-      error: e instanceof Error ? e.message : '건강 챌린지 조회 실패',
-    }
-  }
+  const { definitions, error } = await getActiveHealthChallengeDefinitions()
+  if (error || !definitions.length) return { season: null, tracks: [], error }
+  const first = definitions[0]
+  return { season: first.season, tracks: first.tracks, error: null }
 }
 
 /** 로그인 사용자: 이번 달(서울) 롤업 + 대기 중 제출 수 */
@@ -289,60 +325,71 @@ export async function getHealthChallengeSubmittedTrackIdsThisMonth(
   return infos.map((x) => x.track_id)
 }
 
-/** 이번 달 종목별 최신 제출 정보(PENDING/APPROVED) */
-export async function getHealthChallengeSubmittedTrackInfosThisMonth(
-  userId: string | null
+function mapLatestSubmittedTrackInfos(
+  rows: Array<{
+    track_id: string
+    status: string
+    activity_date: string
+    distance_km: number | null
+    speed_kmh: number | null
+    elevation_m: number | null
+    created_at: string
+    rejection_reason: string | null
+  }>
+): HealthSubmittedTrackInfo[] {
+  const latestByTrack = new Map<string, HealthSubmittedTrackInfo>()
+  for (const row of rows) {
+    if (latestByTrack.has(row.track_id)) continue
+    if (row.status !== 'PENDING' && row.status !== 'APPROVED' && row.status !== 'REJECTED') continue
+    latestByTrack.set(row.track_id, {
+      track_id: row.track_id,
+      status: row.status,
+      activity_date: row.activity_date,
+      distance_km: row.distance_km != null ? Number(row.distance_km) : null,
+      speed_kmh: row.speed_kmh != null ? Number(row.speed_kmh) : null,
+      elevation_m: row.elevation_m != null ? Number(row.elevation_m) : null,
+      created_at: row.created_at,
+      rejection_reason: row.rejection_reason ?? null,
+    })
+  }
+  return [...latestByTrack.values()]
+}
+
+/** 시즌별 종목 최신 제출 정보 (5월 시즌을 6월에 열어도 5월 제출 이력 표시) */
+export async function getHealthChallengeSubmittedTrackInfosForSeason(
+  userId: string | null,
+  seasonId: string
 ): Promise<HealthSubmittedTrackInfo[]> {
-  if (!userId) return []
+  if (!userId || !seasonId) return []
   try {
-    const { year, month } = getSeoulYearMonth()
     const supabase = await createClient()
-    const { data: season } = await supabase
-      .from('health_challenge_seasons')
-      .select('season_id')
-      .eq('status', 'ACTIVE')
-      .is('deleted_at', null)
-      .limit(1)
-      .maybeSingle()
-    if (!season) return []
-
-    const pad2 = (n: number) => String(n).padStart(2, '0')
-    const startYmd = `${year}-${pad2(month)}-01`
-    const endDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
-    const endYmd = `${year}-${pad2(month)}-${pad2(endDay)}`
-
     const { data: rows, error } = await supabase
       .from('health_challenge_activity_logs')
       .select(
         'track_id, status, activity_date, distance_km, speed_kmh, elevation_m, created_at, rejection_reason',
       )
-      .eq('season_id', season.season_id)
+      .eq('season_id', seasonId)
       .eq('user_id', userId)
       .is('deleted_at', null)
-      .gte('activity_date', startYmd)
-      .lte('activity_date', endYmd)
       .in('status', ['PENDING', 'APPROVED', 'REJECTED'])
       .order('created_at', { ascending: false })
 
     if (error || !rows?.length) return []
+    return mapLatestSubmittedTrackInfos(rows)
+  } catch {
+    return []
+  }
+}
 
-    // 같은 종목 다중 제출이 있어도 카드에는 최신 1건만 표시 (반려 후 재제출 시 최신 건 기준)
-    const latestByTrack = new Map<string, HealthSubmittedTrackInfo>()
-    for (const row of rows) {
-      if (latestByTrack.has(row.track_id)) continue
-      if (row.status !== 'PENDING' && row.status !== 'APPROVED' && row.status !== 'REJECTED') continue
-      latestByTrack.set(row.track_id, {
-        track_id: row.track_id,
-        status: row.status,
-        activity_date: row.activity_date,
-        distance_km: row.distance_km != null ? Number(row.distance_km) : null,
-        speed_kmh: row.speed_kmh != null ? Number(row.speed_kmh) : null,
-        elevation_m: row.elevation_m != null ? Number(row.elevation_m) : null,
-        created_at: row.created_at,
-        rejection_reason: row.rejection_reason ?? null,
-      })
-    }
-    return [...latestByTrack.values()]
+/** 이번 달 종목별 최신 제출 정보(PENDING/APPROVED) — 가장 최근 ACTIVE 시즌 기준 */
+export async function getHealthChallengeSubmittedTrackInfosThisMonth(
+  userId: string | null
+): Promise<HealthSubmittedTrackInfo[]> {
+  if (!userId) return []
+  try {
+    const { season } = await getActiveHealthChallengeDefinition()
+    if (!season) return []
+    return getHealthChallengeSubmittedTrackInfosForSeason(userId, season.season_id)
   } catch {
     return []
   }

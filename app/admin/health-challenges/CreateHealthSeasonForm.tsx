@@ -114,7 +114,7 @@ export function CreateHealthSeasonForm() {
             onChange={(e) => setStatus(e.target.value as 'DRAFT' | 'ACTIVE')}
             className={inputClass}
           >
-            <option value="ACTIVE">ACTIVE — 메인 노출·참여 가능 (다른 ACTIVE 시즌은 보관)</option>
+            <option value="ACTIVE">ACTIVE — 메인 노출·참여 가능 (이전 달 시즌과 동시 ACTIVE 가능)</option>
             <option value="DRAFT">DRAFT — 준비만 (메인 미노출)</option>
           </select>
         </div>

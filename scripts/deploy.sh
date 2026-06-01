@@ -98,6 +98,19 @@ if [ -n "$GOOGLE_CHAT_ADMIN_WEBHOOK_URL" ]; then
   ENV_VARS="$ENV_VARS,GOOGLE_CHAT_ADMIN_WEBHOOK_URL=$GOOGLE_CHAT_ADMIN_WEBHOOK_URL"
 fi
 
+# 적립 알림 이메일 SMTP (선택) — .env에 있으면 배포에 포함 (.env.local 은 deploy 시 로드되지 않음)
+if [ -n "$SMTP_HOST" ] && [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASS" ]; then
+  echo "✓ SMTP 적립 알림 메일 환경 변수 포함"
+  SMTP_PORT_VAL="${SMTP_PORT:-587}"
+  SMTP_SECURE_VAL="${SMTP_SECURE:-false}"
+  ENV_VARS="$ENV_VARS,SMTP_HOST=$SMTP_HOST,SMTP_PORT=$SMTP_PORT_VAL,SMTP_SECURE=$SMTP_SECURE_VAL,SMTP_USER=$SMTP_USER,SMTP_PASS=$SMTP_PASS"
+  if [ -n "$MAIL_FROM" ]; then
+    ENV_VARS="$ENV_VARS,MAIL_FROM=$MAIL_FROM"
+  fi
+else
+  echo "💡 SMTP_HOST/USER/PASS 가 .env에 없어 적립 알림 메일은 운영에서 비활성입니다."
+fi
+
 if gcloud secrets describe supabase-service-role &>/dev/null 2>&1; then
   echo "✓ Secret Manager의 supabase-service-role 사용"
   gcloud run deploy vtogether \

@@ -102,6 +102,7 @@
 ## 건강 챌린지 (마이그레이션 033·034·035·037, People 재화: V.Medal)
 
 - **데이터 모델**: 활동·정산은 `health_challenge_*` 테이블. **시즌은 `/admin/events/new`에서 People 이벤트와 함께 생성하거나**, 이벤트 상세 `/admin/events/[eventId]`의 「건강 챌린지 룰」에서 시즌을 새로 붙일 수 있습니다. `health_challenge_seasons.event_id`로 이벤트와 1:1(034). **4종목(걷기·러닝·하이킹·라이딩)의 1회 최소 조건·월 누적 L1~L3·시즌 기간·ACTIVE 여부는 동일 이벤트 수정 페이지에서 편집**합니다.
+- **동시 ACTIVE 시즌 (2026.06)**: 5월 31일 활동을 6월 첫 주에 제출하는 등 **월말→다음 달 초 제출**을 위해, **5월·6월 건강 챌린지 시즌을 동시에 ACTIVE**로 둘 수 있습니다. 새 시즌 생성 시 이전 시즌을 자동 ARCHIVED하지 않습니다. 메인에서 **각 이벤트 카드의 「인증하기」**가 해당 월 시즌의 건강 챌린지 모달로 연결됩니다. 제출 마감 후에는 관리자가 이전 시즌을 ARCHIVED로 바꿉니다.
 - **참가 기준표 URL (035)**: `health_challenge_seasons.criteria_attachment_url` — PDF·이미지 등 공개 URL. 메인 건강 챌린지 영역에서 안내 링크로 쓸 수 있습니다.
 - **메인**: 활성 시즌이 있으면 메인 「이벤트 & 챌린지」블록 **안**(필터 아래, 이벤트 카드 그리드 위)에 `#health-challenge`로 노출. 한 번에 **여러 건** 인증을 제출할 수 있고, **종목(블록)마다 사진을 여러 장** 첨부할 수 있습니다(`photo_urls` JSON 배열).
 - **제출 정책(2026.03.31 업데이트)**: 건강 챌린지는 한 번의 제출에서 **같은 달의 여러 활동일을 달력으로 다중 선택**할 수 있습니다. 같은 달에 같은 종목을 여러 번 제출할 수 있지만, **같은 종목 + 같은 활동일** 조합은 중복 제출할 수 없습니다.
@@ -202,6 +203,7 @@
 - **템플릿:** `lib/email/earned-notification-html.ts` (HTML 카드 + 「V.Together 바로가기」 버튼).
 - **바로가기 URL:** `NEXT_PUBLIC_APP_URL` → 없으면 `NEXT_PUBLIC_DEV_APP_URL` → 없으면 Cloud Run 기본 `https://vtogether-899896571605.asia-northeast3.run.app`. 링크는 `/my?highlight={transaction_id}#point-history` (ID 없으면 `/my#point-history`).
 - **발송:** `lib/send-earned-notification-email.ts`. `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`가 모두 있을 때만 발송. 없으면 스킵(적립·승인은 정상 처리).
+- **운영 배포:** `npm run deploy` 시 루트 `.env`의 `SMTP_*`·`MAIL_FROM`이 `scripts/deploy.sh`를 통해 Cloud Run 환경 변수로 전달됨 (`.env.local`은 배포에 사용하지 않음).
 - **실패:** 메일 전송 실패가 승인/지급 API를 실패시키지 않음 (`scheduleEarnedNotificationEmail`).
 
 ## 에러 알림 (Google Chat Webhook)

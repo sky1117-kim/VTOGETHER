@@ -245,7 +245,7 @@ export function HealthChallengePanel({
     }
 
     setSubmitting(true)
-    const r = await submitHealthActivityLogsBatch(payload)
+    const r = await submitHealthActivityLogsBatch(season.season_id, payload)
     setSubmitting(false)
     if (!r.success) {
       setFormError(r.error ?? '제출 실패')

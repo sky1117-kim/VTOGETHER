@@ -16,10 +16,14 @@ export type HealthActivityEntryInput = {
   photo_urls: string[]
 }
 
-/** 여러 건 한 번에 제출 (각 건은 별도 로그 행) */
+/** 여러 건 한 번에 제출 (각 건은 별도 로그 행). seasonId로 5·6월 등 동시 진행 시즌 구분 */
 export async function submitHealthActivityLogsBatch(
+  seasonId: string,
   entries: HealthActivityEntryInput[]
 ): Promise<{ success: boolean; submitted: number; error: string | null }> {
+  if (!seasonId?.trim()) {
+    return { success: false, submitted: 0, error: '건강 챌린지 시즌 정보가 없습니다.' }
+  }
   if (!entries.length) {
     return { success: false, submitted: 0, error: '제출할 인증을 추가하세요.' }
   }
@@ -33,10 +37,10 @@ export async function submitHealthActivityLogsBatch(
 
     const { data: season, error: sErr } = await supabase
       .from('health_challenge_seasons')
-      .select('season_id, name, starts_at, ends_at')
+      .select('season_id, name, starts_at, ends_at, status')
+      .eq('season_id', seasonId.trim())
       .eq('status', 'ACTIVE')
       .is('deleted_at', null)
-      .limit(1)
       .maybeSingle()
 
     if (sErr || !season) {
