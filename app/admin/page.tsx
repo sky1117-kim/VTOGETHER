@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { Gift, Heart, ClipboardList, Target, ChevronRight, Sparkles } from 'lucide-react'
+import { Gift, Heart, ClipboardList, Target, ChevronRight, Sparkles, Settings2, CircleDollarSign } from 'lucide-react'
 import { getCurrentUser } from '@/api/actions/auth'
-import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod, getEventEarnedStats } from '@/api/actions/admin'
+import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod, getEventEarnedStats, getMatchingAmountByTarget } from '@/api/actions/admin'
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
 import { formatPoints } from '@/lib/formatPoints'
 import { TARGET_DISPLAY_NAMES } from '@/constants/donationTargets'
@@ -35,7 +35,10 @@ export default async function AdminPage() {
   const { data: donationTargets } = await getDonationTargetsForAdmin()
   const targets = donationTargets ?? []
   const periodAmounts = await getDonationAmountsByPeriod()
-  const eventEarnedStats = await getEventEarnedStats()
+  const [eventEarnedStats, matchingByTarget] = await Promise.all([
+    getEventEarnedStats(),
+    getMatchingAmountByTarget(),
+  ])
   const currentUserId = user?.user_id ?? ''
 
   // 등급별 사용자 수 (시각화용) — Eco Keeper, Green Master, Earth Hero 항상 3가지 표시
@@ -84,9 +87,14 @@ export default async function AdminPage() {
       )}
 
       {/* 헤더 */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">대시보드</h1>
-        <p className="mt-1 text-sm text-gray-500">전사 지표와 자주 쓰는 메뉴를 한눈에 확인하세요.</p>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">대시보드</h1>
+          <p className="mt-1 text-sm text-gray-500">전사 지표와 자주 쓰는 메뉴를 한눈에 확인하세요.</p>
+        </div>
+        <p className="shrink-0 text-sm tabular-nums text-gray-400">
+          {now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+        </p>
       </div>
 
       {/* 지표: 이벤트·기부·달성률·승인대기 (첫 줄 4개) */}
@@ -100,7 +108,7 @@ export default async function AdminPage() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-gray-500">진행 중인 이벤트</p>
-            <p className="text-xl font-bold tabular-nums text-gray-900">
+            <p className="whitespace-nowrap text-xl font-bold tabular-nums text-gray-900">
               {dashboardStats.activeEventsCount}개
             </p>
           </div>
@@ -115,7 +123,7 @@ export default async function AdminPage() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-gray-500">전사 누적 기부</p>
-            <p className="text-xl font-bold tabular-nums text-gray-900">
+            <p className="whitespace-nowrap text-xl font-bold tabular-nums text-gray-900">
               {dashboardStats.error ? '—' : formatPoints(dashboardStats.totalCurrent)}
             </p>
             {dashboardStats.error && <p className="mt-0.5 text-xs text-red-500">{dashboardStats.error}</p>}
@@ -131,11 +139,11 @@ export default async function AdminPage() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-gray-500">목표 달성률</p>
-            <p className="mt-1 text-2xl font-black tabular-nums tracking-tight text-gray-900">
+            <p className="mt-1 whitespace-nowrap text-2xl font-black tabular-nums tracking-tight text-gray-900">
               {dashboardStats.error ? '—' : `${dashboardStats.progress.toFixed(1)}%`}
             </p>
             {!dashboardStats.error && dashboardStats.totalTarget > 0 && (
-              <p className="mt-1.5 text-xs leading-relaxed text-gray-500">
+              <p className="mt-1.5 truncate text-xs leading-relaxed text-gray-500">
                 목표 {formatPoints(dashboardStats.totalTarget)} · 완료 {dashboardStats.completedCount}개
               </p>
             )}
@@ -144,14 +152,18 @@ export default async function AdminPage() {
         </Link>
         <Link
           href="/admin/verifications"
-          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+          className={`flex items-center gap-4 rounded-xl border p-5 shadow-sm transition hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press ${
+            dashboardStats.pendingCount > 0
+              ? 'border-amber-200 bg-amber-50/60 hover:border-amber-300'
+              : 'border-gray-200 bg-white hover:border-green-300'
+          }`}
         >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
             <ClipboardList className="size-6" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-gray-500">승인 대기</p>
-            <p className="text-xl font-bold tabular-nums text-gray-900">
+            <p className="whitespace-nowrap text-xl font-bold tabular-nums text-gray-900">
               {dashboardStats.pendingCount}건
             </p>
             {dashboardStats.pendingCount > 0 && (
@@ -168,7 +180,7 @@ export default async function AdminPage() {
           <div>
             <h3 className="text-sm font-bold text-emerald-900">이벤트 적립 현황</h3>
             <p className="mt-1 text-xs text-emerald-700/90">
-              People은 V.Medal, V.Together는 V.Credit 기준으로 집계합니다. 매칭금은 Medal 전환 Credit 기부분만 반영합니다.
+              People은 V.Medal, V.Together는 V.Credit 기준입니다. 매칭금은 V.Medal 전환 기부금과 동일 금액(1:1)입니다.
             </p>
           </div>
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-emerald-600 shadow-sm">
@@ -194,14 +206,21 @@ export default async function AdminPage() {
               </dd>
               <p className="mt-1 text-[11px] text-slate-500">V.Together 이벤트 기본 보상</p>
             </div>
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+              <dt className="text-xs font-semibold text-orange-700">V.Medal 전환 기부금</dt>
+              <dd className="mt-1.5 text-2xl font-black tabular-nums tracking-tight text-orange-800">
+                {formatPoints(eventEarnedStats.medalExchangeDonation)}
+              </dd>
+              <p className="mt-1 text-[11px] text-orange-700/90">사용자 V.Medal → V.Credit 전환 후 기부</p>
+            </div>
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <dt className="text-xs font-semibold text-amber-700">매칭금</dt>
               <dd className="mt-1.5 text-2xl font-black tabular-nums tracking-tight text-amber-800">
                 {formatPoints(eventEarnedStats.matchingAmount)}
               </dd>
-              <p className="mt-1 text-[11px] text-amber-700/90">Medal 전환 기부분과 동일</p>
+              <p className="mt-1 text-[11px] text-amber-700/90">V.Medal 전환 기부금 1:1 매칭</p>
             </div>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:col-span-2 lg:col-span-2">
               <dt className="text-xs font-semibold text-emerald-700">전체 사용자 적립</dt>
               <dd className="mt-1.5 space-y-0.5 text-sm font-bold tabular-nums text-emerald-900">
                 <p>{formatPoints(eventEarnedStats.totalCreditEarned)}</p>
@@ -209,12 +228,12 @@ export default async function AdminPage() {
               </dd>
               <p className="mt-1 text-[11px] text-emerald-700/80">V.Credit + V.Medal</p>
             </div>
-            <div className="rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 sm:col-span-2 lg:col-span-4">
+            <div className="rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 sm:col-span-2 lg:col-span-2">
               <dt className="text-xs font-bold tracking-wide text-emerald-800">전체 모인금액</dt>
               <dd className="mt-1.5 text-3xl font-black tabular-nums tracking-tight text-emerald-900">
                 {formatPoints(eventEarnedStats.totalCollected)}
               </dd>
-              <p className="mt-1 text-xs font-medium text-emerald-700">이벤트 Credit + 매칭금 (기부 가능 재원)</p>
+              <p className="mt-1 text-xs font-medium text-emerald-700">이벤트 Credit + V.Medal 전환 기부금 + 매칭금</p>
             </div>
           </dl>
         )}
@@ -298,27 +317,40 @@ export default async function AdminPage() {
       {/* 기부 현황 요약 (기부처별 달성률 그래프) */}
       {targets.length > 0 && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-base font-bold text-gray-900">기부 현황 요약</h2>
+          <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-gray-900">
+            <span className="block h-5 w-1 rounded-full bg-green-500" aria-hidden />
+            기부 현황 요약
+          </h2>
           <div className="space-y-4">
             {targets.map((t) => {
               const displayName = TARGET_DISPLAY_NAMES[t.name] ?? t.name
-              const pct = t.target_amount > 0 ? Math.min(100, (t.current_amount / t.target_amount) * 100) : 0
-              const isDone = t.status === 'COMPLETED'
+              const matching = matchingByTarget[t.target_id] ?? 0
+              const effectiveAmount = t.current_amount + matching
+              const rawPct = t.target_amount > 0 ? (effectiveAmount / t.target_amount) * 100 : 0
+              const barPct = Math.min(100, rawPct)
+              const isOver = rawPct > 100
+              const isDone = t.status === 'COMPLETED' || effectiveAmount >= t.target_amount
               return (
                 <div key={t.target_id} className="space-y-1.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-sm font-medium text-gray-800">{displayName}</span>
-                    <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                      {formatPoints(t.current_amount)} / {formatPoints(t.target_amount)}
-                      {isDone && <span className="ml-1 text-green-600">완료</span>}
-                    </span>
+                    <div className="flex shrink-0 items-baseline gap-2">
+                      <span className={`text-sm font-bold tabular-nums ${isOver ? 'text-emerald-600' : 'text-green-700'}`}>
+                        {rawPct.toFixed(0)}%{isOver && ' ↑'}
+                      </span>
+                      <span className="text-xs tabular-nums text-gray-500">
+                        {formatPoints(effectiveAmount)} / {formatPoints(t.target_amount)}
+                        {matching > 0 && <span className="ml-1 text-orange-500">(+{formatPoints(matching)} 매칭)</span>}
+                        {isDone && <span className="ml-1 text-green-600">완료</span>}
+                      </span>
+                    </div>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
                     <div
                       className={`h-full rounded-full transition-all ${
-                        isDone ? 'bg-green-500' : 'bg-green-400'
+                        isOver ? 'bg-emerald-500' : isDone ? 'bg-green-500' : 'bg-green-400'
                       }`}
-                      style={{ width: `${pct}%` }}
+                      style={{ width: `${barPct}%` }}
                     />
                   </div>
                 </div>
@@ -337,25 +369,31 @@ export default async function AdminPage() {
 
       {/* 기간별 기부 (오늘 / 이번 주 / 이번 달) 시각화 */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-base font-bold text-gray-900">기간별 기부 금액</h2>
+        <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-gray-900">
+          <span className="block h-5 w-1 rounded-full bg-green-500" aria-hidden />
+          기간별 기부 금액
+        </h2>
         {periodAmounts.error ? (
           <p className="text-sm text-red-600">{periodAmounts.error}</p>
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <div className="relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                <div className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-green-300" />
                 <p className="text-xs font-medium text-gray-500">오늘</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
                   {formatPoints(periodAmounts.today)}
                 </p>
               </div>
-              <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <div className="relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                <div className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-green-500" />
                 <p className="text-xs font-medium text-gray-500">이번 주</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
                   {formatPoints(periodAmounts.thisWeek)}
                 </p>
               </div>
-              <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <div className="relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                <div className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-green-700" />
                 <p className="text-xs font-medium text-gray-500">이번 달</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
                   {formatPoints(periodAmounts.thisMonth)}
@@ -413,13 +451,19 @@ export default async function AdminPage() {
 
       {/* 바로가기 */}
       <section>
-        <h2 className="mb-4 text-base font-bold text-gray-900">바로가기</h2>
+        <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-gray-900">
+          <span className="block h-5 w-1 rounded-full bg-green-500" aria-hidden />
+          바로가기
+        </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <a
             href="#admin-settings"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
-            <span className="text-lg font-bold text-gray-900">설정 · 운영</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-600">
+              <Settings2 className="size-5" />
+            </div>
+            <span className="mt-3 text-lg font-bold text-gray-900">설정 · 운영</span>
             <span className="mt-1 text-sm text-gray-500">메인 문구, 수동 지급 안내, 관리자 설정</span>
             <span className="mt-3 text-sm font-medium text-green-600">열기 →</span>
           </a>
@@ -427,7 +471,10 @@ export default async function AdminPage() {
             href="/admin/events"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
-            <span className="text-lg font-bold text-gray-900">이벤트</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-100 text-green-600">
+              <Gift className="size-5" />
+            </div>
+            <span className="mt-3 text-lg font-bold text-gray-900">이벤트</span>
             <span className="mt-1 text-sm text-gray-500">이벤트·챌린지 등록 및 목록 관리</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>
@@ -435,7 +482,10 @@ export default async function AdminPage() {
             href="/admin/verifications"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
-            <span className="text-lg font-bold text-gray-900">인증 심사</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+              <ClipboardList className="size-5" />
+            </div>
+            <span className="mt-3 text-lg font-bold text-gray-900">인증 심사</span>
             <span className="mt-1 text-sm text-gray-500">참여 인증 승인·반려, 일괄 처리</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>
@@ -443,7 +493,10 @@ export default async function AdminPage() {
             href="/admin/donation-targets"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
-            <span className="text-lg font-bold text-gray-900">기부처</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+              <Heart className="size-5" />
+            </div>
+            <span className="mt-3 text-lg font-bold text-gray-900">기부처</span>
             <span className="mt-1 text-sm text-gray-500">목표 수정, 오프라인 성금 합산</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>
@@ -451,7 +504,10 @@ export default async function AdminPage() {
             href="/admin/point-grant"
             className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
           >
-            <span className="text-lg font-bold text-gray-900">지급/적립 내역</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+              <CircleDollarSign className="size-5" />
+            </div>
+            <span className="mt-3 text-lg font-bold text-gray-900">지급/적립 내역</span>
             <span className="mt-1 text-sm text-gray-500">수동 지급 + 직원 거래 내역 통합 조회</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>

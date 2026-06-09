@@ -57,6 +57,13 @@ export function DonationSection({
         </div>
       </div>
 
+      {/* 안내: 매칭금 반영 기준 변경 */}
+      <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <p className="font-semibold">📢 안내 — 2026년 6월 10일부터 기부 금액 표시 기준이 변경되었습니다.</p>
+        <p className="mt-1">V.Medal을 V.Credit으로 전환하여 기부하시면 회사에서 동일 금액을 매칭 기부하며, 이번 업데이트를 통해 해당 매칭금이 기부 금액에 반영되었습니다.</p>
+        <p className="mt-1">6월 10일 이전에 표시된 금액은 매칭금이 포함되지 않아 실제보다 낮게 표시되었습니다. 늦게 반영된 점 양해 부탁드리며, 혜명보육원의 경우 목표 금액을 초과한 기부금도 그대로 기부될 예정입니다.</p>
+      </div>
+
       {/* 전사 누적 기부액 — 강조 영역 */}
       <div className="glass card-hover mb-8 rounded-2xl border-2 border-green-200 bg-gradient-to-br from-green-50/80 to-white px-4 py-5 shadow-soft sm:px-8 sm:py-8">
         <div className="mb-4 flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-6">

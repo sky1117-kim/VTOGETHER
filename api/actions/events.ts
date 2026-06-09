@@ -7,7 +7,7 @@ import { getEventForParticipation } from '@/api/queries/events'
 import { sendGoogleChatAdminAlert } from '@/lib/google-chat-alert'
 import { parseChoiceOptions } from '@/lib/verification-choice-options'
 
-function isMultiPeerSelectMode(method: { options?: string[] | null }): boolean {
+function isMultiPeerSelectMode(method: { options?: unknown }): boolean {
   return Array.isArray(method.options) && method.options.includes('MULTIPLE')
 }
 

@@ -845,7 +845,15 @@ export async function getAdminDashboardStats(): Promise<{
   error: string | null
 }> {
   try {
-    const donation = await getTotalDonationStats()
+    const [donation, matchingByTarget] = await Promise.all([
+      getTotalDonationStats(),
+      getMatchingAmountByTarget(),
+    ])
+    const totalMatching = Object.values(matchingByTarget).reduce((sum, v) => sum + v, 0)
+    const totalCurrentWithMatching = donation.totalCurrent + totalMatching
+    const progressWithMatching = donation.totalTarget > 0
+      ? (totalCurrentWithMatching / donation.totalTarget) * 100
+      : 0
     let pendingCount = 0
     let activeEventsCount = 0
     let mau: number | null = null
@@ -867,9 +875,9 @@ export async function getAdminDashboardStats(): Promise<{
       // 테이블/컬럼 없거나 RLS 등으로 실패 시 숫자는 0, mau는 null(준비 중)
     }
     return {
-      totalCurrent: donation.totalCurrent,
+      totalCurrent: totalCurrentWithMatching,
       totalTarget: donation.totalTarget,
-      progress: donation.progress,
+      progress: progressWithMatching,
       completedCount: donation.completedCount,
       activeEventsCount,
       pendingCount,
@@ -947,6 +955,7 @@ export async function getEventEarnedStats(): Promise<{
   peopleMedalEarned: number
   cultureCreditEarned: number
   cultureMedalEarned: number
+  medalExchangeDonation: number
   matchingAmount: number
   totalCreditEarned: number
   totalMedalEarned: number
@@ -958,6 +967,7 @@ export async function getEventEarnedStats(): Promise<{
     peopleMedalEarned: 0,
     cultureCreditEarned: 0,
     cultureMedalEarned: 0,
+    medalExchangeDonation: 0,
     matchingAmount: 0,
     totalCreditEarned: 0,
     totalMedalEarned: 0,
@@ -1020,18 +1030,20 @@ export async function getEventEarnedStats(): Promise<{
       ? await supabase.from('credit_lots').select('lot_id, source_type').in('lot_id', lotIds).is('deleted_at', null)
       : { data: [] }
     const lotSourceMap = new Map((lots ?? []).map((l) => [l.lot_id, l.source_type]))
-    const matchingAmount = (allocRows ?? []).reduce((sum, row) => {
+    const medalExchangeDonation = (allocRows ?? []).reduce((sum, row) => {
       const source = lotSourceMap.get(row.lot_id)
       return source === 'MEDAL_EXCHANGE' ? sum + Number(row.allocated_amount ?? 0) : sum
     }, 0)
+    const matchingAmount = medalExchangeDonation
     const totalCreditEarned = peopleCreditEarned + cultureCreditEarned
     const totalMedalEarned = peopleMedalEarned + cultureMedalEarned
-    const totalCollected = totalCreditEarned + matchingAmount
+    const totalCollected = totalCreditEarned + medalExchangeDonation + matchingAmount
     return {
       peopleCreditEarned,
       peopleMedalEarned,
       cultureCreditEarned,
       cultureMedalEarned,
+      medalExchangeDonation,
       matchingAmount,
       totalCreditEarned,
       totalMedalEarned,
@@ -1040,6 +1052,127 @@ export async function getEventEarnedStats(): Promise<{
     }
   } catch (e) {
     return { ...empty, error: e instanceof Error ? e.message : '이벤트 적립 현황 조회 실패' }
+  }
+}
+
+/** 관리자: 기부처별 매칭금(V.Medal 전환 기부금 1:1) 합계 조회 */
+export async function getMatchingAmountByTarget(): Promise<Record<string, number>> {
+  try {
+    const supabase = createAdminClient()
+    const { data: allocRows } = await supabase
+      .from('donation_lot_allocations')
+      .select('donation_id, lot_id, allocated_amount')
+      .is('deleted_at', null)
+    if (!allocRows?.length) return {}
+
+    const lotIds = [...new Set(allocRows.map((a) => a.lot_id))]
+    const { data: lots } = await supabase
+      .from('credit_lots')
+      .select('lot_id, source_type')
+      .in('lot_id', lotIds)
+      .is('deleted_at', null)
+
+    const medalLotIds = new Set(
+      (lots ?? []).filter((l) => l.source_type === 'MEDAL_EXCHANGE').map((l) => l.lot_id)
+    )
+    const medalAllocs = allocRows.filter((a) => medalLotIds.has(a.lot_id))
+    if (!medalAllocs.length) return {}
+
+    const donationIds = [...new Set(medalAllocs.map((a) => a.donation_id))]
+    const { data: donations } = await supabase
+      .from('donations')
+      .select('donation_id, target_id')
+      .in('donation_id', donationIds)
+
+    const donationToTarget = new Map((donations ?? []).map((d) => [d.donation_id, d.target_id]))
+    const result: Record<string, number> = {}
+    for (const row of medalAllocs) {
+      const targetId = donationToTarget.get(row.donation_id)
+      if (targetId) {
+        result[targetId] = (result[targetId] ?? 0) + Number(row.allocated_amount)
+      }
+    }
+    return result
+  } catch {
+    return {}
+  }
+}
+
+export type OverTargetDonorRow = {
+  donation_id: string
+  user_id: string
+  user_name: string | null
+  user_email: string | null
+  amount: number
+  excess: number
+  created_at: string
+}
+
+/**
+ * 관리자: 특정 기부처에서 목표 금액을 초과한 기부 내역 조회.
+ * 기부 시점 기준 누적 합계가 target_amount를 초과한 분부터 반환.
+ * excess > 0 이면 해당 기부 중 초과분, amount 전체가 초과면 excess = amount.
+ */
+export async function getOverTargetDonors(targetId: string): Promise<{
+  data: OverTargetDonorRow[]
+  targetAmount: number
+  targetName: string
+  error: string | null
+}> {
+  try {
+    const supabase = createAdminClient()
+
+    const { data: targetRow, error: targetErr } = await supabase
+      .from('donation_targets')
+      .select('target_amount, name')
+      .eq('target_id', targetId)
+      .is('deleted_at', null)
+      .single()
+    if (targetErr || !targetRow) return { data: [], targetAmount: 0, targetName: '', error: targetErr?.message ?? '기부처 없음' }
+
+    const { data: donationRows, error: donErr } = await supabase
+      .from('donations')
+      .select('donation_id, user_id, amount, created_at')
+      .eq('target_id', targetId)
+      .order('created_at', { ascending: true })
+    if (donErr) return { data: [], targetAmount: targetRow.target_amount, targetName: targetRow.name, error: donErr.message }
+
+    const donations = donationRows ?? []
+    if (donations.length === 0) return { data: [], targetAmount: targetRow.target_amount, targetName: targetRow.name, error: null }
+
+    const userIds = [...new Set(donations.map((d) => d.user_id))]
+    const { data: userRows } = await supabase
+      .from('users')
+      .select('user_id, name, email')
+      .in('user_id', userIds)
+      .is('deleted_at', null)
+    const userMap = new Map((userRows ?? []).map((u) => [u.user_id, u]))
+
+    const target = targetRow.target_amount
+    let running = 0
+    const result: OverTargetDonorRow[] = []
+
+    for (const d of donations) {
+      const prev = running
+      running += Number(d.amount)
+      if (running > target) {
+        const excess = running - Math.max(prev, target)
+        const user = userMap.get(d.user_id)
+        result.push({
+          donation_id: d.donation_id,
+          user_id: d.user_id,
+          user_name: user?.name ?? null,
+          user_email: user?.email ?? null,
+          amount: Number(d.amount),
+          excess: Math.min(excess, Number(d.amount)),
+          created_at: d.created_at,
+        })
+      }
+    }
+
+    return { data: result, targetAmount: target, targetName: targetRow.name, error: null }
+  } catch (e) {
+    return { data: [], targetAmount: 0, targetName: '', error: e instanceof Error ? e.message : '조회 실패' }
   }
 }
 

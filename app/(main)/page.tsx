@@ -1,4 +1,5 @@
 import { getCurrentUser } from '@/api/actions/auth'
+import { getMatchingAmountByTarget } from '@/api/actions/admin'
 import { getTotalDonationStats, getDonationTargets } from '@/api/queries/donation'
 import { getSiteContent } from '@/api/queries/siteContent'
 import {
@@ -33,16 +34,25 @@ export default async function HomePage({ searchParams }: PageProps) {
   let healthChallengesByEventId: Record<string, HealthChallengeBundle> = {}
 
   try {
-    const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes] = await Promise.all([
+    const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes, matchingByTarget] = await Promise.all([
       getTotalDonationStats(),
       getDonationTargets(),
       getSiteContent(),
       getPersonalRankingQuarterly(10),
       getTeamRankingQuarterly(10),
       getEventsWithRoundsForPublic(user?.id ?? null),
+      getMatchingAmountByTarget(),
     ])
-    stats = statsRes
-    targets = targetsRes ?? []
+    const totalMatching = Object.values(matchingByTarget).reduce((sum, v) => sum + v, 0)
+    stats = { ...statsRes, totalCurrent: statsRes.totalCurrent + totalMatching }
+    targets = (targetsRes ?? []).map((t) => {
+      const effectiveAmount = t.current_amount + (matchingByTarget[t.target_id] ?? 0)
+      return {
+        ...t,
+        current_amount: effectiveAmount,
+        status: (effectiveAmount >= t.target_amount ? 'COMPLETED' : t.status) as 'ACTIVE' | 'COMPLETED',
+      }
+    })
     siteContent = contentRes
     personalRank = personalRes
     teamRank = teamRes
