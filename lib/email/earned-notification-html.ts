@@ -19,7 +19,6 @@ export function getVtogetherAppBaseUrl(): string {
   return base
 }
 
-/** 벨 알림과 동일한 문구로 알림·적립 블록 텍스트 생성 */
 export function formatEarnedEmailFields(
   description: string | null,
   amount: number,
@@ -36,15 +35,77 @@ export function formatEarnedEmailFields(
   return { notificationContentHtml, earnedDetails }
 }
 
+export type ComplimentEmailBlock = {
+  eventTitle: string
+  message: string
+  organizationName?: string | null
+  /** 수신자용: 칭찬 보낸 사람 (익명이면 비움) */
+  senderDisplayName?: string | null
+  /** 발신자용: 칭찬 받은 사람 요약 */
+  recipientSummary?: string | null
+  audience: 'recipient' | 'sender'
+}
+
+function buildComplimentBlockHtml(block: ComplimentEmailBlock): string {
+  const eventTitle = escapeHtml(block.eventTitle.trim() || '칭찬 챌린지')
+  const message = escapeHtml(block.message.trim() || '(내용 없음)').replace(/\n/g, '<br />')
+  const org =
+    block.organizationName?.trim() ?
+      `<tr><td style="padding-top:12px;font-size:14px;color:#475569;"><strong>칭찬 조직</strong><br />${escapeHtml(block.organizationName.trim())}</td></tr>`
+    : ''
+
+  let metaRow = ''
+  if (block.audience === 'recipient') {
+    const from =
+      block.senderDisplayName?.trim() ?
+        escapeHtml(block.senderDisplayName.trim())
+      : '익명의 동료'
+    metaRow = `<tr><td style="padding-top:12px;font-size:14px;color:#475569;"><strong>칭찬 보낸 분</strong><br />${from}</td></tr>`
+  } else if (block.recipientSummary?.trim()) {
+    metaRow = `<tr><td style="padding-top:12px;font-size:14px;color:#475569;"><strong>칭찬 받은 분</strong><br />${escapeHtml(block.recipientSummary.trim())}</td></tr>`
+  }
+
+  return `
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:25px;">
+                                            <tr>
+                                                <td style="padding-bottom:8px;font-size:13px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:0.5px;">
+                                                    💬 칭찬 내용
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="font-size:15px;font-weight:700;color:#0f172a;line-height:1.6;">
+                                                    ${eventTitle}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding-top:14px;font-size:15px;color:#334155;line-height:1.75;word-break:keep-all;">
+                                                    ${message}
+                                                </td>
+                                            </tr>
+                                            ${org}
+                                            ${metaRow}
+                                        </table>
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:25px;">
+                                            <tr>
+                                                <td style="border-top:1.5px dashed #e2e8f0;height:1px;"></td>
+                                            </tr>
+                                        </table>`
+}
+
 export function buildEarnedNotificationHtml(params: {
   userName: string
   notificationContentHtml: string
   earnedDetails: string
   appLink: string
+  compliment?: ComplimentEmailBlock | null
 }): string {
   const userName = escapeHtml(params.userName)
   const earnedDetails = escapeHtml(params.earnedDetails)
   const appLink = escapeHtml(params.appLink)
+  const complimentHtml =
+    params.compliment && (params.compliment.message.trim() || params.compliment.eventTitle.trim()) ?
+      buildComplimentBlockHtml(params.compliment)
+    : ''
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ko">
@@ -94,6 +155,7 @@ export function buildEarnedNotificationHtml(params: {
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid #10b981; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01); overflow: hidden; margin-bottom: 40px;">
                                 <tr>
                                     <td style="padding: 30px;">
+                                        ${complimentHtml}
                                         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 25px;">
                                             <tr>
                                                 <td style="padding-bottom: 8px; font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">

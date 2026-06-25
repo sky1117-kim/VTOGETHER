@@ -5,7 +5,7 @@
 - **Google 로그인**은 프로필에 부서를 내려주지 않기 때문에, 최초 로그인 시 `public.users`에 저장되는 `dept_name`은 **항상 NULL**입니다.
 - 현재는 **관리자 페이지(/admin)** 의 사용자 목록에서 해당 사용자 행의 부서 입력란에 부서명을 입력한 뒤 **저장**하면 됩니다.
 - **구현됨(배치형):** 세아웍스 인사 데이터는 `seah_org_units`(조직) + `seah_employees`(직원) 2테이블로 분리 저장합니다. 서비스 로직은 `users`를 그대로 사용하고, 필요할 때 `users.email = seah_employees.email` 조인 후 조직(`seah_org_units.org_name`)을 참조합니다.
-- **동기화 주기:** 외부 세아웍스 API는 `/api/cron/seah-orgsync`를 **하루 1회** 배치로 호출합니다. 실시간(로그인/페이지 진입 시) 외부 API 호출은 하지 않습니다.
+- **동기화 주기:** 외부 세아웍스 API는 (1) **`npm run sync:seah`** 수동 실행, (2) **`npm run deploy` 직후 자동 실행**, (3) `/api/cron/seah-orgsync` **하루 1회** 크론 호출로 갱신합니다. 실시간(로그인/페이지 진입 시) 외부 API 호출은 하지 않습니다.
 - **배치 후 users 반영(2026.04.02):** 스냅샷 동기화 직후 DB 함수 `sync_users_dept_name_from_seah_snapshot()`를 호출하여 `users.dept_name`을 일괄 최신화합니다. 따라서 로그인하지 않은 기존 사용자도 다음 배치에서 부서가 반영됩니다.
 - **식별자/정책:** 이메일은 소문자 정규화(`lower(email)`) 기준으로 관리하고, 퇴사자(`status_code='N'`)는 삭제하지 않고 비활성 상태로 유지합니다.
 - **예정:** 메인 My Status 카드의 프로필 사진은 현재 플레이스홀더(이름 첫 글자)이며, 세아웍스 API에 프로필 이미지 필드가 추가되면 연동 예정입니다.
@@ -199,7 +199,8 @@
 ## 적립 알림 이메일 (벨 알림과 동일, 2026.05.19)
 
 - **대상:** `point_transactions`에 `type='EARNED'`로 기록될 때마다 (헤더 벨에 표시되는 적립과 동일).
-- **내용:** `getEarnedDisplay(description)`로 가공한 알림 문구 + 금액(M/C). 칭찬 수신 건도 벨과 같이 보낸 사람 이름은 메일에 넣지 않음.
+- **내용:** `getEarnedDisplay(description)`로 가공한 알림 문구 + 금액(M/C). **칭찬 챌린지(BOTH) 수신자** 메일에는 추천 사유 본문·조직명·보낸 사람(익명이면 「익명의 동료」)을 추가 표시.
+- **팀장 CC (2026.06):** 칭찬 수신 알림 메일에 같은 `org_code` 소속·직책에 「팀장」이 포함된 `seah_employees` 이메일을 **CC**로 넣습니다. `seah_employees.job_title`은 세아웍스 배치 동기화 시 저장(마이그레이션 `046-seah-employees-job-title.sql`). 직책·조직 스냅샷이 없으면 CC 없이 수신자에게만 발송.
 - **템플릿:** `lib/email/earned-notification-html.ts` (HTML 카드 + 「V.Together 바로가기」 버튼).
 - **바로가기 URL:** `NEXT_PUBLIC_APP_URL` → 없으면 `NEXT_PUBLIC_DEV_APP_URL` → 없으면 Cloud Run 기본 `https://vtogether-899896571605.asia-northeast3.run.app`. 링크는 `/my?highlight={transaction_id}#point-history` (ID 없으면 `/my#point-history`).
 - **발송:** `lib/send-earned-notification-email.ts`. `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`가 모두 있을 때만 발송. 없으면 스킵(적립·승인은 정상 처리).

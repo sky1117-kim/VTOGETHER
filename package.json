@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "deploy": "bash scripts/deploy.sh",
-    "deploy:setup": "bash scripts/setup-secrets.sh"
+    "deploy:setup": "bash scripts/setup-secrets.sh",
+    "sync:seah": "npx tsx --env-file=.env scripts/run-seah-sync.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

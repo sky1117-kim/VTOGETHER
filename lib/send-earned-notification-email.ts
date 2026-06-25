@@ -3,6 +3,7 @@ import {
   buildEarnedNotificationHtml,
   formatEarnedEmailFields,
   getVtogetherAppBaseUrl,
+  type ComplimentEmailBlock,
 } from '@/lib/email/earned-notification-html'
 
 export type EarnedNotificationEmailPayload = {
@@ -12,6 +13,10 @@ export type EarnedNotificationEmailPayload = {
   amount: number
   currencyType: 'V_CREDIT' | 'V_MEDAL'
   transactionId?: string | null
+  /** 칭찬 챌린지: 본문·조직명 등 상세 블록 */
+  compliment?: ComplimentEmailBlock | null
+  /** 칭찬 수신 알림 시 같은 부서 팀장 등 참조 */
+  ccEmails?: string[]
 }
 
 function resolveDisplayName(userName: string | null | undefined): string {
@@ -28,7 +33,15 @@ function buildAppLink(transactionId?: string | null): string {
   return `${base}/my#point-history`
 }
 
-function buildSubject(amount: number, currencyType: 'V_CREDIT' | 'V_MEDAL'): string {
+function buildSubject(
+  amount: number,
+  currencyType: 'V_CREDIT' | 'V_MEDAL',
+  compliment?: ComplimentEmailBlock | null
+): string {
+  if (compliment?.audience === 'recipient' && compliment.message.trim()) {
+    const title = compliment.eventTitle.trim() || '칭찬 챌린지'
+    return `[V.Together] 칭찬이 도착했습니다 — ${title}`
+  }
   const unit = currencyType === 'V_MEDAL' ? 'M' : 'C'
   return `[V.Together] +${amount.toLocaleString('ko-KR')} ${unit} 적립`
 }
@@ -63,8 +76,12 @@ export async function sendEarnedNotificationEmail(
     notificationContentHtml,
     earnedDetails,
     appLink: buildAppLink(payload.transactionId),
+    compliment: payload.compliment,
   })
-  const subject = buildSubject(payload.amount, payload.currencyType)
+  const subject = buildSubject(payload.amount, payload.currencyType, payload.compliment)
+
+  const ccList = [...new Set((payload.ccEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean))]
+    .filter((cc) => cc !== to.toLowerCase())
 
   const host = process.env.SMTP_HOST!.trim()
   const port = Number(process.env.SMTP_PORT?.trim() || '587')
@@ -85,6 +102,7 @@ export async function sendEarnedNotificationEmail(
   await transporter.sendMail({
     from,
     to,
+    ...(ccList.length > 0 ? { cc: ccList.join(', ') } : {}),
     subject,
     html,
   })

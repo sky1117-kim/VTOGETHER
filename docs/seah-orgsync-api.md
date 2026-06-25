@@ -62,7 +62,7 @@ SEAH_ORGSYNC_PASSWORD=이메일에서_받은_비밀번호
 최소 저장 필드:
 
 - `seah_org_units`: `org_code`, `org_name(org_code_name)`, `parent_org_code`, `is_active`, `synced_at`
-- `seah_employees`: `email`, `name`, `org_code`, `status_code`, `synced_at` (`emp_no` 선택)
+- `seah_employees`: `email`, `name`, `org_code`, `job_title`(직책, 046), `status_code`, `synced_at` (`emp_no` 선택)
 
 ## 4. 트러블슈팅
 

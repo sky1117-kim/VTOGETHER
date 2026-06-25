@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { collectPeerUserIdsOrdered } from '@/lib/peer-select-display'
+import { extractComplimentMessageFromSubmission } from '@/lib/compliment-message'
+import { findHierarchyLeaderEmailsForEmployee } from '@/lib/seah-team-leader'
 import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
 
 /** 이벤트별 인증 방식 (카드/테이블 렌더링용). label·unit은 심사 시 "거리: 34 km" 등 표시에 사용 */
@@ -364,6 +366,50 @@ export async function approveSubmission(submissionId: string): Promise<{
     }
     const uniqueUserIdsToCredit = [...new Set(userIdsToCredit)]
 
+    const isComplimentEvent = event.reward_policy === 'BOTH' && recipientUserIds.length > 0
+    let complimentMessageCtx: ReturnType<typeof extractComplimentMessageFromSubmission> | null = null
+    let senderDisplayName: string | null = null
+    const recipientNameById = new Map<string, string | null>()
+
+    if (isComplimentEvent) {
+      const { data: vMethods } = await supabase
+        .from('event_verification_methods')
+        .select('method_id, method_type, input_style')
+        .eq('event_id', sub.event_id)
+        .is('deleted_at', null)
+
+      complimentMessageCtx = extractComplimentMessageFromSubmission(
+        (sub.verification_data ?? {}) as Record<string, unknown>,
+        vMethods ?? []
+      )
+
+      if (!sub.is_anonymous) {
+        const { data: senderRow } = await supabase
+          .from('users')
+          .select('name')
+          .eq('user_id', sub.user_id)
+          .is('deleted_at', null)
+          .maybeSingle()
+        senderDisplayName = senderRow?.name?.trim() || null
+      }
+
+      if (recipientUserIds.length > 0) {
+        const { data: recipientRows } = await supabase
+          .from('users')
+          .select('user_id, name')
+          .in('user_id', recipientUserIds)
+          .is('deleted_at', null)
+        for (const r of recipientRows ?? []) {
+          recipientNameById.set(r.user_id, r.name ?? null)
+        }
+      }
+    }
+
+    const recipientSummary = recipientUserIds
+      .map((id) => recipientNameById.get(id)?.trim())
+      .filter((name): name is string => !!name)
+      .join(', ')
+
     // isChoiceEvent면 사용자 선택 대기 → 포인트 지급 안 함. 단일 보상만 즉시 지급
     if (isCurrencyReward && !isChoiceEvent) {
       for (const uid of uniqueUserIdsToCredit) {
@@ -419,6 +465,31 @@ export async function approveSubmission(submissionId: string): Promise<{
           .select('transaction_id')
           .single()
         if (txErr) return { success: false, error: '거래 기록 실패' }
+
+        let compliment: Parameters<typeof scheduleEarnedNotificationEmail>[0]['compliment']
+        let ccEmails: string[] | undefined
+        if (isComplimentEvent && complimentMessageCtx) {
+          if (isRecipient) {
+            const leaderCcs = u.email ? await findHierarchyLeaderEmailsForEmployee(u.email) : []
+            compliment = {
+              eventTitle: event.title ?? '칭찬 챌린지',
+              message: complimentMessageCtx.message,
+              organizationName: complimentMessageCtx.organization_name,
+              senderDisplayName,
+              audience: 'recipient',
+            }
+            ccEmails = leaderCcs.length > 0 ? leaderCcs : undefined
+          } else if (uid === sub.user_id) {
+            compliment = {
+              eventTitle: event.title ?? '칭찬 챌린지',
+              message: complimentMessageCtx.message,
+              organizationName: complimentMessageCtx.organization_name,
+              recipientSummary: recipientSummary || null,
+              audience: 'sender',
+            }
+          }
+        }
+
         scheduleEarnedNotificationEmail({
           toEmail: u.email,
           userName: u.name,
@@ -426,6 +497,8 @@ export async function approveSubmission(submissionId: string): Promise<{
           amount: rewardAmount,
           currencyType: primaryCurrency,
           transactionId: txRow?.transaction_id,
+          compliment,
+          ccEmails,
         })
       }
     }
@@ -739,7 +812,7 @@ export async function backfillApprovedComplimentRecipientsByTeam(
     const { data: sub, error: subError } = await supabase
       .from('event_submissions')
       .select(
-        'submission_id, event_id, user_id, peer_user_id, verification_data, status, reward_received, reward_type, reward_amount'
+        'submission_id, event_id, user_id, peer_user_id, verification_data, is_anonymous, status, reward_received, reward_type, reward_amount'
       )
       .eq('submission_id', submissionId)
       .is('deleted_at', null)
@@ -798,6 +871,25 @@ export async function backfillApprovedComplimentRecipientsByTeam(
     const rewardType = sub.reward_type === 'V_CREDIT' || sub.reward_type === 'V_MEDAL' ? sub.reward_type : null
     const rewardAmount = Number(sub.reward_amount ?? 0)
     let totalGranted = 0
+
+    const { data: allVMethods } = await supabase
+      .from('event_verification_methods')
+      .select('method_id, method_type, input_style')
+      .eq('event_id', sub.event_id)
+      .is('deleted_at', null)
+    const complimentMessageCtx = extractComplimentMessageFromSubmission(vd, allVMethods ?? [])
+
+    let senderDisplayName: string | null = null
+    if (!sub.is_anonymous) {
+      const { data: senderRow } = await supabase
+        .from('users')
+        .select('name')
+        .eq('user_id', sub.user_id)
+        .is('deleted_at', null)
+        .maybeSingle()
+      senderDisplayName = senderRow?.name?.trim() || null
+    }
+
     if (sub.reward_received && rewardType && rewardAmount > 0) {
       for (const target of targets) {
         // 이미 동일 제출건으로 사후 반영 수신 적립이 있으면 건너뜁니다.
@@ -853,6 +945,8 @@ export async function backfillApprovedComplimentRecipientsByTeam(
           .select('transaction_id')
           .single()
         if (txErr) return { success: false, error: `거래 기록 실패: ${txErr.message}` }
+
+        const leaderCcs = target.email ? await findHierarchyLeaderEmailsForEmployee(target.email) : []
         scheduleEarnedNotificationEmail({
           toEmail: target.email,
           userName: target.name,
@@ -860,6 +954,14 @@ export async function backfillApprovedComplimentRecipientsByTeam(
           amount: rewardAmount,
           currencyType: rewardType,
           transactionId: txRow?.transaction_id,
+          compliment: {
+            eventTitle: event.title ?? '칭찬 챌린지',
+            message: complimentMessageCtx.message,
+            organizationName: complimentMessageCtx.organization_name ?? (organizationName || null),
+            senderDisplayName,
+            audience: 'recipient',
+          },
+          ccEmails: leaderCcs.length > 0 ? leaderCcs : undefined,
         })
         totalGranted += rewardAmount
       }

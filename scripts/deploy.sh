@@ -84,6 +84,10 @@ echo "✓ 빌드 시 NEXT_PUBLIC_* 주입 (로그인·클라이언트 번들)"
 if [ -n "$SEAH_ORGSYNC_USER_API_URL" ] && [ -n "$SEAH_ORGSYNC_USERNAME" ] && [ -n "$SEAH_ORGSYNC_PASSWORD" ]; then
   echo "✓ 세아웍스 API 환경 변수 포함"
   ENV_VARS="$ENV_VARS,SEAH_ORGSYNC_USER_API_URL=$SEAH_ORGSYNC_USER_API_URL,SEAH_ORGSYNC_ORG_API_URL=$SEAH_ORGSYNC_ORG_API_URL,SEAH_ORGSYNC_USERNAME=$SEAH_ORGSYNC_USERNAME,SEAH_ORGSYNC_PASSWORD=$SEAH_ORGSYNC_PASSWORD"
+  if [ -n "$SEAH_ORGSYNC_CRON_SECRET" ]; then
+    echo "✓ SEAH_ORGSYNC_CRON_SECRET 포함 (크론 엔드포인트)"
+    ENV_VARS="$ENV_VARS,SEAH_ORGSYNC_CRON_SECRET=$SEAH_ORGSYNC_CRON_SECRET"
+  fi
 fi
 
 # 구글 챗 에러 알림 (선택) — .env에 있으면 배포에 포함 (.env.local 은 deploy 시 로드되지 않음)
@@ -133,6 +137,18 @@ fi
 echo ""
 echo "✅ 배포 완료!"
 echo ""
+
+# 배포 직후 세아웍스 스냅샷 동기화 (API 키가 있을 때만)
+if [ -n "$SEAH_ORGSYNC_USER_API_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+  echo "🔄 세아웍스 인사 스냅샷 동기화 중..."
+  if npm run sync:seah; then
+    echo "✓ 세아웍스 동기화 완료"
+  else
+    echo "⚠️  세아웍스 동기화 실패 (배포는 완료됨). npm run sync:seah 로 수동 재시도하세요."
+  fi
+  echo ""
+fi
+
 echo "📍 접속 URL: $APP_URL"
 echo "   (Cloud Run 콘솔에서 실제 URL 확인: https://console.cloud.google.com/run?project=$PROJECT)"
 echo ""

@@ -4,7 +4,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## ⚠️ **당신이 할 일** (필수)
 
-1. **Supabase SQL 실행**: `docs/migrations/` 안의 마이그레이션을 **순서대로** SQL Editor에서 실행 (006-1 → 006 → 011 등). 건강 챌린지 사용 시 **`033-health-challenge.sql`** · **`034-health-challenge-event-id.sql`** 도 실행하고, 세아웍스 스냅샷 동기화 사용 시 **`036-seah-org-sync-tables.sql`** 도 실행하세요.
+1. **Supabase SQL 실행**: `docs/migrations/` 안의 마이그레이션을 **순서대로** SQL Editor에서 실행 (006-1 → 006 → 011 등). 건강 챌린지 사용 시 **`033-health-challenge.sql`** · **`034-health-challenge-event-id.sql`** 도 실행하고, 세아웍스 스냅샷 동기화 사용 시 **`036-seah-org-sync-tables.sql`** · 팀장 CC용 **`046-seah-employees-job-title.sql`** 도 실행하세요.
 2. **최초 관리자 지정**: Supabase Table Editor에서 `users` 테이블 → 한 명의 `is_admin`을 **true**로 설정.
 3. **.env**: `SUPABASE_SERVICE_ROLE_KEY` 등 필요한 키 설정.
 
@@ -35,7 +35,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - **최근 접속 사용자**: `/admin/recent-users` — 마지막 접속 시각 기준 사용자 목록
 - **계정 삭제**: `/my` — 본인 탈퇴 버튼, `/admin` — 관리자 계정 정리(퇴사자/테스트 계정 삭제)
 - **스켈레톤 UI**: 메인·마이·기부·관리자 페이지 로딩 시 콘텐츠 자리 표시용 스켈레톤 표시
-- **세아웍스 인사 연동(배치형)**: `seah_org_units`(조직) + `seah_employees`(직원) 스냅샷 테이블로 분리 저장 후 서비스에서 필요 시 조인 사용. 외부 API는 `/api/cron/seah-orgsync`를 하루 1회 호출해 동기화 (`docs/seah-orgsync-api.md` 참고)
+- **세아웍스 인사 연동(배치형)**: `seah_org_units`(조직) + `seah_employees`(직원) 스냅샷 테이블로 분리 저장. **`npm run sync:seah`** 로 수동 동기화, **`npm run deploy`** 직후 자동 동기화, `/api/cron/seah-orgsync` 크론(하루 1회) 지원 (`docs/seah-orgsync-api.md` 참고)
 - **Google Chat 에러 알림**: 서버/클라이언트 에러 발생 시 에러 전용 Chat 스페이스로 알림 전송 (`GOOGLE_CHAT_WEBHOOK_URL`)
 - **Google Chat 승인 대기 알림**: 이벤트·건강 챌린지 인증이 제출되면 관리자 전용 Chat 스페이스로 승인 대기 알림 전송 (`GOOGLE_CHAT_ADMIN_WEBHOOK_URL`, `/admin/verifications`)
 - **적립 알림 이메일**: 헤더 벨과 동일한 `EARNED` 적립 시 HTML 메일 발송 (SMTP 설정 시, 바로가기: Cloud Run 운영 URL) (2026.05.19)
