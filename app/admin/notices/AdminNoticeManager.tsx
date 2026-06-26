@@ -111,7 +111,8 @@ export function AdminNoticeManager({ notices: initial }: { notices: NoticeItem[]
             <textarea placeholder="내용 (선택)" value={form.body} onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))} rows={3} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none" />
             {form.image_url && (
               <div className="relative overflow-hidden rounded-lg bg-gray-950" style={{ maxHeight: '200px' }}>
-                <Image src={form.image_url} alt="미리보기" width={400} height={300} className="h-auto w-full object-contain" style={{ display: 'block' }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={form.image_url} alt="미리보기" className="h-auto w-full object-contain" style={{ display: 'block', maxHeight: '200px' }} />
                 <button type="button" onClick={() => setForm((p) => ({ ...p, image_url: '' }))} className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white text-xs">✕</button>
               </div>
             )}

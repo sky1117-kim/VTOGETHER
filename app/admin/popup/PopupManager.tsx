@@ -178,7 +178,8 @@ export function PopupManager({ popups: initial }: { popups: PopupItem[] }) {
             <p className="mb-1.5 text-sm font-medium text-gray-700">이미지</p>
             {form.image_url && (
               <div className="relative mb-2 overflow-hidden rounded-xl bg-gray-950" style={{ maxHeight: '280px' }}>
-                <Image src={form.image_url} alt="미리보기" width={600} height={400} className="h-auto w-full object-contain" style={{ display: 'block' }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={form.image_url} alt="미리보기" className="h-auto w-full object-contain" style={{ display: 'block', maxHeight: '280px' }} />
                 {imageUploading && <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-sm text-white">업로드 중...</div>}
                 <button type="button" onClick={() => setForm((p) => ({ ...p, image_url: '' }))} className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70">✕</button>
               </div>
