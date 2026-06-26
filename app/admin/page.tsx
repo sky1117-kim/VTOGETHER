@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Gift, Heart, ClipboardList, Target, ChevronRight, Sparkles, Settings2, CircleDollarSign } from 'lucide-react'
+import { Gift, Heart, ClipboardList, Target, ChevronRight, Sparkles, Settings2, CircleDollarSign, Megaphone } from 'lucide-react'
 import { getCurrentUser } from '@/api/actions/auth'
 import { getUsersForAdmin, getSiteContentForAdmin, getAdminDashboardStats, getDonationAmountsByPeriod, getEventEarnedStats, getMatchingAmountByTarget } from '@/api/actions/admin'
 import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
@@ -509,6 +509,28 @@ export default async function AdminPage() {
             </div>
             <span className="mt-3 text-lg font-bold text-gray-900">지급/적립 내역</span>
             <span className="mt-1 text-sm text-gray-500">수동 지급 + 직원 거래 내역 통합 조회</span>
+            <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
+          </Link>
+          <Link
+            href="/admin/notices"
+            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+              <Megaphone className="size-5" />
+            </div>
+            <span className="mt-3 text-lg font-bold text-gray-900">회사 소식</span>
+            <span className="mt-1 text-sm text-gray-500">공지사항 등록 · 수정 · 삭제</span>
+            <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
+          </Link>
+          <Link
+            href="/admin/popup"
+            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-green-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 btn-press"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
+              <Sparkles className="size-5" />
+            </div>
+            <span className="mt-3 text-lg font-bold text-gray-900">팝업 공지</span>
+            <span className="mt-1 text-sm text-gray-500">메인 팝업 이미지·문구·활성화 설정</span>
             <span className="mt-3 text-sm font-medium text-green-600">이동 →</span>
           </Link>
         </div>

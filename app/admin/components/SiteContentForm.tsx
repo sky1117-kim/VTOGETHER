@@ -7,7 +7,7 @@ interface SiteContentFormProps {
   initial: Record<string, string>
 }
 
-const KEYS: { key: SiteContentKey; label: string; placeholder: string }[] = [
+const HERO_KEYS: { key: SiteContentKey; label: string; placeholder: string }[] = [
   { key: 'hero_season_badge', label: '시즌 뱃지', placeholder: '예: 2026 Season 1' },
   { key: 'hero_title', label: '메인 타이틀 (줄바꿈: \\n)', placeholder: '나의 활동이\\n세상의 기회가 되도록' },
   { key: 'hero_subtitle', label: '부제목 (줄바꿈: \\n)', placeholder: '획득한 V.Credit로 기부하고\\n나의 ESG Level을 올려보세요!' },
@@ -33,7 +33,7 @@ export function SiteContentForm({ initial }: SiteContentFormProps) {
 
   return (
     <div className="space-y-4">
-      {KEYS.map(({ key, label, placeholder }) => (
+      {HERO_KEYS.map(({ key, label, placeholder }) => (
         <div key={key}>
           <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
           <div className="flex gap-2">
@@ -56,9 +56,7 @@ export function SiteContentForm({ initial }: SiteContentFormProps) {
         </div>
       ))}
       {message && (
-        <p
-          className={`text-sm ${message.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}
-        >
+        <p className={`text-sm ${message.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
           {message.text}
         </p>
       )}

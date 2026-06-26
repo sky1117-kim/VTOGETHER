@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Store, User } from 'lucide-react'
+import { Home, Store, User, Megaphone } from 'lucide-react'
 
 const navigationItems = [
   { href: '/', label: '홈', icon: Home },
+  { href: '/notices', label: '소식', icon: Megaphone },
   { href: '/shop', label: '상점', icon: Store },
   { href: '/my', label: '마이페이지', icon: User },
 ]
@@ -21,7 +22,7 @@ export function Navigation() {
           const Icon = item.icon
           // 짧은 라벨: 좁은 기기에서 줄바꿈·넘침 방지
           const shortLabel =
-            item.href === '/my' ? '마이' : item.href === '/shop' ? '상점' : item.label
+            item.href === '/my' ? '마이' : item.href === '/shop' ? '상점' : item.href === '/notices' ? '소식' : item.label
           return (
             <Link
               key={item.href}

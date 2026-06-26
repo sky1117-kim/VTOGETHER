@@ -12,6 +12,8 @@ import {
   CircleDollarSign,
   Store,
   ShoppingBag,
+  Megaphone,
+  Sparkles,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -23,6 +25,8 @@ const NAV_ITEMS = [
   { href: '/admin/verifications', label: '인증 심사', icon: ClipboardCheck, badgeKey: 'verification' as const },
   { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송', icon: Package, badgeKey: null },
   { href: '/admin/donation-targets', label: '기부처', icon: Heart, badgeKey: null },
+  { href: '/admin/notices', label: '회사 소식', icon: Megaphone, badgeKey: null },
+  { href: '/admin/popup', label: '팝업 공지', icon: Sparkles, badgeKey: null },
   { href: '/admin/recent-users', label: '최근 접속 사용자', icon: Users, badgeKey: null },
 ] as const
 

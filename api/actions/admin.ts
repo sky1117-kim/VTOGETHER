@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getTotalDonationStats } from '@/api/queries/donation'
 import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
 
-export type SiteContentKey = 'hero_season_badge' | 'hero_title' | 'hero_subtitle'
+export type SiteContentKey = 'hero_season_badge' | 'hero_title' | 'hero_subtitle' | 'popup_enabled' | 'popup_image_url' | 'popup_title' | 'popup_text' | 'popup_notice_id'
 
 export type UserRow = {
   user_id: string
@@ -1349,10 +1349,89 @@ export async function updateSiteContent(
       .from('site_content')
       .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     if (error) return { success: false, error: error.message }
+
+    // 팝업 필드 저장 시 → 소식 탭에도 자동 upsert
+    if (key === 'popup_title' || key === 'popup_text' || key === 'popup_image_url') {
+      await syncPopupToNotice(supabase)
+    }
+
     revalidatePath('/')
+    revalidatePath('/notices')
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '저장 실패' }
+  }
+}
+
+export async function syncPopupToNoticeManual(): Promise<{ error: string | null }> {
+  try {
+    const supabase = createAdminClient()
+    await syncPopupToNotice(supabase)
+    revalidatePath('/notices')
+    return { error: null }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : '동기화 실패' }
+  }
+}
+
+async function syncPopupToNotice(supabase: ReturnType<typeof createAdminClient>) {
+  try {
+    const { data: rows } = await supabase
+      .from('site_content')
+      .select('key, value')
+      .in('key', ['popup_title', 'popup_text', 'popup_image_url', 'popup_notice_id'])
+    const map: Record<string, string> = {}
+    for (const r of rows ?? []) map[r.key] = r.value ?? ''
+
+    const title = map['popup_title']
+    if (!title) return
+
+    const noticeData = {
+      title,
+      body: map['popup_text'] ?? '',
+      image_url: map['popup_image_url'] || null,
+      is_published: true,
+      updated_at: new Date().toISOString(),
+    }
+
+    const existingId = map['popup_notice_id']
+    if (existingId) {
+      await supabase.from('notices').update(noticeData).eq('id', existingId)
+    } else {
+      const { data } = await supabase.from('notices').insert(noticeData).select('id').single()
+      if (data?.id) {
+        await supabase
+          .from('site_content')
+          .upsert({ key: 'popup_notice_id', value: data.id, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+      }
+    }
+  } catch {
+    // 소식 연동 실패는 팝업 저장을 막지 않음
+  }
+}
+
+export async function uploadPopupImage(
+  formData: FormData
+): Promise<{ url: string | null; error: string | null }> {
+  const file = formData.get('file') as File | null
+  if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
+  if (file.size > 5 * 1024 * 1024) return { url: null, error: '파일은 5MB 이하여야 합니다.' }
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+    return { url: null, error: '이미지 파일(jpg, png, webp, gif)만 업로드할 수 있습니다.' }
+  }
+  try {
+    const supabase = createAdminClient()
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `popup/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { data, error } = await supabase.storage.from('event-verification').upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+    if (error) return { url: null, error: error.message }
+    const { data: urlData } = supabase.storage.from('event-verification').getPublicUrl(data.path)
+    return { url: urlData.publicUrl, error: null }
+  } catch (e) {
+    return { url: null, error: e instanceof Error ? e.message : '업로드 실패' }
   }
 }
 

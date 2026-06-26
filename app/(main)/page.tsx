@@ -2,6 +2,7 @@ import { getCurrentUser } from '@/api/actions/auth'
 import { getMatchingAmountByTarget } from '@/api/actions/admin'
 import { getTotalDonationStats, getDonationTargets } from '@/api/queries/donation'
 import { getSiteContent } from '@/api/queries/siteContent'
+import { getPopupNotices } from '@/api/queries/notices'
 import {
   getPersonalRankingQuarterly,
   getTeamRankingQuarterly,
@@ -14,6 +15,7 @@ import {
 } from '@/api/queries/health-challenges'
 import { DashboardSection } from '@/components/main/DashboardSection'
 import { DonationSection } from '@/components/main/DonationSection'
+import { PopupNotice } from '@/components/main/PopupNotice'
 import { CampaignsSection, type HealthChallengeBundle } from '@/components/main/CampaignsSection'
 import { SalaryDonationSection } from '@/components/main/SalaryDonationSection'
 import { HonorsSection } from '@/components/main/HonorsSection'
@@ -32,9 +34,10 @@ export default async function HomePage({ searchParams }: PageProps) {
   let teamRank: Awaited<ReturnType<typeof getTeamRankingQuarterly>> = []
   let events: Awaited<ReturnType<typeof getEventsWithRoundsForPublic>> = []
   let healthChallengesByEventId: Record<string, HealthChallengeBundle> = {}
+  let popupNotices: Awaited<ReturnType<typeof getPopupNotices>> = []
 
   try {
-    const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes, matchingByTarget] = await Promise.all([
+    const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes, matchingByTarget, popupRes] = await Promise.all([
       getTotalDonationStats(),
       getDonationTargets(),
       getSiteContent(),
@@ -42,6 +45,7 @@ export default async function HomePage({ searchParams }: PageProps) {
       getTeamRankingQuarterly(10),
       getEventsWithRoundsForPublic(user?.id ?? null),
       getMatchingAmountByTarget(),
+      getPopupNotices(user?.id ?? null),
     ])
     const totalMatching = Object.values(matchingByTarget).reduce((sum, v) => sum + v, 0)
     stats = { ...statsRes, totalCurrent: statsRes.totalCurrent + totalMatching }
@@ -57,6 +61,7 @@ export default async function HomePage({ searchParams }: PageProps) {
     personalRank = personalRes
     teamRank = teamRes
     events = eventsRes ?? []
+    popupNotices = popupRes
   } catch {
     // DB 미설정 시 기본값 유지
   }
@@ -90,6 +95,9 @@ export default async function HomePage({ searchParams }: PageProps) {
 
   return (
     <div className="mx-auto min-w-0 max-w-7xl px-3 pb-12 pt-0 sm:px-6 lg:px-8">
+      {popupNotices.length > 0 && (
+        <PopupNotice notices={popupNotices} userId={user?.id ?? null} />
+      )}
       {showAdminDenied && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           관리자 페이지는 관리자 계정으로만 접근할 수 있습니다. 관리자 권한이 필요하면 기존 관리자에게 문의하세요.
