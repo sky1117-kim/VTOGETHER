@@ -119,7 +119,9 @@ export async function deleteNoticeComment(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.' }
 
-  const { error } = await supabase
+  // admin client로 RLS 우회, user_id 조건으로 소유자 검증 유지
+  const admin = createAdminClient()
+  const { error } = await admin
     .from('notice_comments')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', commentId)

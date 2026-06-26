@@ -41,7 +41,6 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
   const [submitting, setSubmitting] = useState(false)
   const [commentCountMap, setCommentCountMap] = useState<Record<string, number>>({})
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null)
-  const [showLikedUsers, setShowLikedUsers] = useState(false)
 
   const notice = notices[idx]
   const total = notices.length
@@ -224,22 +223,6 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
                 </div>
 
                 {/* 좋아요한 사람 미리보기 */}
-                {notice.liked_users && notice.liked_users.length > 0 && (
-                  <button
-                    onClick={() => setShowLikedUsers(true)}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-50 bg-rose-50/60 px-3 py-2 text-[11px] font-semibold text-rose-400 transition hover:bg-rose-100/60"
-                  >
-                    <div className="flex -space-x-1">
-                      {notice.liked_users.slice(0, 4).map((u) => (
-                        <div key={u.user_id} className="flex h-5 w-5 items-center justify-center rounded-full border border-white bg-gradient-to-br from-rose-400 to-pink-500 text-[8px] font-bold text-white">
-                          {u.name[0]}
-                        </div>
-                      ))}
-                    </div>
-                    <span>{notice.liked_users.slice(0,2).map(u=>u.name).join(', ')}{notice.liked_users.length > 2 ? ` 외 ${notice.liked_users.length-2}명` : ''}이 좋아합니다</span>
-                  </button>
-                )}
-
                 {/* 댓글 카드 */}
                 <button
                   onClick={openCommentPanel}
@@ -396,27 +379,6 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
           </div>
         </div>
 
-        {/* 좋아요한 사람 전체 모달 */}
-        {showLikedUsers && notice.liked_users && notice.liked_users.length > 0 && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[1.75rem] bg-black/40 backdrop-blur-sm" onClick={() => setShowLikedUsers(false)}>
-            <div className="w-64 rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="mb-3 flex items-center justify-between">
-                <h4 className="text-sm font-extrabold text-slate-800">❤️ 좋아요 {notice.liked_users.length}명</h4>
-                <button onClick={() => setShowLikedUsers(false)} className="rounded-full p-1 text-slate-400 hover:text-slate-600"><X className="size-4" /></button>
-              </div>
-              <div className="max-h-56 overflow-y-auto space-y-2" style={{ scrollbarWidth: 'thin' }}>
-                {notice.liked_users.map((u) => (
-                  <div key={u.user_id} className="flex items-center gap-2.5">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-xs font-bold text-white">
-                      {u.name[0]}
-                    </div>
-                    <span className="text-sm font-semibold text-slate-700">{u.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

@@ -41,6 +41,7 @@ function NoticeCard({ notice, liked, onOpen, onLike }: {
 }) {
   const tag = tagStyle(notice)
   const likeCount = displayLikeCount(notice, liked)
+  const [showLikedUsers, setShowLikedUsers] = useState(false)
 
   return (
     <article
@@ -99,9 +100,12 @@ function NoticeCard({ notice, liked, onOpen, onLike }: {
                 <span className="tabular-nums">{notice.comment_count ?? 0}</span>
               </div>
             </div>
-            {/* 좋아요한 사람 아바타 */}
+            {/* 좋아요한 사람 아바타 - 클릭 시 명단 모달 */}
             {notice.liked_users.length > 0 && (
-              <div className="flex items-center">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowLikedUsers(true) }}
+                className="flex items-center gap-1 transition hover:opacity-80"
+              >
                 <div className="flex -space-x-1.5">
                   {notice.liked_users.slice(0, 5).map((u) => (
                     <div
@@ -114,9 +118,9 @@ function NoticeCard({ notice, liked, onOpen, onLike }: {
                   ))}
                 </div>
                 {notice.liked_users.length > 5 && (
-                  <span className="ml-1.5 text-[10px] text-slate-400">+{notice.liked_users.length - 5}</span>
+                  <span className="ml-1 text-[10px] text-slate-400">+{notice.liked_users.length - 5}</span>
                 )}
-              </div>
+              </button>
             )}
           </div>
           {notice.liked_users.length > 0 && (
@@ -124,6 +128,33 @@ function NoticeCard({ notice, liked, onOpen, onLike }: {
               {notice.liked_users.slice(0, 3).map((u) => u.name).join(', ')}
               {notice.liked_users.length > 3 ? ` 외 ${notice.liked_users.length - 3}명` : ''}이 좋아합니다
             </p>
+          )}
+
+          {/* 좋아요 명단 모달 */}
+          {showLikedUsers && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+              onClick={(e) => { e.stopPropagation(); setShowLikedUsers(false) }}
+            >
+              <div className="w-64 rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-sm font-extrabold text-slate-800">❤️ 좋아요 {notice.liked_users.length}명</h4>
+                  <button onClick={() => setShowLikedUsers(false)} className="rounded-full p-1 text-slate-400 hover:text-slate-600">
+                    <X className="size-4" />
+                  </button>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-2" style={{ scrollbarWidth: 'thin' }}>
+                  {notice.liked_users.map((u) => (
+                    <div key={u.user_id} className="flex items-center gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-xs font-bold text-white">
+                        {u.name[0]}
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">{u.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
