@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import Image from 'next/image'
 import { X } from 'lucide-react'
 
 interface ImageLightboxProps {
@@ -34,11 +33,10 @@ export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
         className="relative max-h-[90vh] max-w-[90vw]"
         onClick={(e) => e.stopPropagation()}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={src}
           alt={alt}
-          width={1200}
-          height={900}
           className="max-h-[90vh] w-auto rounded-xl object-contain shadow-2xl"
           style={{ display: 'block' }}
         />

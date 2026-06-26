@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { X, Heart, MessageCircle, ChevronLeft, ChevronRight, ArrowLeft, Send } from 'lucide-react'
 import confetti from 'canvas-confetti'
@@ -132,10 +131,12 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
         {/* ── 좌: 이미지 ── */}
         <div className="relative shrink-0 overflow-hidden" style={{ width: '62%' }}>
           {notice.image_url ? (
-            <>
-              <Image src={notice.image_url} alt="" fill aria-hidden className="object-cover scale-110 blur-2xl brightness-75 saturate-150" />
-              <Image src={notice.image_url} alt={notice.title} fill className="object-contain" style={{ zIndex: 10 }} priority />
-            </>
+            <div className="absolute inset-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={notice.image_url} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover scale-110 blur-2xl brightness-75 saturate-150" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={notice.image_url} alt={notice.title} className="absolute inset-0 h-full w-full object-contain" style={{ zIndex: 10 }} />
+            </div>
           ) : (
             <div className="flex h-full min-h-[600px] w-full items-center justify-center bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600">
               <span className="text-9xl drop-shadow-xl">🎉</span>

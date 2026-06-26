@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useTransition, useEffect } from 'react'
-import Image from 'next/image'
 import { Heart, MessageCircle, Search, X, Send, Trash2, Megaphone } from 'lucide-react'
 import { toggleNoticeLike, addNoticeComment, deleteNoticeComment, fetchNoticeComments } from '@/api/actions/notices'
 import type { NoticeRow, NoticeComment } from '@/api/queries/notices'
@@ -52,8 +51,10 @@ function NoticeCard({ notice, liked, onOpen, onLike }: {
       <div className="relative h-64 overflow-hidden bg-slate-100 shrink-0">
         {notice.image_url ? (
           <>
-            <Image src={notice.image_url} alt="" fill aria-hidden className="object-cover scale-110 blur-2xl brightness-75 saturate-150" />
-            <Image src={notice.image_url} alt={notice.title} fill className="object-contain" style={{ zIndex: 10 }} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={notice.image_url} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover scale-110 blur-2xl brightness-75 saturate-150" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={notice.image_url} alt={notice.title} className="absolute inset-0 h-full w-full object-contain" style={{ zIndex: 10 }} />
           </>
         ) : (
           <div className="flex h-full items-center justify-center bg-gradient-to-br from-emerald-400 via-green-500 to-teal-600">
@@ -166,8 +167,10 @@ function NoticeDetailModal({ notice, currentUserId, liked, likeCount, onClose, o
           >
             {notice.image_url ? (
               <>
-                <Image src={notice.image_url} alt="" fill aria-hidden className="object-cover scale-110 blur-2xl brightness-75 saturate-150" />
-                <Image src={notice.image_url} alt={notice.title} fill className="object-contain" style={{ zIndex: 10 }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={notice.image_url} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover scale-110 blur-2xl brightness-75 saturate-150" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={notice.image_url} alt={notice.title} className="absolute inset-0 h-full w-full object-contain" style={{ zIndex: 10 }} />
               </>
             ) : (
               <div className="flex h-full items-center justify-center bg-gradient-to-br from-emerald-400 to-teal-600">
