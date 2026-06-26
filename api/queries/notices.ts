@@ -91,7 +91,7 @@ export async function getPopupNotices(userId?: string | null): Promise<NoticeRow
 
   const ids = notices.map((n) => n.id)
   const [likesRes, commentsRes, userLikesRes] = await Promise.all([
-    supabase.from('notice_likes').select('notice_id').in('notice_id', ids),
+    supabase.from('notice_likes').select('notice_id, user_id, users(name)').in('notice_id', ids),
     supabase.from('notice_comments').select('notice_id').in('notice_id', ids).is('deleted_at', null),
     userId
       ? supabase.from('notice_likes').select('notice_id').in('notice_id', ids).eq('user_id', userId)
@@ -99,9 +99,15 @@ export async function getPopupNotices(userId?: string | null): Promise<NoticeRow
   ])
 
   const likeCountMap: Record<string, number> = {}
+  const likedUsersMap: Record<string, { user_id: string; name: string }[]> = {}
   const commentCountMap: Record<string, number> = {}
   const userLikedSet = new Set<string>()
-  for (const row of likesRes.data ?? []) likeCountMap[row.notice_id] = (likeCountMap[row.notice_id] ?? 0) + 1
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (likesRes.data ?? []) as any[]) {
+    likeCountMap[row.notice_id] = (likeCountMap[row.notice_id] ?? 0) + 1
+    if (!likedUsersMap[row.notice_id]) likedUsersMap[row.notice_id] = []
+    likedUsersMap[row.notice_id].push({ user_id: row.user_id, name: row.users?.name ?? '' })
+  }
   for (const row of commentsRes.data ?? []) commentCountMap[row.notice_id] = (commentCountMap[row.notice_id] ?? 0) + 1
   for (const row of (userLikesRes as { data: { notice_id: string }[] | null }).data ?? []) userLikedSet.add(row.notice_id)
 
@@ -112,7 +118,7 @@ export async function getPopupNotices(userId?: string | null): Promise<NoticeRow
     like_count: likeCountMap[n.id] ?? 0,
     comment_count: commentCountMap[n.id] ?? 0,
     user_liked: userLikedSet.has(n.id),
-    liked_users: [],
+    liked_users: likedUsersMap[n.id] ?? [],
   }))
 }
 
