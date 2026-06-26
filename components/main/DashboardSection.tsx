@@ -121,7 +121,7 @@ export function DashboardSection({
       </div>
 
       {/* My Status 카드: 컴팩트 배치 (헤더 · 포인트 · 등급) */}
-      <div data-my-status-card className="card-hover w-full max-w-sm overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+      <div data-my-status-card className="card-hover w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
         {/* Header: 등급별 그라데이션 + 아바타·이름·부서·이메일 */}
         <div className={`relative ${headerStyle.gradient} px-4 py-4`}>
           <div className="relative flex items-center justify-between gap-3">

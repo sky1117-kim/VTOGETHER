@@ -49,7 +49,7 @@ function NoticeCard({ notice, liked, onOpen, onLike }: {
       className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl flex flex-col"
     >
       {/* 이미지 */}
-      <div className="relative h-64 overflow-hidden bg-slate-100 shrink-0">
+      <div className="relative h-48 overflow-hidden bg-slate-100 shrink-0 sm:h-64">
         {notice.image_url ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -213,7 +213,7 @@ function NoticeDetailModal({ notice, currentUserId, liked, likeCount, onClose, o
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-2 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <div
@@ -323,7 +323,7 @@ function NoticeDetailModal({ notice, currentUserId, liked, likeCount, onClose, o
                         {currentUserId === c.user_id && (
                           <button
                             onClick={() => handleDeleteComment(c.id)}
-                            className="absolute right-2.5 top-2.5 opacity-0 transition group-hover/c:opacity-100 text-slate-300 hover:text-rose-400"
+                            className="absolute right-2.5 top-2.5 opacity-100 transition sm:opacity-0 sm:group-hover/c:opacity-100 text-slate-300 hover:text-rose-400"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
@@ -350,7 +350,7 @@ function NoticeDetailModal({ notice, currentUserId, liked, likeCount, onClose, o
                           {currentUserId === r.user_id && (
                             <button
                               onClick={() => handleDeleteComment(r.id)}
-                              className="absolute right-2 top-2 opacity-0 transition group-hover/r:opacity-100 text-slate-300 hover:text-rose-400"
+                              className="absolute right-2 top-2 opacity-100 transition sm:opacity-0 sm:group-hover/r:opacity-100 text-slate-300 hover:text-rose-400"
                             >
                               <Trash2 className="size-3" />
                             </button>

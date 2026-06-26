@@ -132,13 +132,13 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
       <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={dismiss} />
 
       <div
-        className={`relative flex w-full overflow-hidden rounded-[1.75rem] bg-white shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] transition-all duration-300 ${
+        className={`relative flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] transition-all duration-300 sm:flex-row sm:rounded-[1.75rem] ${
           animating ? 'scale-100 translate-y-0' : 'scale-95 translate-y-6'
         }`}
-        style={{ maxWidth: '1000px', minHeight: '760px', maxHeight: '90vh' }}
+        style={{ maxWidth: '1000px', height: '90vh', maxHeight: '900px' }}
       >
         {/* ── 좌: 이미지 ── */}
-        <div className="relative shrink-0 overflow-hidden" style={{ width: '62%' }}>
+        <div className="relative h-44 w-full shrink-0 overflow-hidden sm:h-auto sm:w-[62%]">
           {notice.image_url ? (
             <div className="absolute inset-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -147,8 +147,8 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
               <img src={notice.image_url} alt={notice.title} className="absolute inset-0 h-full w-full object-contain" style={{ zIndex: 10 }} />
             </div>
           ) : (
-            <div className="flex h-full min-h-[600px] w-full items-center justify-center bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600">
-              <span className="text-9xl drop-shadow-xl">🎉</span>
+            <div className="flex h-full min-h-[176px] w-full items-center justify-center bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600 sm:min-h-[600px]">
+              <span className="text-7xl drop-shadow-xl sm:text-9xl">🎉</span>
             </div>
           )}
 
@@ -175,7 +175,7 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
           <div className="h-1 w-full shrink-0 bg-gradient-to-r from-amber-400 via-orange-400 to-pink-500" />
 
           {/* ── 메인 패널 ── */}
-          <div className={`absolute inset-0 flex flex-col justify-between px-7 pb-8 pt-10 transition-all duration-300 ${showComments ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+          <div className={`absolute inset-0 flex flex-col justify-between overflow-y-auto px-4 pb-5 pt-6 transition-all duration-300 sm:px-7 sm:pb-8 sm:pt-10 ${showComments ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
 
             {/* 상단: X */}
             <div>
@@ -185,18 +185,18 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
                 </button>
               </div>
 
-              {/* 제목 — 큰 여백으로 시각적 중심 */}
-              <div className="mt-14 mb-6">
-                <h3 className="text-[1.55rem] font-black leading-tight tracking-tight text-slate-900 line-clamp-3">
+              {/* 제목 */}
+              <div className="mb-3 mt-3 sm:mb-6 sm:mt-14">
+                <h3 className="line-clamp-3 text-xl font-black leading-tight tracking-tight text-slate-900 sm:text-[1.55rem]">
                   {notice.title}
                 </h3>
                 {notice.body && (
-                  <p className="mt-2.5 line-clamp-3 text-xs leading-relaxed text-slate-400 font-normal">{notice.body}</p>
+                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-400 font-normal sm:mt-2.5 sm:line-clamp-3">{notice.body}</p>
                 )}
               </div>
 
               {/* 카드 스택 */}
-              <div className="space-y-3 pt-6">
+              <div className="space-y-2.5 pt-3 sm:space-y-3 sm:pt-6">
                 {/* 좋아요 카드 */}
                 <div className="relative">
                   {!liked && (
@@ -208,7 +208,7 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
                   <button
                     onClick={handleLike}
                     disabled={!userId || likePending}
-                    className={`w-full flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3.5 transition-all active:scale-[0.99] disabled:opacity-40 ${
+                    className={`w-full flex flex-col items-center justify-center gap-1.5 rounded-xl border py-2.5 transition-all active:scale-[0.99] disabled:opacity-40 sm:py-3.5 ${
                       liked
                         ? 'border-rose-400 bg-rose-500 text-white shadow-md'
                         : 'animate-heartbeat border-rose-100 bg-white hover:bg-rose-50/30'
@@ -226,7 +226,7 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
                 {/* 댓글 카드 */}
                 <button
                   onClick={openCommentPanel}
-                  className="w-full flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-100 bg-white py-3.5 transition hover:bg-slate-50 active:scale-[0.99]"
+                  className="w-full flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-100 bg-white py-2.5 transition hover:bg-slate-50 active:scale-[0.99] sm:py-3.5"
                 >
                   <MessageCircle className="size-6 text-slate-400 transition-transform hover:scale-110" />
                   <span className="text-[11px] font-bold tracking-tight text-slate-500">댓글 확인하기</span>
@@ -235,7 +235,7 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
               </div>
 
               {/* 소식 바로가기 */}
-              <div className="mt-4 text-center">
+              <div className="mt-2 text-center sm:mt-4">
                 <Link href="/notices" onClick={dismiss} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 transition hover:text-slate-600">
                   소식에서 자세히 보기
                   <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
@@ -244,7 +244,7 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
             </div>
 
             {/* 하단: 체크 + 확인 */}
-            <div className="space-y-4 border-t border-slate-200/50 pt-6">
+            <div className="space-y-3 border-t border-slate-200/50 pt-4 sm:space-y-4 sm:pt-6">
               <label className="flex cursor-pointer select-none items-center gap-2" onClick={() => setDontShow((v) => !v)}>
                 <input type="checkbox" readOnly checked={dontShow} className="h-4 w-4 rounded border-slate-300 accent-emerald-500" />
                 <span className="text-xs font-medium text-slate-400 transition group-hover:text-slate-600">오늘 하루 다시 보지 않기</span>
@@ -262,7 +262,7 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
           {/* ── 댓글 패널 ── */}
           <div className={`absolute inset-0 flex flex-col bg-slate-50/50 transition-all duration-300 ${showComments ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
             {/* 헤더 */}
-            <div className="flex shrink-0 items-center justify-between px-5 py-4">
+            <div className="flex shrink-0 items-center justify-between px-4 py-3 sm:px-5 sm:py-4">
               <button onClick={() => setShowComments(false)} className="flex items-center gap-1 text-xs font-bold text-slate-500 transition hover:text-slate-800">
                 <ArrowLeft className="size-4" />
                 소식 요약으로
@@ -273,11 +273,11 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
             </div>
 
             {/* 댓글 목록 */}
-            <div className="flex shrink-0 items-center gap-2 px-5 pb-2">
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 sm:px-5">
               <span className="text-sm font-extrabold text-slate-800">댓글</span>
               <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-500">{commentCount}</span>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-2 px-4 pb-4" style={{ scrollbarWidth: 'thin' }}>
+            <div className="flex-1 overflow-y-auto space-y-2 px-3 pb-4 sm:px-4" style={{ scrollbarWidth: 'thin' }}>
               {comments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <span className="text-3xl">💬</span>
