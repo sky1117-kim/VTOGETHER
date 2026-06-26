@@ -145,6 +145,7 @@ function NoticeDetailModal({ notice, currentUserId, liked, likeCount, onClose, o
   const [submitting, setSubmitting] = useState(false)
   const [commentCount, setCommentCount] = useState(notice.comment_count ?? 0)
   const [lightbox, setLightbox] = useState(false)
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null)
 
   useEffect(() => {
     fetchNoticeComments(notice.id).then(setComments)
@@ -160,10 +161,11 @@ function NoticeDetailModal({ notice, currentUserId, liked, likeCount, onClose, o
     e.preventDefault()
     if (!commentText.trim() || submitting) return
     setSubmitting(true)
-    const result = await addNoticeComment(notice.id, commentText)
+    const result = await addNoticeComment(notice.id, commentText, replyTo?.id ?? null)
     setSubmitting(false)
     if (!result.error) {
       setCommentText('')
+      setReplyTo(null)
       const data = await fetchNoticeComments(notice.id)
       setComments(data)
       setCommentCount((c) => c + 1)
@@ -250,47 +252,101 @@ function NoticeDetailModal({ notice, currentUserId, liked, likeCount, onClose, o
           </div>
 
           {/* 댓글 목록 */}
-          <div className="flex-1 overflow-y-auto space-y-3 p-5 pb-24">
-            {comments.length === 0 ? (
+          <div className="flex-1 overflow-y-auto space-y-3 p-5 pb-28">
+            {comments.filter((c) => !c.parent_id).length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center py-12 text-center">
                 <MessageCircle className="mb-2 size-10 text-slate-200" />
                 <p className="text-sm font-semibold text-slate-500">아직 댓글이 없습니다.</p>
                 <p className="mt-0.5 text-xs text-slate-400">첫 댓글을 남겨보세요!</p>
               </div>
             ) : (
-              comments.map((c) => (
-                <div key={c.id} className="group/c flex items-start gap-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 text-xs font-bold text-white shadow-sm">
-                    {(c.user_name || c.user_email)?.[0]?.toUpperCase() ?? '?'}
-                  </div>
-                  <div className="relative flex-1 rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                    <div className="mb-1 flex items-baseline gap-2">
-                      <span className="text-xs font-bold text-slate-800">{c.user_name || c.user_email}</span>
-                      <span className="text-[10px] text-slate-400">{timeAgo(c.created_at)}</span>
+              comments.filter((c) => !c.parent_id).map((c) => {
+                const replies = comments.filter((r) => r.parent_id === c.id)
+                const authorName = c.user_name || c.user_email
+                return (
+                  <div key={c.id}>
+                    {/* 원댓글 */}
+                    <div className="group/c flex items-start gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 text-xs font-bold text-white shadow-sm">
+                        {authorName?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      <div className="relative flex-1 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                        <div className="mb-1 flex items-baseline gap-2">
+                          <span className="text-xs font-bold text-slate-800">{authorName}</span>
+                          <span className="text-[10px] text-slate-400">{timeAgo(c.created_at)}</span>
+                        </div>
+                        <p className="text-sm leading-relaxed text-slate-600">{renderWithMentions(c.body)}</p>
+                        <div className="mt-2 flex items-center gap-3">
+                          {currentUserId && (
+                            <button
+                              onClick={() => {
+                                setReplyTo({ id: c.id, name: authorName ?? '' })
+                                setCommentText(`@${authorName} `)
+                              }}
+                              className="text-[11px] font-semibold text-sky-400 transition hover:text-sky-600"
+                            >
+                              답글 달기
+                            </button>
+                          )}
+                        </div>
+                        {currentUserId === c.user_id && (
+                          <button
+                            onClick={() => handleDeleteComment(c.id)}
+                            className="absolute right-2.5 top-2.5 opacity-0 transition group-hover/c:opacity-100 text-slate-300 hover:text-rose-400"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-sm leading-relaxed text-slate-600">{renderWithMentions(c.body)}</p>
-                    {currentUserId === c.user_id && (
-                      <button
-                        onClick={() => handleDeleteComment(c.id)}
-                        className="absolute right-2.5 top-2.5 opacity-0 transition group-hover/c:opacity-100 text-slate-300 hover:text-rose-400"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    )}
+                    {/* 답글 목록 */}
+                    {replies.map((r) => (
+                      <div key={r.id} className="group/r ml-10 mt-2 flex items-start gap-2">
+                        {/* 연결선 */}
+                        <div className="flex flex-col items-center pt-1">
+                          <div className="h-3 w-px bg-slate-200" />
+                          <div className="h-px w-3 bg-slate-200" />
+                        </div>
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-500 text-[10px] font-bold text-white shadow-sm">
+                          {(r.user_name || r.user_email)?.[0]?.toUpperCase() ?? '?'}
+                        </div>
+                        <div className="relative flex-1 rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2">
+                          <div className="mb-0.5 flex items-baseline gap-2">
+                            <span className="text-[11px] font-bold text-slate-700">{r.user_name || r.user_email}</span>
+                            <span className="text-[10px] text-slate-400">{timeAgo(r.created_at)}</span>
+                          </div>
+                          <p className="text-xs leading-relaxed text-slate-600">{renderWithMentions(r.body)}</p>
+                          {currentUserId === r.user_id && (
+                            <button
+                              onClick={() => handleDeleteComment(r.id)}
+                              className="absolute right-2 top-2 opacity-0 transition group-hover/r:opacity-100 text-slate-300 hover:text-rose-400"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
 
           {/* 댓글 입력 — 하단 고정 */}
           {currentUserId ? (
-            <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4">
+            <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white px-4 pb-4 pt-3">
+              {replyTo && (
+                <div className="mb-2 flex items-center justify-between rounded-lg bg-sky-50 px-3 py-1.5">
+                  <span className="text-xs font-semibold text-sky-600">↩ {replyTo.name}에게 답글</span>
+                  <button onClick={() => { setReplyTo(null); setCommentText('') }} className="text-xs text-slate-400 hover:text-slate-600">취소</button>
+                </div>
+              )}
               <MentionInput
                 value={commentText}
                 onChange={setCommentText}
                 onSubmit={handleAddComment}
-                placeholder="댓글을 입력하세요... (@이름으로 태그)"
+                placeholder={replyTo ? `@${replyTo.name}에게 답글...` : '댓글을 입력하세요... (@이름으로 태그)'}
                 disabled={submitting}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-12 text-sm focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
               >
