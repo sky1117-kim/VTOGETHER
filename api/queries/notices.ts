@@ -13,6 +13,7 @@ export type NoticeRow = {
   like_count: number
   comment_count: number
   user_liked: boolean
+  liked_users: { user_id: string; name: string }[]
 }
 
 export type NoticeComment = {
@@ -23,6 +24,7 @@ export type NoticeComment = {
   created_at: string
   user_name: string | null
   user_email: string
+  parent_id: string | null
 }
 
 export async function getNotices(userId?: string | null): Promise<NoticeRow[]> {
@@ -40,7 +42,7 @@ export async function getNotices(userId?: string | null): Promise<NoticeRow[]> {
   if (ids.length === 0) return []
 
   const [likesRes, commentsRes, userLikesRes] = await Promise.all([
-    supabase.from('notice_likes').select('notice_id').in('notice_id', ids),
+    supabase.from('notice_likes').select('notice_id, user_id, users(name)').in('notice_id', ids),
     supabase.from('notice_comments').select('notice_id').in('notice_id', ids).is('deleted_at', null),
     userId
       ? supabase.from('notice_likes').select('notice_id').in('notice_id', ids).eq('user_id', userId)
@@ -48,10 +50,16 @@ export async function getNotices(userId?: string | null): Promise<NoticeRow[]> {
   ])
 
   const likeCountMap: Record<string, number> = {}
+  const likedUsersMap: Record<string, { user_id: string; name: string }[]> = {}
   const commentCountMap: Record<string, number> = {}
   const userLikedSet = new Set<string>()
 
-  for (const row of likesRes.data ?? []) likeCountMap[row.notice_id] = (likeCountMap[row.notice_id] ?? 0) + 1
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (likesRes.data ?? []) as any[]) {
+    likeCountMap[row.notice_id] = (likeCountMap[row.notice_id] ?? 0) + 1
+    if (!likedUsersMap[row.notice_id]) likedUsersMap[row.notice_id] = []
+    likedUsersMap[row.notice_id].push({ user_id: row.user_id, name: row.users?.name ?? '' })
+  }
   for (const row of commentsRes.data ?? []) commentCountMap[row.notice_id] = (commentCountMap[row.notice_id] ?? 0) + 1
   for (const row of (userLikesRes as { data: { notice_id: string }[] | null }).data ?? []) userLikedSet.add(row.notice_id)
 
@@ -62,6 +70,7 @@ export async function getNotices(userId?: string | null): Promise<NoticeRow[]> {
     like_count: likeCountMap[n.id] ?? 0,
     comment_count: commentCountMap[n.id] ?? 0,
     user_liked: userLikedSet.has(n.id),
+    liked_users: likedUsersMap[n.id] ?? [],
   }))
 }
 
@@ -81,16 +90,19 @@ export async function getPopupNotices(userId?: string | null): Promise<NoticeRow
   if (error || !notices || notices.length === 0) return []
 
   const ids = notices.map((n) => n.id)
-  const [likesRes, userLikesRes] = await Promise.all([
+  const [likesRes, commentsRes, userLikesRes] = await Promise.all([
     supabase.from('notice_likes').select('notice_id').in('notice_id', ids),
+    supabase.from('notice_comments').select('notice_id').in('notice_id', ids).is('deleted_at', null),
     userId
       ? supabase.from('notice_likes').select('notice_id').in('notice_id', ids).eq('user_id', userId)
       : Promise.resolve({ data: [] }),
   ])
 
   const likeCountMap: Record<string, number> = {}
+  const commentCountMap: Record<string, number> = {}
   const userLikedSet = new Set<string>()
   for (const row of likesRes.data ?? []) likeCountMap[row.notice_id] = (likeCountMap[row.notice_id] ?? 0) + 1
+  for (const row of commentsRes.data ?? []) commentCountMap[row.notice_id] = (commentCountMap[row.notice_id] ?? 0) + 1
   for (const row of (userLikesRes as { data: { notice_id: string }[] | null }).data ?? []) userLikedSet.add(row.notice_id)
 
   return notices.map((n) => ({
@@ -98,8 +110,9 @@ export async function getPopupNotices(userId?: string | null): Promise<NoticeRow
     popup_start_at: n.popup_start_at ?? null,
     popup_end_at: n.popup_end_at ?? null,
     like_count: likeCountMap[n.id] ?? 0,
-    comment_count: 0,
+    comment_count: commentCountMap[n.id] ?? 0,
     user_liked: userLikedSet.has(n.id),
+    liked_users: [],
   }))
 }
 
@@ -108,7 +121,7 @@ export async function getNoticeComments(noticeId: string): Promise<NoticeComment
 
   const { data, error } = await supabase
     .from('notice_comments')
-    .select('id, notice_id, user_id, body, created_at, users(name, email)')
+    .select('id, notice_id, user_id, body, created_at, parent_id, users(name, email)')
     .eq('notice_id', noticeId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
@@ -122,6 +135,7 @@ export async function getNoticeComments(noticeId: string): Promise<NoticeComment
     user_id: row.user_id,
     body: row.body,
     created_at: row.created_at,
+    parent_id: row.parent_id ?? null,
     user_name: row.users?.name ?? null,
     user_email: row.users?.email ?? '',
   }))

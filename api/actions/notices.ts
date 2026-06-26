@@ -33,7 +33,8 @@ export async function toggleNoticeLike(
 
 export async function addNoticeComment(
   noticeId: string,
-  body: string
+  body: string,
+  parentId?: string | null
 ): Promise<{ error: string | null }> {
   const trimmed = body.trim()
   if (!trimmed) return { error: '댓글 내용을 입력하세요.' }
@@ -47,11 +48,68 @@ export async function addNoticeComment(
     notice_id: noticeId,
     user_id: user.id,
     body: trimmed,
+    ...(parentId ? { parent_id: parentId } : {}),
   })
 
   if (error) return { error: error.message }
+
+  // @멘션 파싱 → 태그된 유저에게 알림 전송
+  const mentionedNames = [...new Set((trimmed.match(/@([가-힣\w]+)/g) ?? []).map((m) => m.slice(1)))]
+  if (mentionedNames.length > 0) {
+    await sendMentionNotifications({ noticeId, commenterUserId: user.id, mentionedNames, commentBody: trimmed })
+  }
+
   revalidatePath('/notices')
   return { error: null }
+}
+
+async function sendMentionNotifications({
+  noticeId,
+  commenterUserId,
+  mentionedNames,
+  commentBody,
+}: {
+  noticeId: string
+  commenterUserId: string
+  mentionedNames: string[]
+  commentBody: string
+}) {
+  try {
+    const admin = createAdminClient()
+    // 멘션된 이름으로 user_id 조회
+    const { data: users } = await admin
+      .from('users')
+      .select('user_id, name')
+      .in('name', mentionedNames)
+      .is('deleted_at', null)
+    if (!users?.length) return
+
+    // 댓글 작성자 이름 조회
+    const { data: commenter } = await admin
+      .from('users')
+      .select('name')
+      .eq('user_id', commenterUserId)
+      .maybeSingle()
+    const commenterName = commenter?.name ?? '누군가'
+
+    const preview = commentBody.length > 40 ? commentBody.slice(0, 40) + '…' : commentBody
+
+    const notifications = users
+      .filter((u) => u.user_id !== commenterUserId) // 자기 자신 제외
+      .map((u) => ({
+        user_id: u.user_id,
+        type: 'MENTION',
+        title: `${commenterName}님이 회사 소식 댓글에서 회원님을 태그했습니다`,
+        body: preview,
+        link: '/notices',
+      }))
+
+    if (notifications.length > 0) {
+      await admin.from('user_notifications').insert(notifications)
+    }
+  } catch {
+    // 알림 전송 실패는 댓글 저장을 막지 않음
+  }
 }
 
 export async function deleteNoticeComment(

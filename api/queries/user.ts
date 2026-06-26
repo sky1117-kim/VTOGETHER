@@ -58,9 +58,20 @@ export type PointNotificationRow = {
   created_at: string
 }
 
-/** 알림 버튼용: 적립 내역 */
+export type MentionNotificationRow = {
+  id: string
+  type: 'MENTION'
+  title: string
+  body: string | null
+  link: string | null
+  is_read: boolean
+  created_at: string
+}
+
+/** 알림 버튼용: 적립 내역 + 멘션 알림 */
 export type NotificationItem =
   | (PointNotificationRow & { type?: 'EARNED' })
+  | MentionNotificationRow
 
 export async function getRecentPointNotifications(
   userId: string,
@@ -85,18 +96,33 @@ export async function getRecentPointNotifications(
   return (data ?? []) as PointNotificationRow[]
 }
 
-/** 알림 버튼용: 최근 적립 내역만 최신순 제공 */
+async function getRecentMentionNotifications(userId: string, days = 7): Promise<MentionNotificationRow[]> {
+  const supabase = await createClient()
+  const since = new Date()
+  since.setDate(since.getDate() - days)
+  const { data } = await supabase
+    .from('user_notifications')
+    .select('id, type, title, body, link, is_read, created_at')
+    .eq('user_id', userId)
+    .gte('created_at', since.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(20)
+  return (data ?? []) as MentionNotificationRow[]
+}
+
+/** 알림 버튼용: 적립 내역 + 멘션 알림 최신순 */
 export async function getNotificationsForBell(
   userId: string,
   days = 7
 ): Promise<NotificationItem[]> {
-  const earned = await getRecentPointNotifications(userId, days)
+  const [earned, mentions] = await Promise.all([
+    getRecentPointNotifications(userId, days),
+    getRecentMentionNotifications(userId, days).catch(() => [] as MentionNotificationRow[]),
+  ])
   const earnedItems: NotificationItem[] = earned.map((e) => ({ ...e, type: 'EARNED' as const }))
-  const combined = [...earnedItems].sort((a, b) => {
-    const aAt = a.created_at
-    const bAt = b.created_at
-    return new Date(bAt).getTime() - new Date(aAt).getTime()
-  })
+  const combined = [...earnedItems, ...mentions].sort((a, b) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
   return combined.slice(0, 30)
 }
 

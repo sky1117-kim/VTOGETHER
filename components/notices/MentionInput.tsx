@@ -55,13 +55,15 @@ export function MentionInput({ value, onChange, onSubmit, placeholder, disabled,
   }
 
   function selectUser(user: User) {
-    const cursor = inputRef.current?.selectionStart ?? value.length
+    // cursor 위치 대신 mentionStart + mentionQuery 길이로 범위 계산 (cursor는 Enter 시 신뢰 불가)
+    const mentionEnd = mentionStart + 1 + mentionQuery.length
     const before = value.slice(0, mentionStart)
-    const after = value.slice(cursor)
+    const after = value.slice(mentionEnd)
     const inserted = `@${user.name} `
     onChange(before + inserted + after)
     setShowDropdown(false)
     setMentionStart(-1)
+    setMentionQuery('')
     setTimeout(() => {
       const pos = before.length + inserted.length
       inputRef.current?.setSelectionRange(pos, pos)
@@ -73,7 +75,7 @@ export function MentionInput({ value, onChange, onSubmit, placeholder, disabled,
     if (!showDropdown) return
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1)) }
     if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)) }
-    if (e.key === 'Enter' && showDropdown) { e.preventDefault(); selectUser(suggestions[activeIdx]) }
+    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); selectUser(suggestions[activeIdx]); return }
     if (e.key === 'Escape') { setShowDropdown(false) }
   }
 
@@ -85,8 +87,13 @@ export function MentionInput({ value, onChange, onSubmit, placeholder, disabled,
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
 
+  function handleSubmit(e: React.FormEvent) {
+    if (showDropdown) { e.preventDefault(); return }
+    onSubmit(e)
+  }
+
   return (
-    <form onSubmit={onSubmit} className="relative flex items-center">
+    <form onSubmit={handleSubmit} className="relative flex items-center">
       <div className="relative flex-1">
         <input
           ref={inputRef}

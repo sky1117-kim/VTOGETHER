@@ -4,8 +4,17 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Bell, BellDot } from 'lucide-react'
 import Link from 'next/link'
-import type { NotificationItem } from '@/api/queries/user'
+import type { NotificationItem, MentionNotificationRow } from '@/api/queries/user'
 import { getEarnedDisplay } from '@/lib/point-display'
+
+function isMention(n: NotificationItem): n is MentionNotificationRow {
+  return (n as MentionNotificationRow).type === 'MENTION'
+}
+
+function getNotificationKey(n: NotificationItem): string {
+  if (isMention(n)) return n.id
+  return n.transaction_id
+}
 
 const STORAGE_KEY_PREFIX = 'point-notifications-read-'
 
@@ -182,56 +191,57 @@ export function PointNotificationBell({ userId, notifications, variant = 'defaul
                 ) : (
                   <ul className="rounded-xl border border-gray-200 bg-white">
                     {notifications.map((n, idx) => {
-                      const earned = getEarnedDisplay(n.description, { maxTextLength: 24 })
                       const isUnread = lastReadAt
                         ? new Date(getNotificationDate(n)).getTime() > new Date(lastReadAt).getTime()
                         : true
+                      const mention = isMention(n)
                       return (
-                        <li key={n.transaction_id}>
-                          <Link
-                            href={`/my?highlight=${n.transaction_id}#point-history`}
-                            onClick={() => setIsOpen(false)}
-                            className={`block px-3 py-2.5 transition ${
-                              isUnread
-                                ? 'bg-blue-50/70 hover:bg-blue-100/80'
-                                : 'hover:bg-gray-100'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                  {/* 안 읽은 항목은 제목 앞 점으로 빠르게 구분 */}
-                                  {isUnread && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" aria-hidden />}
-                                  <p className="truncate text-sm font-semibold text-gray-800 leading-snug">
-                                    {earned.text}
-                                  </p>
+                        <li key={getNotificationKey(n)}>
+                          {mention ? (
+                            <Link
+                              href={n.link ?? '/notices'}
+                              onClick={() => setIsOpen(false)}
+                              className={`block px-3 py-2.5 transition ${isUnread ? 'bg-sky-50/70 hover:bg-sky-100/80' : 'hover:bg-gray-100'}`}
+                            >
+                              <div className="flex items-start gap-1.5">
+                                {isUnread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />}
+                                <p className="text-sm font-semibold leading-snug text-gray-800">{n.title}</p>
+                              </div>
+                              {n.body && <p className="mt-1 truncate text-[11px] text-gray-500">"{n.body}"</p>}
+                              <p className="mt-1 text-right text-[11px] text-gray-400">{formatRelativeTime(n.created_at)}</p>
+                            </Link>
+                          ) : (
+                            <Link
+                              href={`/my?highlight=${n.transaction_id}#point-history`}
+                              onClick={() => setIsOpen(false)}
+                              className={`block px-3 py-2.5 transition ${isUnread ? 'bg-blue-50/70 hover:bg-blue-100/80' : 'hover:bg-gray-100'}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    {isUnread && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" aria-hidden />}
+                                    <p className="truncate text-sm font-semibold leading-snug text-gray-800">
+                                      {getEarnedDisplay(n.description, { maxTextLength: 24 }).text}
+                                    </p>
+                                  </div>
                                 </div>
+                                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-600">
+                                  +{n.amount.toLocaleString()} {n.currency_type === 'V_MEDAL' ? 'M' : 'C'}
+                                </span>
                               </div>
-                              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-600">
-                                +{n.amount.toLocaleString()} {n.currency_type === 'V_MEDAL' ? 'M' : 'C'}
-                              </span>
-                            </div>
-                            <div className="mt-1.5 flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                {earned.badge && (
-                                  <span
-                                    className={`inline-block w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                                      earned.variant === 'received'
-                                        ? 'bg-violet-100 text-violet-700'
-                                        : earned.variant === 'gave'
-                                          ? 'bg-emerald-100 text-emerald-700'
-                                          : 'bg-green-100 text-green-700'
-                                    }`}
-                                  >
-                                    {earned.badge}
-                                  </span>
-                                )}
+                              <div className="mt-1.5 flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  {(() => {
+                                    const ed = getEarnedDisplay(n.description, { maxTextLength: 24 })
+                                    if (!ed.badge) return null
+                                    const cls = ed.variant === 'received' ? 'bg-violet-100 text-violet-700' : ed.variant === 'gave' ? 'bg-emerald-100 text-emerald-700' : 'bg-green-100 text-green-700'
+                                    return <span className={`inline-block w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{ed.badge}</span>
+                                  })()}
+                                </div>
+                                <p className="shrink-0 text-[11px] text-gray-500">{formatRelativeTime(n.created_at)}</p>
                               </div>
-                              <p className="shrink-0 text-[11px] text-gray-500">
-                                {formatRelativeTime(n.created_at)}
-                              </p>
-                            </div>
-                          </Link>
+                            </Link>
+                          )}
                           {idx < notifications.length - 1 && <div className="mx-3 h-px bg-gray-200" aria-hidden />}
                         </li>
                       )

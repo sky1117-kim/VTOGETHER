@@ -84,18 +84,47 @@ function NoticeCard({ notice, liked, onOpen, onLike }: {
         </div>
 
         {/* 액션 바 */}
-        <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-3.5 text-slate-400">
-          <button
-            onClick={onLike}
-            className={`flex items-center gap-1.5 text-sm font-semibold transition-colors ${liked ? 'text-rose-500' : 'hover:text-rose-400'}`}
-          >
-            <Heart className={`size-4 ${liked ? 'fill-rose-500' : ''}`} />
-            <span className="tabular-nums">{likeCount}</span>
-          </button>
-          <div className="flex items-center gap-1.5 text-sm font-semibold">
-            <MessageCircle className="size-4" />
-            <span className="tabular-nums">{notice.comment_count ?? 0}</span>
+        <div className="mt-4 border-t border-slate-100 pt-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 text-slate-400">
+              <button
+                onClick={onLike}
+                className={`flex items-center gap-1.5 text-sm font-semibold transition-colors ${liked ? 'text-rose-500' : 'hover:text-rose-400'}`}
+              >
+                <Heart className={`size-4 ${liked ? 'fill-rose-500' : ''}`} />
+                <span className="tabular-nums">{likeCount}</span>
+              </button>
+              <div className="flex items-center gap-1.5 text-sm font-semibold">
+                <MessageCircle className="size-4" />
+                <span className="tabular-nums">{notice.comment_count ?? 0}</span>
+              </div>
+            </div>
+            {/* 좋아요한 사람 아바타 */}
+            {notice.liked_users.length > 0 && (
+              <div className="flex items-center">
+                <div className="flex -space-x-1.5">
+                  {notice.liked_users.slice(0, 5).map((u) => (
+                    <div
+                      key={u.user_id}
+                      title={u.name}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-rose-400 to-pink-500 text-[9px] font-bold text-white shadow-sm"
+                    >
+                      {u.name[0]}
+                    </div>
+                  ))}
+                </div>
+                {notice.liked_users.length > 5 && (
+                  <span className="ml-1.5 text-[10px] text-slate-400">+{notice.liked_users.length - 5}</span>
+                )}
+              </div>
+            )}
           </div>
+          {notice.liked_users.length > 0 && (
+            <p className="mt-1.5 text-[11px] text-slate-400">
+              {notice.liked_users.slice(0, 3).map((u) => u.name).join(', ')}
+              {notice.liked_users.length > 3 ? ` 외 ${notice.liked_users.length - 3}명` : ''}이 좋아합니다
+            </p>
+          )}
         </div>
       </div>
     </article>

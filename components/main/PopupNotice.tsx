@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { X, Heart, MessageCircle, ChevronLeft, ChevronRight, ArrowLeft, Send } from 'lucide-react'
+import { X, Heart, MessageCircle, ChevronLeft, ChevronRight, ArrowLeft, Send, Trash2 } from 'lucide-react'
 import confetti from 'canvas-confetti'
-import { toggleNoticeLike, addNoticeComment, fetchNoticeComments } from '@/api/actions/notices'
+import { toggleNoticeLike, addNoticeComment, fetchNoticeComments, deleteNoticeComment } from '@/api/actions/notices'
 import type { NoticeRow, NoticeComment } from '@/api/queries/notices'
 import { MentionInput, renderWithMentions } from '@/components/notices/MentionInput'
 
@@ -40,6 +40,8 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [commentCountMap, setCommentCountMap] = useState<Record<string, number>>({})
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null)
+  const [showLikedUsers, setShowLikedUsers] = useState(false)
 
   const notice = notices[idx]
   const total = notices.length
@@ -102,14 +104,22 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
     e.preventDefault()
     if (!commentText.trim() || submitting || !notice) return
     setSubmitting(true)
-    const result = await addNoticeComment(notice.id, commentText)
+    const result = await addNoticeComment(notice.id, commentText, replyTo?.id ?? null)
     setSubmitting(false)
     if (!result.error) {
       setCommentText('')
+      setReplyTo(null)
       const data = await fetchNoticeComments(notice.id)
       setComments(data)
       setCommentCountMap((prev) => ({ ...prev, [notice.id]: (prev[notice.id] ?? notice.comment_count ?? 0) + 1 }))
     }
+  }
+
+  async function handleDeleteComment(commentId: string) {
+    if (!notice) return
+    setComments((prev) => prev.filter((c) => c.id !== commentId))
+    setCommentCountMap((prev) => ({ ...prev, [notice.id]: Math.max(0, (prev[notice.id] ?? notice.comment_count ?? 0) - 1) }))
+    await deleteNoticeComment(commentId)
   }
 
   if (!visible || !notice) return null
@@ -213,6 +223,23 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
                   </button>
                 </div>
 
+                {/* 좋아요한 사람 미리보기 */}
+                {notice.liked_users && notice.liked_users.length > 0 && (
+                  <button
+                    onClick={() => setShowLikedUsers(true)}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-50 bg-rose-50/60 px-3 py-2 text-[11px] font-semibold text-rose-400 transition hover:bg-rose-100/60"
+                  >
+                    <div className="flex -space-x-1">
+                      {notice.liked_users.slice(0, 4).map((u) => (
+                        <div key={u.user_id} className="flex h-5 w-5 items-center justify-center rounded-full border border-white bg-gradient-to-br from-rose-400 to-pink-500 text-[8px] font-bold text-white">
+                          {u.name[0]}
+                        </div>
+                      ))}
+                    </div>
+                    <span>{notice.liked_users.slice(0,2).map(u=>u.name).join(', ')}{notice.liked_users.length > 2 ? ` 외 ${notice.liked_users.length-2}명` : ''}이 좋아합니다</span>
+                  </button>
+                )}
+
                 {/* 댓글 카드 */}
                 <button
                   onClick={openCommentPanel}
@@ -264,40 +291,86 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
 
             {/* 댓글 목록 */}
             <div className="flex shrink-0 items-center gap-2 px-5 pb-2">
-              <span className="text-sm font-extrabold text-slate-800">임직원 소통</span>
+              <span className="text-sm font-extrabold text-slate-800">댓글</span>
               <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-500">{commentCount}</span>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-2 px-5 pb-4" style={{ scrollbarWidth: 'thin' }}>
+            <div className="flex-1 overflow-y-auto space-y-2 px-4 pb-4" style={{ scrollbarWidth: 'thin' }}>
               {comments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <span className="text-3xl">💬</span>
                   <p className="mt-2 text-xs font-semibold text-slate-500">첫 댓글을 남겨보세요!</p>
                 </div>
               ) : (
-                comments.map((c) => (
-                  <div key={c.id} className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-                    <p className="text-xs font-medium leading-relaxed text-slate-600">"{renderWithMentions(c.body)}"</p>
-                    <div className="mt-1.5 flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-slate-400">{c.user_name || c.user_email}</span>
-                      <span className="text-[10px] text-slate-400">
-                        {Math.floor((Date.now() - new Date(c.created_at).getTime()) / 60000) < 60
-                          ? `${Math.floor((Date.now() - new Date(c.created_at).getTime()) / 60000)}분 전`
-                          : '방금 전'}
-                      </span>
+                comments.filter((c) => !c.parent_id).map((c) => {
+                  const replies = comments.filter((r) => r.parent_id === c.id)
+                  const timeAgo = (iso: string) => {
+                    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+                    return m < 60 ? `${m}분 전` : '방금 전'
+                  }
+                  return (
+                    <div key={c.id}>
+                      <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                        <p className="text-xs font-medium leading-relaxed text-slate-600">{renderWithMentions(c.body)}</p>
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-slate-400">{c.user_name || c.user_email}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400">{timeAgo(c.created_at)}</span>
+                            {userId && (
+                              <button
+                                onClick={() => {
+                                  setReplyTo({ id: c.id, name: c.user_name || c.user_email })
+                                  setCommentText(`@${c.user_name || c.user_email} `)
+                                }}
+                                className="text-[10px] font-semibold text-sky-400 transition hover:text-sky-600"
+                              >
+                                답글
+                              </button>
+                            )}
+                            {userId === c.user_id && (
+                              <button onClick={() => handleDeleteComment(c.id)} className="rounded p-0.5 text-slate-300 transition hover:text-rose-400">
+                                <Trash2 className="size-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {/* 답글 목록 */}
+                      {replies.map((r) => (
+                        <div key={r.id} className="ml-4 mt-1.5 rounded-xl border border-sky-50 bg-sky-50/50 p-3">
+                          <p className="text-xs font-medium leading-relaxed text-slate-600">{renderWithMentions(r.body)}</p>
+                          <div className="mt-1.5 flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-slate-400">{r.user_name || r.user_email}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-400">{timeAgo(r.created_at)}</span>
+                              {userId === r.user_id && (
+                                <button onClick={() => handleDeleteComment(r.id)} className="rounded p-0.5 text-slate-300 transition hover:text-rose-400">
+                                  <Trash2 className="size-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
 
             {/* 댓글 입력 */}
             {userId ? (
               <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3">
+                {replyTo && (
+                  <div className="mb-1.5 flex items-center justify-between rounded-lg bg-sky-50 px-2.5 py-1.5">
+                    <span className="text-[10px] font-semibold text-sky-600">↩ {replyTo.name}에게 답글</span>
+                    <button onClick={() => { setReplyTo(null); setCommentText('') }} className="text-[10px] text-slate-400 hover:text-slate-600">취소</button>
+                  </div>
+                )}
                 <MentionInput
                   value={commentText}
                   onChange={setCommentText}
                   onSubmit={handleAddComment}
-                  placeholder="축하와 응원의 한마디를 남겨보세요! (@이름으로 태그)"
+                  placeholder={replyTo ? `@${replyTo.name}에게 답글...` : '축하와 응원의 한마디를 남겨보세요!'}
                   disabled={submitting}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-3.5 pr-10 text-xs focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-200"
                 >
@@ -322,6 +395,28 @@ export function PopupNotice({ notices, userId }: PopupNoticeProps) {
             </button>
           </div>
         </div>
+
+        {/* 좋아요한 사람 전체 모달 */}
+        {showLikedUsers && notice.liked_users && notice.liked_users.length > 0 && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[1.75rem] bg-black/40 backdrop-blur-sm" onClick={() => setShowLikedUsers(false)}>
+            <div className="w-64 rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-sm font-extrabold text-slate-800">❤️ 좋아요 {notice.liked_users.length}명</h4>
+                <button onClick={() => setShowLikedUsers(false)} className="rounded-full p-1 text-slate-400 hover:text-slate-600"><X className="size-4" /></button>
+              </div>
+              <div className="max-h-56 overflow-y-auto space-y-2" style={{ scrollbarWidth: 'thin' }}>
+                {notice.liked_users.map((u) => (
+                  <div key={u.user_id} className="flex items-center gap-2.5">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-xs font-bold text-white">
+                      {u.name[0]}
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700">{u.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
