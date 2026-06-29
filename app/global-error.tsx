@@ -7,8 +7,31 @@ interface GlobalErrorProps {
   reset: () => void
 }
 
+// 배포 후 구 버전 JS 청크를 참조할 때 iOS 등에서 발생하는 에러
+function isChunkLoadError(error: Error) {
+  const msg = error.message ?? ''
+  return (
+    msg.includes('Load failed') ||
+    msg.includes('Loading chunk') ||
+    msg.includes('Failed to fetch dynamically imported module') ||
+    error.name === 'ChunkLoadError'
+  )
+}
+
 export default function GlobalError({ error, reset }: GlobalErrorProps) {
   useEffect(() => {
+    // 청크 로드 에러는 새로 배포된 직후 캐시 불일치로 발생하므로 자동 새로고침
+    if (isChunkLoadError(error)) {
+      const reloadKey = 'chunk-error-reloaded'
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, '1')
+        window.location.reload()
+        return
+      }
+      // 새로고침 후에도 같은 에러면 리포트
+      sessionStorage.removeItem(reloadKey)
+    }
+
     const key = `client-error:${error.digest ?? error.message}`
     if (sessionStorage.getItem(key)) return
     sessionStorage.setItem(key, '1')
