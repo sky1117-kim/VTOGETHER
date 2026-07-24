@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VNTG Star Awards 2026 — 핵심가치 우수 실천자 투표</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Noto Sans KR', sans-serif; letter-spacing: -0.025em; }
+  .celebrate-card { background:#fff; border:2px solid #e2e8f0; box-shadow:0 4px 6px -1px rgba(15,23,42,.05); transition:all .2s cubic-bezier(.16,1,.3,1); }
+  .celebrate-card:hover { transform:translateY(-2px); border-color:#cbd5e1; box-shadow:0 10px 15px -3px rgba(15,23,42,.08); }
+  .celebrate-card.selected-active { border-color:#ca8a04; background:linear-gradient(180deg,#fefce8 0%,#fff 100%); box-shadow:0 10px 25px -5px rgba(202,138,4,.18); }
+  .glass-dock { background:rgba(255,255,255,.92); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(226,232,240,.9); }
+  .no-scrollbar::-webkit-scrollbar { display:none; }
+  .no-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
+</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 pb-36">
+
+<!-- ── Voter name modal ── -->
+<div id="voter-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center">
+    <div class="w-14 h-14 bg-yellow-50 text-yellow-400 border border-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+      <i class="fa-solid fa-star"></i>
+    </div>
+    <h2 class="text-lg font-extrabold text-slate-900 mb-3">VNTG Star Awards 2026</h2>
+    <p class="text-xs text-slate-500 mb-6 leading-relaxed">
+      5대 핵심가치 우수 실천자 선정 투표입니다.<br>
+      성함과 소속을 입력해 주신 후,<br>
+      각 핵심가치별 추천서와 칭찬 내역을<br>
+      <strong class="text-slate-700">천천히 읽어보시고 신중하게</strong> 투표해 주시면<br>
+      감사하겠습니다.
+    </p>
+    <input id="voter-name-input" type="text" placeholder="성함"
+      class="w-full border-2 border-slate-200 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 placeholder-slate-400 outline-none transition mb-3" />
+    <input id="voter-affil-input" type="text" placeholder="소속"
+      class="w-full border-2 border-slate-200 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 placeholder-slate-400 outline-none transition mb-3" />
+    <button onclick="startVoting()"
+      class="w-full bg-slate-900 hover:bg-yellow-500 text-white font-black text-sm py-3 rounded-xl transition shadow-md hover:shadow-lg">
+      <i class="fa-solid fa-arrow-right mr-1.5"></i> 투표 시작
+    </button>
+  </div>
+</div>
+
+<!-- ── Alert modal ── -->
+<div id="alert-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+  <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+    <div class="w-12 h-12 bg-yellow-50 text-yellow-400 border border-yellow-50 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+      <i class="fa-solid fa-bell"></i>
+    </div>
+    <h4 class="text-sm font-bold text-slate-900 text-center mb-1.5" id="alert-title">알림</h4>
+    <p class="text-xs text-slate-500 text-center mb-6 leading-relaxed whitespace-pre-line font-medium" id="alert-message"></p>
+    <div class="flex gap-2">
+      <button id="alert-cancel" onclick="closeAlert(false)" class="flex-1 py-2.5 text-xs bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-bold rounded-lg transition hidden">취소</button>
+      <button onclick="closeAlert(true)" class="flex-1 py-2.5 text-xs bg-slate-900 hover:bg-yellow-500 text-white font-bold rounded-lg transition shadow-sm">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Header ── -->
+<header class="bg-slate-900 text-white sticky top-0 z-40 px-6 py-4 shadow-md border-b border-yellow-400/20">
+  <div class="max-w-6xl mx-auto flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-xs tracking-widest font-black bg-yellow-400 px-2.5 py-1 rounded text-slate-950 shadow-sm">VNTG</span>
+      <span class="w-1 h-5 bg-slate-700 rounded-full"></span>
+      <h1 class="text-sm sm:text-base font-black tracking-tight">STAR AWARDS 2026</h1>
+    </div>
+    <span class="text-xs text-slate-400 font-medium hidden sm:block">5월+6월 핵심가치 우수 실천자 투표</span>
+  </div>
+</header>
+
+<!-- ── Instruction banner ── -->
+<section class="max-w-6xl mx-auto w-full px-6 pt-8 pb-4">
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+    <div>
+      <h2 class="text-base sm:text-lg font-extrabold text-slate-950 flex items-center gap-2">
+        <span class="text-yellow-400">★</span> VNTG 5대 핵심가치 우수 실천자 선정 투표
+      </h2>
+      <p class="text-xs text-slate-500 mt-1 font-medium">
+        5개 핵심가치 탭을 하나씩 확인하며, 가치당
+        <span class="text-yellow-500 font-bold border-b-2 border-yellow-200">최대 2명씩, 최소 1명씩</span> 투표해 주세요.
+      </p>
+    </div>
+    <span class="text-xs text-slate-400 font-semibold bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg whitespace-nowrap" id="voter-badge"></span>
+  </div>
+</section>
+
+<!-- ── Main ── -->
+<main class="max-w-6xl mx-auto w-full px-6">
+
+  <!-- Category tabs (sticky) -->
+  <div class="sticky top-14 z-30 -mx-6 px-6 pb-3 pt-2 bg-slate-50">
+    <div class="bg-slate-900 rounded-2xl p-1.5 overflow-x-auto no-scrollbar shadow-md border border-slate-800">
+      <div id="category-tabs" class="flex w-full min-w-max gap-1"></div>
+    </div>
+  </div>
+
+  <!-- Search + status bar -->
+  <div class="mb-5 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+    <div class="relative w-full sm:max-w-sm">
+      <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+      <input type="text" id="search-input" oninput="filterCandidates()" placeholder="칭찬 내용 키워드 검색..."
+        class="w-full bg-slate-50 border border-slate-200 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 rounded-lg py-2 pl-9 pr-4 text-xs font-medium text-slate-900 placeholder-slate-400 transition outline-none" />
+    </div>
+    <div id="tab-instruction" class="text-xs text-slate-500 font-bold flex items-center gap-1.5 shrink-0"></div>
+  </div>
+
+  <!-- Candidates grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5" id="candidates-grid"></div>
+
+  <!-- No results -->
+  <div id="no-results" class="hidden text-center py-24 bg-white rounded-2xl border border-slate-200 shadow-sm">
+    <i class="fa-solid fa-folder-open text-3xl text-slate-300 mb-3"></i>
+    <p class="text-slate-800 text-sm font-bold">검색 결과가 없습니다.</p>
+    <p class="text-slate-400 text-xs mt-1">다른 키워드를 입력해 보세요.</p>
+  </div>
+</main>
+
+<!-- ── Bottom dock ── -->
+<section class="fixed bottom-4 left-4 right-4 z-40 max-w-5xl mx-auto">
+  <div class="glass-dock rounded-2xl shadow-xl p-4 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+      <div class="border-r border-slate-200 pr-4 hidden md:block">
+        <span class="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">VNTG STAR AWARDS</span>
+        <span class="text-xs font-bold text-slate-700 mt-0.5">실시간 투표 진행률</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-sm font-black text-slate-900">
+          총 투표: <span id="voted-counter" class="text-yellow-500 font-black text-lg">0/10</span>
+        </span>
+        <div class="flex gap-1.5" id="progress-dots"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+      <button onclick="resetBallot()" class="text-xs text-slate-600 hover:text-slate-900 px-3.5 py-2.5 rounded-lg hover:bg-slate-100 border border-slate-200 font-semibold flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-trash-can text-[10px]"></i> 초기화
+      </button>
+      <button onclick="requestSubmitVotes()" class="flex-grow md:flex-none px-6 py-2.5 rounded-lg bg-slate-900 hover:bg-yellow-500 text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
+        <i class="fa-solid fa-paper-plane text-[10px]"></i> 최종 투표 제출
+      </button>
+    </div>
+  </div>
+</section>
+
+<script>
+// ════════════════════════════════════════════
+//  DATA
+// ════════════════════════════════════════════
+const DRIVE_LINKS = {
+  "박세윤":  "https://drive.google.com/open?id=11lO7WAHSXVTb_AQljZyFUhKvHntposK4wu--ADg1428",
+  "김종인":  "https://drive.google.com/open?id=13QjUEf9tf6GzMnL2_i35vfIG7DRvYd9d",
+  "남하림":  "https://drive.google.com/open?id=1jyL0sBE0zn4fQNyHwzmOHLWLVo5wNttz",
+  "온종선":  "https://drive.google.com/open?id=14rLBWBURKV9io8d6ZpoHLfaszm4tv9H3",
+  "원요엘":  "https://drive.google.com/open?id=13YYAIpi54ETnufLIWDsO_sfPivzY8rVsO3vdIh_P5lY",
+  "최은비":  "https://drive.google.com/open?id=1V2f7j4GaZIDcAH2gi4BztcjBeVNYrBLJ",
+  "이정연":  "https://drive.google.com/open?id=1yX6vlTtmjcrCXug1zAj8mxgR-zlDjivC",
+  "이주희":  "https://drive.google.com/open?id=1E-UPAnjxfJJEKp0t39gJthFK7kefW_YR",
+  "김효림":  "https://drive.google.com/open?id=12nOf12ljQYO-icWmknNtRFpeMQZxrDGKzDetwflwGdk",
+  "강태영":  "https://drive.google.com/open?id=1NDwWZ-xgBftYZOrfqTRjCWUHO0r096ZL",
+  "김영우":  "https://drive.google.com/open?id=18Kc8KrvIm_75ZxDKzylEbqpea13-ye8RSNfQjFYqGX8",
+  "구명선":  "https://drive.google.com/open?id=1QkWJbOrR9_Wgo9Q8urqCEe9CTd9AYItN",
+  "문성원":  "https://drive.google.com/open?id=1_KEyJvDWpkNTp3U-AuZmQgBBikXH8XuT",
+  "최경호":  "https://drive.google.com/open?id=1Xe-LUnbIZRkmhq20mkHCe2n868htAUmTp4O7c8ZdqFc",
+  "최문준":  "https://drive.google.com/open?id=1FyzwftK2SvDr2n20ot4fbAhYo-zXa2pSd_vSbin1qyU",
+  "정선우":  "https://drive.google.com/open?id=1jXAHS9TLsFHwA9WjYbGYBKZaJrwFUiUp-w7lumjjFno",
+  "김정환":  "https://drive.google.com/open?id=1HdhZ4_Wf8cfxbBUvOmoFYq7EBTF41UQO64Sd-VtECsU",
+  "박정욱":  "https://drive.google.com/open?id=1II3QJXlyqbFISAdZSh0dfTCc030elA7JO2cRDc7Q_tw",
+  "서정욱":  "https://drive.google.com/open?id=1KpxEGj53WBb4P3HQoCsFPvmY9A6zLgBVerjwtxkEwEA",
+  "정민수":  "https://drive.google.com/open?id=100iPyDhYaE8M-_mPHoDMpB3Z8iaBtZhuYRLIMlqhiC0",
+  "정주현":  "https://drive.google.com/open?id=1s4SJtjv1LDKHKMd3yQ3nsNIBbv9yUzgTsBjPpWEDm24",
+  "정은비":  "https://drive.google.com/open?id=1DgUd8DTgSJoQdapnESauNeRRKpch7kkQU8QnhNv63bI",
+  "김보민":  "https://drive.google.com/open?id=1nHeLRM2ryVSqeV8_-gXAWUzY27-JCMNQ",
+  "이수인":  "https://drive.google.com/open?id=1m1DZkrrWUBGoEtUl-llV8KVbAWCWnw6C",
+  "이성희":  "https://drive.google.com/open?id=1xbeGjczVs-cTvjGBEqcCOSqXc6dqbjGNgZrpEudtE1s",
+  "고성환":  "https://drive.google.com/open?id=1P8aaUAiSKE6yTG153h99hobmPQhof-Y_htAi5vJJVJ8",
+  "백정수":  "https://drive.google.com/open?id=1pluZkk2Y0585y9G5k_Fg5sjupy9FNoDn69y6aSoqyGA",
+};
+
+// Nominations: name → [{value, month, case}]  (submitter 제거)
+const NOMINATIONS = {
+  "박세윤": [{"value":"책임","month":"6월","case":"모니터링 알람이 울릴 때마다 책임감 있게 대응해 주시는 모습이 늘 인상적입니다. '누군가 보겠지' 하고 넘기지 않고 직접 원인을 파고들어 끝까지 해결해 주셔서, 팀이 믿고 일할 수 있는 든든한 환경이 만들어집니다."}],
+  "김종인": [{"value":"긍정","month":"6월","case":"주변 동료에게 하여금 긍정적인 시너지를 주는 선배이자 배울 점 많은 멋진 동료입니다. 항상 좋은 말씀과 조언, 그리고 인생의 선배로서 들려주시는 이야기 모두 소중하게 듣고 있습니다. 이렇게 좋은 분을 만나게 되어 정말 감사하게 생각합니다."}],
+  "남하림": [{"value":"배려","month":"5월","case":"남을 배려하는 분이라서 칭찬해 드립니다.\n늘 그랬던 것처럼 회사에서 배려 아이콘으로 성장해 주시기를 기대합니다."}],
+  "온종선": [{"value":"신뢰","month":"6월","case":"VNTG의 빛나는 '신뢰의 아이콘'!\nVNTG가 지향하는 다섯 가지 핵심가치 중에서도 '신뢰'라는 단어를 인간화한다면 바로 이 분이라고 할 수 있을 것 같습니다. 늘 신중하고 명확한 판단력과 묵직한 책임감으로 팀 내에서 든든한 버팀목 역할을 해주시는 모습이 정말 인상적입니다."}],
+  "원요엘": [{"value":"책임","month":"5월","case":"항상 맡은 일에 책임감을 가지고 성실하게 해내시는 모습이 정말 인상적입니다. 바쁜 업무 속에서도 꼼꼼함과 집중력을 잃지 않으시고 자신의 역할을 잘 해주셔서 큰 힘이 되고 있습니다."}],
+  "최은비": [
+    {"value":"긍정","month":"5월","case":"항상 밝은 에너지로 주변을 환하게 만드는 모습이 정말 인상적입니다.\n어떤 상황에서도 긍정적인 분위기를 만들어내는 힘이 있어 함께 있으면 자연스럽게 기분이 좋아집니다."},
+    {"value":"책임","month":"6월","case":"새롭게 맡은 E-biz 업무를 놀라운 속도로 파악하고 책임감 있게 현업의 요청을 처리해 주셔서 정말 든든합니다. 맡은 프로그램에 이슈가 없는지 꼼꼼하게 확인하고, 현업과의 소통도 적극적으로 해주셔서 업무 효율이 많이 올라갔습니다."},
+    {"value":"신뢰","month":"6월","case":"항상 주도적으로 자기학습을 하며 업무를 수행해 왔습니다. 최근 새롭게 맡은 업무에서도 서버 로그 수집의 자동화 및 통합 관리를 성공적으로 진행했습니다. 또한, 일면식이 없는 협업 대상자에게 먼저 미팅을 요청하며 업무를 진행해 나가는 모습이 매우 인상적이었습니다."}
+  ],
+  "이정연": [
+    {"value":"책임","month":"5월","case":"팀 내 인력이 부족한 상황에서도 항상 긍정적인 태도로 업무에 임하시는 모습이 인상적이며 많은 부분에서 배울 점이 있다고 생각합니다.\n바쁜 업무 환경 속에서도 문의 사항에 성실하게 답변해 주시고 책임감 있게 업무를 완수하시는 모습을 보면서 크게 배우고 있습니다."},
+    {"value":"책임","month":"6월","case":"구성원 공백으로 업무가 심화되었지만 긍정의 힘으로 극복하고 계십니다.\n\n특히, 월 마감에 몰린 업무에 책임감을 갖고 야근 등을 통해 일정 내 마무리하는 모습을 보여주셨습니다. 칭찬합니다!"}
+  ],
+  "이주희": [{"value":"긍정","month":"6월","case":"언제나 긍정적인 태도로 구성원들을 배려하며 밝은 분위기를 만들어 주었고, 밝은 태도와 책임감 있는 모습으로 함께하는 사람들에게 신뢰를 주며, 누구와도 잘 어울리는 든든한 동료입니다."}],
+  "김효림": [{"value":"긍정","month":"6월","case":"항상 밝고 긍정적인 태도로 업무에 임하며, 새로운 업무를 배우고자 하는 의지와 자세가 매우 우수한 팀원입니다. 주니어임에도 불구하고 맡은 업무에 적극적으로 참여하고 노력하는 모습이 팀에 좋은 영향을 주고 있습니다."}],
+  "강태영": [{"value":"책임","month":"5월","case":"RPA 제작 이후 오류나 문제 사항이 있을 때 수정 작업 및 관리해주셔서 잘 쓰고 있어서 감사 인사 드립니다! 요청 드린 날보다 빠르게 수정해 주셔서 정말 도움이 많이 됐습니다."}],
+  "김영우": [
+    {"value":"책임","month":"6월","case":"팀원의 빈자리를 빈틈 없이 매꿔주는 동료입니다.\n그런 바쁜 와중에 프로젝트 수행까지 묵묵히 진행하고 있습니다."},
+    {"value":"배려","month":"6월","case":"같이 일하면서 의견을 경청하시고 공감해주시면서 성공적인 일을 위해 최선을 다하시는 모습에 항상 많이 배우고 있습니다. 배려 뿐만 아니라 책임감도 깊으셔서 시스템에 어떤 문제가 있어도 끝까지 마무리 짓는 모습이 매우 인상 깊습니다."}
+  ],
+  "구명선": [{"value":"배려","month":"5월","case":"배려를 잘 합니다."}],
+  "문성원": [{"value":"배려","month":"6월","case":"입사한 지 이제 일주일이 되었는데, 덕분에 낯선 환경에 잘 적응하고 있습니다. 업무를 하나부터 열까지 꼼꼼하게 알려주셔서 일의 흐름을 빠르게 파악할 수 있었어요. 불편한 점은 없는지, 질문은 없는지 먼저 세심하게 챙겨주시는 덕분에 마음 편히 시작할 수 있었습니다."}],
+  "최경호": [
+    {"value":"혁신","month":"5월","case":"변화의 흐름을 누구보다 먼저 알아차리고, AI 프로젝트마다 가장 앞에서 길을 열어 주시는 모습이 참 멋있습니다. 쉽지 않은 일도 특유의 긍정 에너지로 풀어가시는 덕분에 팀 분위기까지 밝아집니다."},
+    {"value":"책임","month":"5월","case":"[추천 사유: BVC의 모범사례이자 책임감 넘치는 핵심 인재]\n\nTMS 운영 및 개발 담당자로서, 프로그램 운영시 발생하는 이슈에 대해 표면적 해결이 아닌 본질적 원인을 끝까지 파헤쳐 해결하는 자세로 팀의 신뢰를 받고 있습니다."}
+  ],
+  "최문준": [{"value":"혁신","month":"6월","case":"항상 발전하려는 모습, 논리정연한 사고, 핵심 가치를 구현하려는 열정, 그리고 겉으로 드러내지 않지만 세심하게 챙기는 배려까지 인상 깊습니다. 덕분에 많은 동기부여가 되고 있습니다."}],
+  "정선우": [{"value":"배려","month":"5월","case":"바쁜 업무 속에서도 동료를 세심하게 배려하며 귀찮은 기색 없이 기꺼이 도움의 손길을 내미는 모습이 참 인상적입니다. 어떤 상황에서도 책임감 있게 최선을 다하는 그 자세는 주변 모두에게 긍정적인 영향을 미치고 있습니다."}],
+  "김정환": [
+    {"value":"책임","month":"5월","case":"아직 입사하신지 얼마 안되셨지만 맡은 업무에 대해 책임감 있게 대하고 있습니다. 모르는 부분은 적극적으로 질문하고, 꼼꼼하게 확인하여, 끝까지 해결하고 확인하는 태도를 책임이라는 가치로 표현할 수 있다고 생각합니다."},
+    {"value":"신뢰","month":"6월","case":"퇴사자 발생시 이메일 계정 관련 협조요청을 드렸습니다. 단순히 요청사항을 구현하는 데 그치지 않고, 프로세스 전반을 점검하고 재발방지를 위한 개선 방향도 함께 제안해 주셨습니다. 업무의 본질을 파악하고, 구성원이 믿고 요청할 수 있는 신뢰를 보여주셨습니다."}
+  ],
+  "박정욱": [
+    {"value":"신뢰","month":"5월","case":"신뢰의 아이콘!\n함께 일할 때면 구멍 없이 깔끔하게 진행된다는 느낌을 받습니다.\n티 내지 않고 묵묵하게 해내는 모습을 보면서 힘을 낼 때도 있습니다."},
+    {"value":"배려","month":"6월","case":"맡은 자리에 묵묵하게 일하고 있는 모습을 칭찬합니다.\n\n남들이 선호하지않는 일들을 솔선수범해서 행동하고 어떤일이든 책임감을 가지고 마무리합니다.\n\n1. 노사위원회 멤버로 활동 중이며 회사와 구성원의 가교 역할을 수행\n2. 임시 서버 관리, BVC 측정 등 팀원 중 쉽게 맡으려 하지않는 업무를 먼저 나서서 처리"}
+  ],
+  "서정욱": [{"value":"책임","month":"5월","case":"드러나지 않는 곳에서 묵묵히 일해 주셔서 감사합니다. 시스템 운영, 프로젝트 그 어느 하나 여유롭지 않은 상황인데 늘 책임감 있게 일하시는 모습을 보면 반성하게 되곤 합니다. 어렵고 힘든 업무를 마다하지 않고 책임을 다하시는 모습에 감사하고 배우고 싶습니다."}],
+  "정민수": [
+    {"value":"긍정","month":"5월","case":"개인적인 업무로 바쁜 상황에서 팀내 행사를 위해 즐거운 마음으로 봉사하는 모습을 칭찬합니다."},
+    {"value":"책임","month":"6월","case":"이번 고객사 마감때 본인의 업무가 아님에도 후배 사원이 어려워하는 부분을 책임감 있게 지원하여 문제없이 마감이 진행될수 있도록 도와주었습니다.\n어떤 부분을 개선하면 좋을지까지 파악하여 문서화하는 꼼꼼함까지 보여주었습니다."}
+  ],
+  "정주현": [
+    {"value":"배려","month":"5월","case":"운동 중 발목이 돌아가서 운전도 못할 상황이었는데, 나서서 병원에 데려다주고 부축해주었습니다.\n배려 넘치는 모습을 칭찬합니다."},
+    {"value":"책임","month":"6월","case":"항상 긍정적인 태도로 업무에 임하며 주변 동료들에게 좋은 에너지를 전파해 주시는 점이 매우 인상적입니다. 개인적인 일뿐만 아니라 부서의 다양한 업무도 책임감을 가지고 앞장서서 추진하는 모습이 칭찬스럽습니다."}
+  ],
+  "정은비": [{"value":"책임","month":"6월","case":"본인 업무외에도 프로젝트 업무도 꼼꼼하고 빠르게 처리하는 모습이 인상에 남아 칭찬합니다.\n맡은 업무를 성실히 진행하면서도 프로젝트의 업무들도 성실하게 진행하고 있습니다.\n이와 더불어, 팀내 분위기 메이커로써 팀 분위기를 좋게 이끌어 주어 큰 도움이 됩니다."}],
+  "김보민": [
+    {"value":"신뢰","month":"5월","case":"보이지 않는 곳에서도 내색하지 않고 늘 열심히 일하며, 조직의 방향성에 맞춰 책임감 있게 업무를 수행합니다. 특히 고객에게는 단순한 신뢰 그 이상의 깊은 관계를 보여주며, 어려운 상황에서도 솔직하고 신중한 소통으로 문제를 해결합니다."},
+    {"value":"긍정","month":"6월","case":"업무 관련 문의나 요청을 드릴 때마다 항상 친절하고 긍정적인 태도로 응대해주시며 적극적으로 업무를 처리해주시는 점이 인상적입니다.\n\n또한 맡은 업무에 대한 책임감이 강해 프로젝트를 성공적으로 이끌어 주시는 점도 정말 감사하게 생각합니다."}
+  ],
+  "이수인": [
+    {"value":"배려","month":"6월","case":"복잡한 SAP-MES 재고 불일치 문제나 테스트 서버 입고 관련 요청 시, 늘 긍정적이고 적극적인 자세로 소통하며 해결책을 찾아내려 노력하시는 모습에 일하는 데 큰 힘이 됩니다. 처음 접하는 업무에도 꼼꼼하게 파악하고 안내해주셔서 정말 감사합니다."},
+    {"value":"긍정","month":"6월","case":"군산공장 BOX 출하 프로세스 관련 설계시 적지 않은 신규 개발량에도 현업과의 소통시 컴플레인없이 현업의 요구사항을 적극적인 자세와 긍정적인 대응으로 원활한 커뮤니케이션을 진행해 주셨습니다."}
+  ],
+  "이성희": [{"value":"신뢰","month":"5월","case":"입사하신 날부터 지금까지 곁에서 지켜본 후보자6님은\n어떤 일이든 변함없는 열정으로 묵묵히 책임을 다하시며 동료들에게 신뢰이자 본보기가 되어주셨습니다.\n업무 적으로도 훌륭하시지만 그것보다도 사람을 아끼고 배려하는 마음에서 항상 많이 배우고 있습니다."}],
+  "고성환": [{"value":"혁신","month":"5월","case":"항상 남다른 전문성으로 업무에 임하시는 모습을 칭찬합니다. 새로운 도전을 두려워하지 않는 모습은 VNTG의 핵심 가치인 '혁신'과 '책임'을 보여주는 훌륭한 본보기입니다."}],
+  "백정수": [
+    {"value":"긍정","month":"5월","case":"바쁜 업무 환경 속에서도 늘 밝고 긍정적인 태도로 임해주시는 모습을 칭찬합니다. 언제나 밝은 인사로 동료들에게 긍정적인 기운을 전해주실 뿐만 아니라, 회사 교육 및 각종 사내 행사에도 적극적으로 참여하시어 분위기를 밝게 해주세요."},
+    {"value":"긍정","month":"5월","case":"매 교육시마다 밝고 긍정적인 모습으로 적극적으로 참여하며 재치와 유머로 분위기를 유쾌하게 이끄는데 큰 도움을 주십니다."}
+  ],
+};
+
+const VALUE_CANDIDATES = {
+  "책임": ["박세윤","원요엘","최은비","이정연","강태영","최경호","김정환","서정욱","정민수","정주현","정은비"],
+  "배려": ["남하림","김영우","구명선","문성원","정선우","박정욱","이수인"],
+  "긍정": ["김종인","최은비","이주희","김효림","정민수","김보민","이수인","백정수"],
+  "신뢰": ["온종선","최은비","김정환","박정욱","김보민","이성희"],
+  "혁신": ["최경호","최문준","고성환"],
+};
+
+// Recommendation letter texts per candidate per value
+const RECOMMENDATION_TEXTS = {
+  "박세윤": {
+    "책임": "박세윤님에게 모니터링은 '맡겨진 업무'가 아니라, 팀 전체를 지키는 스스로의 책임입니다.\nGarde 통합 모니터링에서 Terroir의 LGTM 알람을 가장 먼저 확인·전파하는 것은 물론, 주어진 임무가 아닌 전사 서비스까지 자발적으로 살피는 책임감으로 팀의 눈이 되어 줍니다. 실제로 비용이 새어 나가는 이상 징후를 모니터링으로 먼저 포착해 조치했고, 개발자가 미처 인지하지 못한 문제까지 먼저 발견해 알려 주어 빠르게 바로잡음으로써 불필요한 시간과 비용을 줄였습니다.\n알람 앞에서 '누군가 보겠지' 하고 미루는 대신 늘 세윤님이 먼저 움직여 주기에, 팀은 안심하고 개발에 집중할 수 있는 신뢰의 버팀목을 얻었습니다. 문제를 지적에 그치지 않고 동료가 곧바로 조치할 수 있게 먼저 손 내미는 태도까지 더해져, 아직 운영 전인 Terroir가 흔들림 없이 나아가는 든든한 배경이 되고 있습니다."
+  },
+  "원요엘": {
+    "책임": "요엘님은 M&S MES 프로젝트에서 PDA 개발을 성공적으로 완수하고 협력사 시스템 화면 개발을 이어가며 '책임'의 가치를 몸소 보여주고 있습니다. 특히 기술적 난관에 부딪혔을 때도, 여러 가지 시도 끝에 해결책을 찾아 직접 해결해내는 등 맡은 일을 끝까지 파고드는 자세가 돋보였습니다.\n또한 Gemini를 활용해 UX 관점에서 PDA 화면 레이아웃을 최적화하고, AI 기반 바코드 인식 기능과 예외 처리를 구현하는 등 새로운 기술을 업무에 적극 접목한 것은 '혁신'을 실천했다 할 수 있겠습니다. 개발 과정에서는 담당 팀원의 디자인과 프로세스를 존중하며 업무 밀접 케이스를 긴밀히 협의하는 등 동료와 함께 성과를 만들어가는 '배려'의 모습도 보여주었습니다. 또한 여유 시간이 생겼을 때도 허투로 사용하지 않고 타 팀원이 운영 중인 시스템의 기능을 개선한 것 또한 배려의 마음가짐이라고 생각합니다.\n무엇보다 칭찬 메시지를 통해 \"함께 일하며 많이 배우고, 좋은 에너지가 자연스럽게 전해진다\"고 전할 만큼 팀에 '긍정'의 활력을 불어넣는 구성원입니다. 9년차 프론트엔드 개발자로서의 탄탄한 기술력과 성실한 태도를 두루 갖춘 요엘님을 추천합니다."
+  },
+  "최은비": {
+    "책임": "둘째, 맡은 바 임무를 끝까지 완수해내는 압도적인 책임감을 보유하고 있습니다. 최근 새롭게 맡게 된 E-biz 업무에서 놀라운 러닝 커브를 보여주며 업무를 단기간에 파악했고, 현업의 다양한 요청을 신속하고 정확하게 처리하여 높은 신뢰를 얻었습니다. 특히 주어진 업무에 안주하지 않고, 담당 프로그램의 상시 모니터링과 자발적인 자체 개선을 통해 서비스의 안정성을 끊임없이 고도화하는 모습은 동료들에게 늘 깊은 귀감이 되고 있습니다.",
+    "긍정": "첫째, Ari님은 어떤 상황에서도 주변을 환하게 만드는 긍정적인 에너지를 지니고 있습니다. 유관 부서나 현업의 까다로운 요청에 직면했을 때도 항상 밝은 미소와 명랑한 태도로 소통하며, 단순한 감정 관리를 넘어 팀 전체의 스트레스를 낮추고 심리적 안정감을 주는 활력소 역할을 하고 있습니다. 이러한 긍정적인 커뮤니케이션 역량은 부서 간의 장벽을 허물고 협업을 원활하게 만드는 큰 원동력이 됩니다.",
+    "신뢰": "셋째, 주도적인 자기학습을 바탕으로 전문성을 실현하며 조직 내 두터운 신뢰를 쌓아가고 있습니다. Ari님은 지시를 기다리기보다 스스로 문제를 정의하고 해결하는 인재입니다. 최근에는 '서버 로그 수집 자동화 및 통합 관리'를 자발적으로 진행하며 담당 운영 서버의 관리 효율성을 크게 증대시켰습니다. 또한 시스템 개선을 위해 일면식도 없는 현업 부서 담당자들에게 먼저 다가가 진정성 있는 인터뷰를 진행하고 VOC를 발굴하는 등, 적극적인 소통과 전문성을 바탕으로 현업에 도움이 되는 시스템을 운영하고 있으며 이에 현업에서도 신뢰도 및 만족도가 높은 상황입니다."
+  },
+  "이정연": {
+    "책임": "정연님이 추천 받은 핵심가치는 \"책임\"입니다. 팀내 인력이탈로 인해 업무 공백 우려가 큰 상황 속에서, 팀이 당면한 현실을 깊이 공감하고 위기 극복에 앞장서 왔습니다. 과감한 업무 조정에도 흔들림 없이 묵묵하게 역할을 수행하며 조직의 든든한 버팀목이 되어주고 있습니다. 칭찬 메시지에서도 언급되었던 것처럼 시니어의 연차와 경력에도 불구하고, 난이도와 상관없이 단순 반복적인 실무까지 솔선수범하여 충실히 수행해 주시고 있으며 기존 담당자와 달리 차별화된 따뜻하고 배려 넘치는 소통방식으로 유관부서와의 협업 몰입도를 높임으로써 부서간의 신뢰가 두터워졌으며, 궁극적으로 소속팀에 대한 평판과 이미지를 개선하는데 기여하고 있습니다."
+  },
+  "강태영": {
+    "책임": "맡은 업무를 끝까지 책임지는 자세가 돋보이는 동료입니다. RPA를 제작한 이후에도 오류나 문제 상황이 발생할 때마다 세심하게 수정하고 관리해 주어, 사용하는 사람이 안심하고 업무에 활용할 수 있는 환경을 만들어 주었습니다. 요청한 작업을 예정일보다 앞당겨 처리해 줄 만큼 강한 책임감을 갖고 있으며, 그 덕분에 RPA 사용자들의 업무가 한결 수월해졌습니다. 특히 별도의 요청이 없어도 평소에 먼저 오류를 점검하고 선제적으로 조치하는 모습은, 시키는 일만 하는 것을 넘어 결과에 대한 끝까지 주인의식을 갖고 있음을 잘 보여줍니다. 책임의 핵심가치를 묵묵한 실천으로 증명하는 태영님을 진심으로 추천합니다."
+  },
+  "최경호": {
+    "책임": "경호님은 혁신과 책임의 VNTG 핵심가치가 행동으로 어떻게 실현되는지를 잘 보여주는 사례입니다.\n업무 협의 시 선제적으로 제안하며, 고객이나 요청자의 입장에서 사전에 업무를 이해하려 하고 보다 나은 서비스를 제공하고자 노력합니다. 이는 전사적인 BVC 핵심활동이기도 합니다.\n팀 내에 긍정 에너지까지 전파하며 팀 분위기를 밝게 만드는 선한 영향력의 소유자이기도 합니다.\n팀의 핵심 인재이자 솔선수범의 모범을 보이는 최경호님을 강력히 추천합니다.",
+    "혁신": "AI Agent를 통한 자체 개발방법론을 직접 만들고 수행합니다. 스스로 변화하고자 하는 마인드가 강하며, 새로운 기술·개발방법론·AI 트렌드 분석에서 실제 업무 적용까지 끊임없이 연구하고 노력합니다.\n실제 적용 사례로, 최근 세아M&S 신인사평가시스템 구축 당시 개발 인력이 부족해 외주 인력을 추가 소싱해야 하는 상황에서, 경호님이 개발한 AI 개발방법론을 활용해 추가 투입 인원 없이 정상 스케줄 안에 마무리할 수 있는 환경을 만들었습니다. 더 나아가 Web뿐만 아니라 SIS-Framework 기반의 ERP 운영방법에도 AI Agent를 통한 운영 효율화의 기틀을 마련해 운영 업무에 큰 도움을 주고 있습니다.\n일상적인 틀에 갇힌 기존 업무 방식을 깨고 보다 진일보한 업무방법론을 찾고자 하는 노력, 그 마인드가 혁신입니다. 누가 시켜서도, 알려줘서도 아닌 스스로 찾아보고 검토하고 연구하는 경호님이야말로 팀, 더 나아가 VNTG 혁신의 아이콘이라 칭하고 싶으며, [혁신] 핵심가치를 가장 잘 실천하는 인물로 강력히 추천합니다."
+  },
+  "김정환": {
+    "책임": "입사 후 한 달이 되었을 때 진행한 1on1에서 정환님은 \"팀원들에게 도움이 되는 의미 있는 사람이 되고 싶습니다.\"라고 했습니다. 그 말은 단순한 각오가 아니라 매일의 행동으로 지켜낸 약속이었습니다.\n정환님은 모르는 것을 숨기지 않고 끝까지 배우려 합니다. 이해할 때까지 질문하고, 작은 부분도 놓치지 않기 위해 꼼꼼히 확인하며, 맡은 일은 반드시 검증을 거쳐 마무리합니다. 빠르게 끝내기보다 제대로 끝내는 것을 선택하는 태도가 돋보입니다.\n입사한 지 얼마 되지 않았음에도 세아웍스의 네트워크·Web·WAS·DB 등 전체 아키텍처를 파악하고 체계적으로 문서화했으며, 모니터링 체계 구축, 성능 및 비용 최적화, 개발 파이프라인 구축 등 다양한 개선 과제를 주도적으로 수행하고 있습니다. 전자결재 업무도 빠르게 익혀 실무에 안정적으로 기여하며, 새로운 환경에서도 스스로 역할을 넓혀가는 모습을 보여주고 있습니다. 성과를 앞세우기보다 책임감 있는 실행과 꾸준한 노력으로 주변의 신뢰를 쌓아온 정환님을 [책임] 부문에 추천합니다.",
+    "신뢰": "정환님은 맡은 일을 끝까지 검증하며 마무리하는 태도로 자연스럽게 팀원들의 신뢰를 얻었고, 함께 일하는 사람들이 안심하고 업무를 맡길 수 있는 기반을 만들었습니다.\n무엇보다 사람을 대하는 태도가 인상적입니다. 적극적으로 의견을 제시하면서도 상대방의 입장을 먼저 이해하려 노력하고, 자신의 생각을 고집하기보다 함께 더 좋은 방향을 찾기 위해 귀 기울입니다. 이러한 자세는 팀원 간의 신뢰를 더욱 단단하게 만들고 협업하기 좋은 팀 문화를 만드는 데 긍정적인 역할을 하고 있습니다.\n지금은 개발 파트 업무를 믿고 맡길 수 있는 든든한 팀원으로 성장했으며, 책임과 신뢰를 말이 아닌 행동으로 증명해 온 정환님을 [신뢰] 부문에 추천합니다."
+  },
+  "서정욱": {
+    "책임": "1. 드러나지 않는 곳에서 완성되는 책임\n품질 업무는 화려하지 않습니다. 잘 돌아가면 아무도 알아주지 않고, 문제가 생기면 가장 먼저 주목받는 자리입니다. 우기 매니저는 그 자리에서 시스템 운영과 프로젝트, 어느 하나 여유롭지 않은 상황 속에서도 단 한 번도 흔들림 없이 자기 몫을 해내 왔습니다.\n드러나지 않는 곳에서 묵묵히 일한다는 것은, 누가 보지 않아도 스스로에게 부끄럽지 않게 일한다는 뜻입니다. 저는 그것이 책임감의 가장 정직한 형태라고 생각하며, 우기 매니저는 그 모습으로 팀원들의 귀감이 되고 있습니다.\n\n2. 기대지 않고, 파고드는 책임\n우기 매니저의 가장 큰 강점은 누구에게도 기대지 않고 자신의 길을 걸어간다는 점입니다. 어려운 문제를 만나면 남에게 넘기는 것이 아니라 스스로 그 문제의 끝까지 파고듭니다.\n현업과의 조율이 필요한 사안이 생기면 표면적인 답변으로 넘기지 않고, 문제의 근원까지 파고들어 현업 담당자들의 궁금증을 직접 풀어줍니다. \"어떻게 하면 더 개선할 수 있을까\"를 끊임없이 고민하고, 그 고민을 실제 처리와 개선으로 연결해 냅니다. 문제를 자기 것으로 끌어안는 사람은 드뭅니다. 우기 매니저는 후자입니다.\n\n3. 끝이 없는 일을 끝까지 감당하는 책임\n품질 운영에는 완성이라는 것이 없습니다. 그럼에도 우기 매니저는 평일과 주말을 가리지 않고 자신의 몫을 다해 왔습니다. 끝이 없는 일을, 지치지 않고, 자신만의 기준으로 꾸준히 감당해 내는 것은 강한 책임감 없이는 불가능한 일입니다.\n\n4. 팀장으로서의 확신\n리더의 입장에서 가장 귀한 팀원은, 맡기고 나면 더 이상 걱정하지 않아도 되는 사람입니다. 우기 매니저가 바로 그런 사람입니다. 그에게 일을 맡기는 순간, 그 일은 이미 그의 책임이 되고, 그의 책임이 된 일은 반드시 끝을 봅니다.\n책임을 스스로의 방식으로 살아내는 사람. 보이지 않는 곳에서 조직의 품질을 지탱해 온 사람. 저는 팀장으로서 우기 매니저를 조금의 망설임도 없이 추천합니다."
+  },
+  "정민수": {
+    "책임": "조직의 총무 업무를 담당하며 구성원들이 즐겁고 활기찬 분위기에서 업무에 집중할 수 있도록 다양한 행사와 이벤트를 기획·운영해 왔습니다. 맡은 역할에 대한 책임감이 강하며, 크고 작은 업무를 성실하게 수행하는 모습이 꾸준히 돋보입니다. 새로운 아이디어를 바탕으로 조직에 활력을 불어넣기 위해 지속적으로 고민하고 실행하며, 특별히 대규모 프로젝트가 아니더라도 일상적인 업무 하나하나를 성실하게 완수하는 태도야말로 책임의 가치를 가장 잘 보여주는 모습이라 생각합니다.",
+    "긍정": "단순히 행사를 준비하는 것에 그치지 않고 본인이 먼저 적극적으로 참여하며 자연스럽게 구성원들의 참여를 이끌어내는 등 조직 분위기 조성에 앞장서는 모습을 꾸준히 보여주었습니다. 항상 밝은 표정과 긍정적인 자세로 업무에 임하며, 어려운 상황에서도 먼저 협조하고 해결 방안을 함께 고민하는 태도는 주변 구성원들에게 좋은 에너지를 전달하고 있습니다. 후배 구성원들이 업무적인 고민뿐만 아니라 개인적인 어려움까지 편하게 이야기할 수 있는 선배로 신뢰받고 있으며, 이러한 모습은 팀 전체의 분위기를 밝게 이끄는 긍정의 실천 그 자체입니다."
+  },
+  "정주현": {
+    "책임": "정주현님은 'AI Worker' 도입 이후, 각 팀원들이 개별적으로 제작한 업무 자동화 도구들이 임시 서버와 개인 PC 등 여러 곳에 산재되어 향후 유지관리가 어려워질 수 있다는 문제를 스스로 인지했습니다. 이를 그냥 넘기지 않고, 바쁜 업무 중에도 각 팀원들을 조율하며 통합 작업을 직접 주도했습니다. 특히 팀 내에서 경험해보지 못했던 새로운 가상화 솔루션 'Proxmox' 환경을 활용해 VM 기반의 안정적인 통합 자동화 서버 구축에 성공했습니다. 누가 시키지 않아도 조직의 문제를 자신의 문제로 끌어안고 끝까지 해결해내는 이 모습이야말로 [책임] 핵심가치의 가장 진솔한 실천이라 생각하며, 정주현님을 강력히 추천합니다."
+  },
+  "정은비": {
+    "책임": "정은비 팀원은 ERP/MES 운영 데이터베이스의 데이터 변경이라는 업무를 전담하고 있습니다. 특히 결산 기간 등 신속한 데이터 처리가 요구되는 시기에는, 외부 일정이 있거나 자리를 비운 상황에서도 어떻게든 해결 방안을 찾아내어 적시에 업무를 처리하려고 노력하고 있습니다. 이러한 책임감은 유관 부서의 만족도를 극대화하고 조직원들의 신뢰도를 높이는 데 크게 기여하고 있습니다.\n본인의 주 업무 외에 '사외접속시스템 운영이나 고도화 프로젝트' 등 새로운 추가 업무나 까다로운 과제가 부여될 때도 오히려 기쁜 마음으로 흔쾌히 업무를 인수하며, 주도적인 자세로 믿기 힘들 만큼 빠른 속도로 업무를 파악하고 추진하고 있습니다. 동료의 피드백처럼 본인 업무와 프로젝트 업무 모두를 꼼꼼하고 완벽하게 소화해 내는 면모를 보여주고 있습니다.\n정은비 팀원은 팀 전체의 페이스메이커이자 '비서실장' 역할을 자처합니다. 팀원들이 각자 바쁜 업무로 인해 자칫 놓치기 쉬운 중요 작업의 마감 일정들을 항상 옆에서 모니터링하고, 이를 제때 리마인드하며 독려해 줍니다. 이러한 세심한 배려 덕분에 팀은 단 하나의 일정도 놓치지 않고 안정적으로 업무를 수행할 수 있었으며, 이는 팀의 리스크 관리에 굉장히 많은 도움을 주고 있습니다."
+  },
+  "남하림": {
+    "배려": "남하림님은 '배려'의 가치를 일상 업무 속에서 꾸준히 실천해 온 구성원입니다. 5월 칭찬 챌린지에서도 평소 동료를 배려하는 태도가 한결같다는 점이 언급되며, 팀을 넘어 회사 차원에서도 배려를 대표하는 구성원으로 성장하리라는 기대를 받았습니다.\n협업 과정에서 남하림님은 자신의 업무가 바쁜 상황에서도 동료의 요청을 먼저 살피고, 상대방의 입장에서 일의 우선순위와 전달 방식을 고민합니다. 회의나 업무 조율 시에도 목소리가 작은 구성원의 의견까지 챙기고, 유관 부서와의 협업에서 상대가 이해하기 쉬운 방식으로 소통해 불필요한 마찰 없이 일이 진행되도록 만듭니다. 이러한 태도는 팀 전체의 협업 비용을 낮추고 심리적 안전감을 높이는 데 기여하고 있습니다.\n세아창원특수강 단조팀·SF팀과 진행한 과제에서 이해관계가 다른 두 현업 부서 사이의 조율 역할을 맡아 좋은 성과를 거두는 데 기여했습니다. 각 팀의 업무 특성과 요구사항을 세심하게 파악하고 양쪽 모두 수용할 수 있는 방향을 제시하며 과제를 이끌었고, 이는 상대방의 입장을 먼저 헤아리는 남하림님의 배려가 협업 성과로 직결된 대표적인 사례입니다."
+  },
+  "김영우": {
+    "배려": "팀에서 보이지 않는 곳까지 세심하게 챙기며 팀을 든든하게 지탱해 주는 김영우님을 [배려] 부문 칭찬 대상자로 강력히 추천합니다.\n김영우님은 현재 SAP LE 모듈을 담당하고 계시며, 작년에는 기존에 맡고 있던 MM 모듈을 주니어 담당자에게 인수인계하셨습니다. 보통 방대한 시스템을 새로 넘겨받을 때면 심리적인 압박감이 큰데, 김영우님은 단순한 업무 전달을 넘어 후배가 잘 안착할 수 있도록 진심을 다해 멘토링해 주셨습니다.\n특히 후배 담당자가 개인적인 경조사로 급히 자리를 비웠을 때, 월 마감 등 주요 일정이 겹쳐 부재 시 타격이 클 수 있는 상황이었지만, 본인의 LE 모듈 업무로 눈코 뜰 새 없이 바쁜 와중에도 선뜻 MM 모듈 업무까지 완벽하게 커버해 주셨습니다. 자신의 수고를 감수하면서까지 동료가 마음 편히 개인사를 돌볼 수 있도록 빈자리를 메워주신 모습은 팀원 모두에게 큰 귀감이 되었습니다.\n또한 'BOX 포장 PDA 프로젝트'에서도 바쁘고 예민해질 수 있는 일정 속에서도 늘 팀원들의 의견에 먼저 귀 기울이며 부드럽게 소통의 윤활유 역할을 해주고 계십니다. 단순히 친절한 태도를 넘어, 본인의 뛰어난 역량을 바탕으로 동료의 어려움을 실질적으로 해결해 주는 김영우님이야말로 '배려상'의 취지에 가장 잘 맞는 팀원이라 확신합니다."
+  },
+  "구명선": {
+    "배려": "명선님은 동료와 유관 부서를 향한 진정성 있는 '배려'를 바탕으로 협업의 완성도를 높이고, 조직 내 신뢰를 만들어가는 구성원입니다.\n정보보호 업무는 업무 특성상 임직원들에게 다소 까다롭고 번거로운 절차로 받아들여질 수 있습니다. 그러나 명선님은 보안 정책과 기준을 일방적으로 전달하거나 통제하는 방식이 아니라, 상대방의 업무 상황과 이해 수준을 먼저 고려하여 친절하고 명확하게 설명합니다. 덕분에 유관 부서는 보안 절차를 단순한 제약이 아닌, 업무를 안전하게 완성하기 위한 필요한 과정으로 이해하고 받아들이고 있습니다.\n특히 명선님의 배려는 단순히 친절한 응대에 그치지 않습니다. 타이트한 일정, 복잡한 프로세스, 현업의 부담을 먼저 헤아리고 공감하며, 원칙을 지키면서도 업무가 현실적으로 진행될 수 있는 대안을 함께 고민합니다. '어떻게 하면 기준을 지키면서 가능하게 만들 수 있을지'를 함께 찾아가는 태도는 협업하는 동료들에게 큰 신뢰를 주고 있습니다.\n이에 명선님을 핵심가치 실천 우수 구성원으로 추천합니다."
+  },
+  "문성원": {
+    "배려": "성원님은 신규 입사자가 팀에 자연스럽게 적응할 수 있도록 도운 점도 의미 있지만, 팀장으로서 더 높게 평가하는 부분은 평소 업무 과정에서 보여주는 기술적 지원과 지식 전파 방식입니다.\n정보보호 업무는 보안 정책, 시스템 구조, 취약점, 점검 기준 등 기술적으로 이해하기 어려운 내용이 많습니다. 이러한 내용을 본인만 알고 처리하는 데 그치지 않고, 상대방이 이해할 수 있는 수준으로 풀어 설명하며 함께 업무를 수행할 수 있도록 돕습니다. 이는 단순한 설명이 아니라, 상대방의 입장에서 무엇을 어려워할지 먼저 생각하고 필요한 정보를 제공하는 배려 있는 소통 방식입니다.\n단순한 친절이 아니라, 본인이 가진 기술적 역량을 동료들과 공유하여 함께 일하는 구성원의 업무 수준을 높이고 있습니다. 높은 전문성을 바탕으로 지식을 나누고, 상대방이 더 잘 이해하고 실행할 수 있도록 돕는 모습은 회사가 중요하게 생각하는 '배려'의 좋은 실천 사례라고 생각합니다. 이에 문성원님을 핵심가치인 '배려'를 모범적으로 실천한 구성원으로 추천합니다."
+  },
+  "정선우": {
+    "배려": "어떤 조직에나 일을 잘하는 사람은 있습니다. 하지만 주변 사람들에게 긍정적인 에너지를 전하고, 동료들이 더 즐겁고 편하게 일할 수 있도록 만드는 사람은 흔하지 않습니다. 선우님은 '배려'라는 가치를 일상 속에서 가장 자연스럽게 실천하는 사람입니다.\n팀 내 육아휴직으로 결원이 발생했을 때, 이미 전자결재 업무를 담당하고 있던 선우님에게 조직도 관리 업무까지 추가로 부탁드렸습니다. 선우님은 잠시의 망설임도 없이 \"어쩔 수 없죠. 제가 하겠습니다.\"라고 웃으며 흔쾌히 업무를 맡아주었습니다. 오히려 팀장인 제 마음을 먼저 헤아려 주는 모습에서 감동을 받았습니다.\n선우님의 배려는 여기서 끝나지 않았습니다. 신규 입사한 동료가 팀에 합류했을 때도 전자결재 업무는 물론 그룹웨어 운영 전반을 하나부터 열까지 세심하게 알려주었습니다. 단순히 업무를 전달하는 것이 아니라 상대방의 눈높이에 맞춰 설명해 주고, 언제든 편하게 질문할 수 있는 분위기를 만들어 주었습니다.\n'배려'는 거창한 말이나 일회성 행동이 아니라, 매일 함께 일하는 동료를 먼저 생각하는 작은 실천에서 시작된다고 믿습니다. 선우님은 그 작은 실천을 누구보다 꾸준히 이어오며 우리 팀의 문화를 만들어 온 사람입니다."
+  },
+  "박정욱": {
+    "배려": "정욱님이 보여주는 배려의 가치는 거창함이 아닌 묵묵한 꾸준함에 있습니다. 창원에서 회식이 있을 때처럼 차량 이동이 필요한 상황이 오면 항상 먼저 자청하여 운전을 도맡아 왔습니다. 누군가는 해야 하지만 선뜻 나서기 주저하는 일을 당연하다는 듯 기꺼이 책임져 온 것입니다. 평소에도 소소한 간식을 나누며 주변 동료들을 세심하게 챙기고, 팀의 온도를 따뜻하게 높여 줍니다.\n담당 영역이 다른 동료들이 어려움을 겪을 때면 자기 일처럼 함께 고민하고 문제를 해결해 줍니다. '내 일'과 '남의 일'의 경계를 긋지 않는 태도는 팀 전체의 문제 해결 속도와 분위기를 끌어올리는 데 크게 기여합니다. 동료의 이야기에 진심으로 귀 기울이고 실질적인 조언으로 답하는 방식은 많은 이들에게 든든한 위로가 되고 있습니다.",
+    "신뢰": "정욱님을 한마디로 표현하자면 \"티 내지 않고, 구멍 없이 해내는 사람\"입니다. 함께 일하다 보면 업무가 어긋나거나 빠지는 일 없이 매끄럽게 진행된다는 것을 누구나 체감하게 됩니다. 화려하게 드러내지 않지만, 그가 지나간 자리에는 늘 완결된 결과물이 남아 있습니다.\n노사위원회 창원 담당자로서 근무자들의 불편사항을 단순히 접수하는 데 그치지 않고, 개선 방안을 끊임없이 고민하며 관련 부서와 협의를 이어가고 있습니다. 누가 시켜서가 아니라 동료들의 근무 환경이 나아져야 한다는 스스로의 기준으로 움직이는 모습에서 그 신뢰의 근거가 확인됩니다.\n뛰어난 업무 역량과 깊은 신뢰감을 동시에 겸비한 보기 드문 팀원입니다. 무거운 책임은 기꺼이 짊어지되 자신의 공은 내세우지 않으며, 조직의 공백을 소리 없이 메우면서도 결코 생색내지 않는 정욱님을 [신뢰] 부문에 강력히 추천합니다."
+  },
+  "이수인": {
+    "배려": "실제 업무 현장에서 'SAP-MES 재고 불일치 문제'나 '테스트 서버 입고'와 같이 복잡한 트러블과 시급한 과제가 빈번하게 발생합니다. 이러한 스트레스 상황 속에서도 이수인님은 언제나 따뜻한 인사와 긍정적인 태도로 동료들을 맞이합니다. 단순히 시스템적 조치를 취하는 것에 그치지 않고, 협업 부서와 동료들이 겪는 고충을 깊이 공감하며 적극적으로 소통하여 해결책을 함께 찾아냅니다. 이러한 배려의 태도는 동료들에게 \"함께 일할 때 큰 힘이 된다\"는 심리적 안정감을 주며, 까다로운 이슈도 원활하고 신속하게 해결되도록 만드는 원동력이 되고 있습니다.\n자신의 업무 영역에만 매몰되지 않고 협업하는 상대방의 입장을 먼저 배려하는 행동 양식 덕분에 부서 간의 장벽을 낮추고, 누구라도 언제든 편안하게 협업을 요청할 수 있는 '소통의 가교' 역할을 자처하며 조직 내에서 높은 신망을 얻고 있습니다.",
+    "긍정": "'군산공장 BOX 출하 프로세스' 관련 설계 당시, MES 쪽에 적지 않은 규모의 신규 개발량이 급작스럽게 요구되는 부담스러운 상황이 있었습니다. 대다수의 개발자가 난색을 표할 수 있는 상황이었음에도 이수인님은 단 한 번의 컴플레인도 없이 현업과의 소통에 임했습니다. 오히려 현업의 요구사항을 적극적인 자세와 전향적인 태도로 수용하며 원활한 협상을 이끌어냈습니다.\n이수인님은 어떠한 상황에서도 부정적인 감정에 매몰되지 않는 긍정의 끝판왕입니다. 이 긍정 에너지는 밝은 표정에 그치지 않고 어려운 업무나 새로운 과제 앞에서도 주저하지 않고 뛰어드는 도전 정신으로 발휘됩니다. 참여하는 프로젝트마다 뛰어난 성과를 창출하며 사내 동료는 물론 고객사까지 편으로 만드는 강력한 긍정의 영향력을 실천하고 있습니다."
+  },
+  "김종인": {
+    "긍정": "김종인님은 팀 내에서 '긍정'이라는 핵심가치를 가장 자연스럽게 체화하고 있는 구성원입니다. 6월 칭찬 챌린지에서도 동료들이 김종인님으로부터 긍정적인 에너지를 얻고 있으며, 경험에서 우러나온 조언을 아끼지 않는 선배로 신뢰하고 있다는 점이 확인되었습니다.\n일정이 촉박하거나 예상치 못한 이슈가 발생하는 상황에서도 문제를 탓하기보다 할 수 있는 것부터 찾아 실행하는 자세로 팀원들의 심리적 부담을 덜어주며, 후배들이 어려움을 겪을 때 먼저 다가가 조언을 건넵니다. 팀 내 세대 간 가교 역할을 하며 협업 문화를 한층 성숙하게 만들고 있습니다.\n베스틸 AI활용 과제에서 현업 담당자와 실무 동료 사이의 가교 역할을 수행했습니다. 현업의 요구사항을 실무진이 이해하기 쉬운 언어로 풀어 전달하고, 반대로 기술적 제약과 진행 상황을 현업 눈높이에 맞춰 설명함으로써 양측의 간극을 좁혔습니다. 김종인님 특유의 긍정적 소통 방식이 실질적인 성과로 이어진 사례입니다."
+  },
+  "이주희": {
+    "긍정": "항상 긍정적인 에너지로 팀 분위기를 밝게 만들어 주는 든든한 동료 주희님을 추천합니다. 어떤 상황에서도 웃음을 잃지 않고 구성원 한 사람 한 사람을 세심하게 챙기며, 함께 일하는 사람들에게 편안함과 신뢰를 주는 팀원입니다. 특히 업무 특성상 타팀의 협조 문의가 많은데, 이때에도 늘 밝은 미소와 친절한 태도로 응대해 주어 누구나 부담 없이 다가갈 수 있는 분입니다.\n2분기에는 ERP2팀과 ITS 관련 API 제공 협의를 원활하게 추진하여 실무팀의 만족도를 높이는 데 기여하였고, 협력사의 ITS 사용 오류 또한 친절하게 가이드하여 관련 업무가 무리 없이 진행될 수 있도록 도왔습니다. 단순히 자기 업무를 처리하는 데 그치지 않고, 함께 일하는 모든 사람이 수월하게 일할 수 있도록 배려하는 모습이 돋보였습니다.\n배려와 긍정이라는 핵심가치를 말이 아닌 태도와 행동으로 실천하며, 팀 전체에 따뜻한 영향력을 전하는 주희님을 진심으로 추천합니다."
+  },
+  "김효림": {
+    "긍정": "김효림님은 늘 밝은 모습으로 우리 팀 전체에 큰 활기를 불어넣어 주는 고마운 동료입니다. 매사 긍정적이고 주도적인 태도로 팀에 좋은 영향을 주고 있어 이번 칭찬 대상자로 강력히 추천합니다.\n최근 성공적으로 마무리한 'ABAP AI 효율화 프로젝트' 때 낯선 기술을 도입하는 과정이라 처음엔 우려 섞인 시선도 있었습니다. 하지만 김효림님은 안 된다는 생각보다 \"어떻게 하면 되게 만들 수 있을까?\"를 먼저 고민하며 긍정적으로 접근했습니다. 어려운 난관 앞에서도 꿋꿋하게 해결책을 찾아 프로젝트를 성공으로 이끈 이 긍정적인 마인드야말로 정말 칭찬받아 마땅합니다.\n또한 남들이 잘 알아주지 않는 궂은일도 늘 웃으며 해내는 팀원입니다. 센터 워크샵 때도 본인 업무로 바쁜 와중에 불평 한마디 없이 행사 준비를 도맡아 주었고, 보이지 않는 곳에서 매끄러운 진행을 꼼꼼히 챙긴 덕분에 운영 책임자분께 극찬을 받기도 했습니다. 항상 웃는 얼굴로 먼저 다가와 소통해 주니, 함께 일하는 동료 입장에서는 그 자체로 큰 위로와 활력소가 됩니다."
+  },
+  "김보민": {
+    "긍정": "실제 프로젝트 현장이나 대내외 협업 과정에서 예기치 못한 난관이나 까다로운 요청이 발생할 때마다, 김보민님은 단 한 번도 소극적인 태도를 보이지 않고 항상 친절하고 적극적인 태도로 응대하며 해결책을 찾아갑니다. 이러한 적극성은 어떤 어려운 과제라도 안정적으로 마무리하는 추진력과 리더십으로 발휘되고 있습니다.\n\"함께 일하며 배울 점이 많다\"는 동료들의 평가처럼, 김보민님의 긍정적인 마인드는 개인의 태도에 머무르지 않고 조직 전체로 전파됩니다. 어려운 상황에서도 특유의 밝은 에너지와 강한 책임감으로 동료들에게 감정적 안정감과 신뢰감을 주며, 유연한 협업 분위기를 조성하는 서포터이자 촉진자로서 역할을 충실히 실천하고 있습니다.",
+    "신뢰": "김보민님이 업무를 수행할 때 가장 돋보이는 점은 상대방의 입장에서 세심히 생각하고 깊이 있게 행동하는 '고객 중심적 소통'입니다. 단순히 주어진 요구사항을 처리하는 것에 그치지 않고, 고객의 비즈니스와 상황을 깊이 이해하려는 노력을 바탕으로 소통하며, 고객의 만족도를 극대화할 수 있는 발전적인 제안을 선제적으로 도출해 냅니다. 이러한 고객 중심의 제안은 만족도를 높이고, 높아진 만족도가 다시 더 큰 믿음으로 이어지는 견고한 '신뢰의 선순환 구조'를 완성하였습니다.\n보이지 않는 곳에서의 묵묵한 노력과 책임감이 이 신뢰를 뒷받침합니다. 겉으로 내색하지 않으면서도 늘 성실하게 임하며 조직의 방향성에 맞춰 책임감 있게 업무를 수행하고, 현실에 안주하지 않는 꾸준한 자기개발을 통해 고객과 조직에 항상 최선의 대안을 제시함으로써 회사의 가치를 지속적으로 높이고 있습니다."
+  },
+  "백정수": {
+    "긍정": "유연하고 밝은 태도로 팀의 윤활유 역할을 해주는 백정수님을 추천합니다. 백정수님은 우리 회사의 핵심 가치인 '긍정'이 단순히 밝은 성향을 넘어, 어떻게 조직을 건강하게 변화시키는지를 온몸으로 증명하는 훌륭한 본보기입니다.\n\n[ 긍정적인 태도 ]\n업무가 몰리고 고된 상황에서도 특유의 밝은 에너지를 잃지 않습니다. 언제나 환한 인사로 먼저 다가가 동료들의 지친 하루에 기분 좋은 기운을 불어넣어 줍니다. 이러한 흔들림 없는 밝은 태도는 팀 전체의 분위기를 띄우는 든든한 기반이 됩니다.\n\n[ 긍정적인 소통 ]\n사내 교육이나 각종 행사에서 열정적인 자세로 참여하며, 특유의 재치와 유머로 자칫 무거워질 수 있는 분위기를 유쾌하게 환기시킵니다. 백정수님이 만들어주시는 편안한 분위기 덕분에 다른 동료들 역시 자연스럽게 마음을 열고 적극적으로 참여하게 되는 놀라운 시너지 효과가 발생합니다.\n\n[ 긍정적인 솔선 ]\n주간 회의 중 모두가 논의하기 껄끄러워하는 무거운 주제가 있을 때, 백정수님은 본인의 부족함이 드러날 수도 있는 상황임에도 기꺼이 먼저 총대를 맵니다. 스스로 화두를 던지고 분위기를 부드럽게 풀어내어 팀원들이 부담 없이 고민을 나눌 수 있는 장을 마련해 줍니다."
+  },
+  "온종선": {
+    "신뢰": "온종선님은 말보다 행동과 결과로 신뢰를 쌓아온 구성원입니다. 6월 칭찬 챌린지에서도 온종선님이 맡은 일이라면 믿고 맡길 수 있다는 동료들의 두터운 신망이 확인되었으며, 이는 오랜 기간 일관되게 보여준 정직함과 성실함이 만들어낸 결과입니다.\n복잡하고 난도 높은 업무도 빈틈없이 마무리해 동료들에게 확신을 주며, 한 번 약속한 것은 어떤 상황에서도 책임지고 지켜냅니다. 협업 과정에서는 동료들의 의견을 진솔하게 경청하고 진행 상황을 투명하게 공유하여, 함께 일하는 사람들이 안심하고 각자의 업무에 집중할 수 있는 환경을 만듭니다.\n베스틸 AI활용 과제에서 팀이 처음 시도하는 웹시스템 구축을 혼자 담당하여 높은 완성도로 마무리했습니다. 참고할 선례가 없는 상황에서도 필요한 기술을 스스로 학습하고 검증해가며 시스템을 완성했고, 그 결과물의 품질은 과제 전체의 신뢰도를 높이는 데 크게 기여했습니다. 맡은 일은 반드시 끝까지 해낸다는 온종선님의 책임감과 신뢰의 가치가 가장 잘 드러난 사례입니다."
+  },
+  "이성희": {
+    "신뢰": "이성희님은 업무적 탁월함과 인격적 성숙함을 모두 갖춘, VNTG가 지향해야 할 시니어의 표본입니다. 오랜 시간 묵묵히 조직에 기여하며 동료들의 마음까지 어루만져 온 이성희님을 [신뢰] 부문에 추천합니다.\n오랜 시간 곁에서 지켜본 동료들은 하나같이 굳건한 믿음과 신뢰를 보냅니다. SEMA 프로젝트 수행, SAP LE/WM 운영, 물류 관련 시스템 운영까지 막대한 업무량 앞에서도 변함없는 열정으로 책임을 다하는 모습, 그리고 후배들이 힘든 시기를 겪을 때 기꺼이 시간을 내어 진심으로 이야기를 들어주는 따뜻한 태도가 그 신뢰의 바탕입니다.\n탁월한 업무 처리 능력과 더불어 사람을 대하는 진정성 덕분에 단순한 선배를 넘어 '깊이 믿고 따르고 싶은 롤모델'이 되고 있습니다. 시니어–미들–주니어의 가교 역할을 하는 이성희님의 존재 자체가 팀원들에게는 곧 '신뢰'이자 큰 안정감입니다."
+  },
+  "최문준": {
+    "혁신": "AI Agent를 통한 자체 개발방법론을 직접 만들고 수행합니다. 기존 방식의 한계를 마주했을 때도 \"왜 안 될까?\"보다 \"어떻게 하면 가능할까?\"를 먼저 고민하며, 그 긍정적인 에너지가 자연스럽게 주변 동료들에게도 새로운 도전의 용기를 전하고 있습니다.\n전자결재 담당자의 퇴사로 기존 업무에 더해 결재양식 개발까지 맡게 된 상황에서 불평이나 망설임 대신 이 상황을 혁신의 기회로 만들었습니다. \"팀원들이 누구나 실수 없이, 더 쉽고 편리하게 일할 수 있는 방법은 없을까?\"라는 고민의 결과로 결재 화면 이미지만 등록하면 AI가 기존 규칙과 예외사항을 반영해 HTML 문서를 자동으로 생성하는 기능을 직접 구현했습니다. 여기에 만족하지 않고 AI 에이전트를 활용한 React 기반 자동 생성 기능까지 개발하며 업무 방식 자체를 새롭게 바꾸었습니다.\n그 결과는 숫자로도 명확합니다. 전자결재 양식(HTML) 자동 생성: 기존 30분 → 5분 (83% 절감). 전자결재 양식(React) AI 자동 생성: 기존 120분 → 5분 (96% 단축, 효율 24배 향상). 누구나 동일한 품질로 업무를 수행할 수 있도록 표준화하고, 반복 업무를 자동화하여 팀원들이 더 가치 있는 업무에 집중할 수 있는 환경을 만든 것, 이것이야말로 혁신이 만들어내는 가장 큰 가치입니다."
+  },
+  "고성환": {
+    "혁신": "고성환님은 현실에 안주하지 않고 끊임없이 스스로를 발전시키는 혁신의 아이콘입니다. SAP로의 Skill Change 이후에도 ABAP 개발 및 IMG Setting에 대한 학습을 게을리하지 않으며, 새롭게 배운 기술을 실무에 적극 적용해 업무 프로세스를 지속적으로 개선해 나가고 있습니다.\n특히 기존 운영 업무만으로도 바쁜 와중에, 팀 매출에 직접 기여하는 '매출채권 관리 고도화' 세미 프로젝트의 PM 역할을 자처하여 주도적으로 이끌었습니다. 또한 프로그램 튜닝을 통한 기술 적용으로 가시적인 성능 향상도 이루었습니다. 변화와 도전을 주도하는 가운데서도 기존 운영 업무를 빈틈없이 안정적으로 수행하며, 회사의 매출과 이익을 깊이 고민하고 성과로 연결하는 모습에서 진정한 혁신가의 면모를 볼 수 있습니다. 자신의 역량 향상을 회사의 이익 창출로 이어내는 고성환님을 [혁신] 부문에 강력히 추천합니다."
+  },
+};
+
+const CORE_VALUES = [
+  { name: "책임", icon: "fa-shield-halved" },
+  { name: "배려", icon: "fa-hand-holding-heart" },
+  { name: "긍정", icon: "fa-face-smile" },
+  { name: "신뢰", icon: "fa-handshake" },
+  { name: "혁신", icon: "fa-lightbulb" },
+];
+
+// Names to blur in case text (candidates + submitters)
+const BLUR_NAMES = [
+  "박세윤","김종인","남하림","온종선","원요엘","최은비","이정연","이주희",
+  "김효림","강태영","김영우","구명선","문성원","최경호","최문준","정선우",
+  "김정환","박정욱","서정욱","정민수","정주현","정은비","김보민","이수인",
+  "이성희","고성환","백정수",
+  "조형준","김덕희","김광태","이재섭","김경원","정동원","이한솔","유대석",
+  "김총비","박희대","김보경","이현창","서동찬","정희주","김근배","정보성",
+  "한주희","서희정","송원용","강신국","김도현","윤주영","정민현","김효윤","장송이",
+  "Ari","Jay","리온","에브",
+  "우기 매니저","세윤","경호","문준","정욱","정환","선우","용선","명선","주희","효림","태영","요엘","정연님","성원님","보민",
+].sort((a,b) => b.length - a.length);
+
+// 이름이 endsWith로 안 잡히는 별칭 매핑
+const NAME_ALIASES = {
+  "서정욱": ["우기 매니저"],
+  "최은비": ["Ari"],
+};
+
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let voterName = '';
+let voterAffil = '';
+let currentValue = "책임";
+let searchKeyword = "";
+let alertCallback = null;
+let myBallot = { "책임":[], "배려":[], "긍정":[], "신뢰":[], "혁신":[] };
+const recsLoaded = true;
+
+// ════════════════════════════════════════════
+//  VOTER STEP
+// ════════════════════════════════════════════
+function startVoting() {
+  const nameInput = document.getElementById('voter-name-input').value.trim();
+  const affilInput = document.getElementById('voter-affil-input').value.trim();
+  if (!nameInput) { showAlert('성함 입력 필요', '성함을 입력해 주세요.'); return; }
+  if (!affilInput) { showAlert('소속 입력 필요', '소속을 입력해 주세요.'); return; }
+  voterName = nameInput;
+  voterAffil = affilInput;
+  document.getElementById('voter-modal').classList.add('hidden');
+  document.getElementById('voter-badge').textContent = '투표자: ' + voterName;
+  renderTabs();
+  renderCandidates();
+  updateProgress();
+}
+document.getElementById('voter-name-input').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('voter-affil-input').focus(); });
+document.getElementById('voter-affil-input').addEventListener('keydown', e => { if (e.key==='Enter') startVoting(); });
+
+// ════════════════════════════════════════════
+//  TEXT MASKING
+// ════════════════════════════════════════════
+function maskText(str, ownName, ownLabel) {
+  if (!str) return '';
+  let t = str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ownAliases = (ownName && NAME_ALIASES[ownName]) || [];
+  for (const n of BLUR_NAMES) {
+    if (!n) continue;
+    const hasNim = n.endsWith('님');
+    const base = hasNim ? n.slice(0, -1) : n;
+    const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const isOwn = ownName && (
+      n === ownName ||
+      ownName.endsWith(n) ||
+      (hasNim && ownName.endsWith(base)) ||
+      ownAliases.includes(n)
+    );
+    const repl = (isOwn ? (ownLabel || '○○') : '○○') + '님';
+    // 원문에 붙어있던 '님'까지 함께 치환해 '님님' 중복 없이 항상 '님'이 붙도록 처리
+    t = t.replace(new RegExp(escapedBase + '님?', 'g'), repl);
+  }
+  // '님'(받침 있음) 뒤에 붙는 조사를 받침 있는 형태로 보정 (예: 님는→님은, 님가→님이)
+  t = t
+    .replace(/님는/g, '님은')
+    .replace(/님가/g, '님이')
+    .replace(/님를/g, '님을')
+    .replace(/님와/g, '님과')
+    .replace(/님로/g, '님으로');
+  return t;
+}
+
+function renderRecText(str, ownName, ownLabel) {
+  if (!str) return '';
+  const masked = maskText(str, ownName, ownLabel);
+  // 단락 앞 '첫째, / 둘째, / 셋째, / 넷째,' 제거
+  const cleaned = masked.replace(/^(첫째|둘째|셋째|넷째)[,，.]\s*/gm, '');
+  const paras = cleaned.split(/\n\n+/);
+  return paras.map(p =>
+    `<p class="text-[13px] text-slate-700 leading-7 mb-3 last:mb-0">${p.replace(/\n/g,' ')}</p>`
+  ).join('');
+}
+
+function blurText(str, ownName, ownLabel) {
+  if (!str) return '';
+  return maskText(str, ownName, ownLabel).replace(/\n/g,'<br>');
+}
+
+// ════════════════════════════════════════════
+//  RENDER TABS
+// ════════════════════════════════════════════
+function renderTabs() {
+  const el = document.getElementById('category-tabs');
+  el.innerHTML = CORE_VALUES.map(v => {
+    const isActive = currentValue === v.name;
+    const cnt = (myBallot[v.name]||[]).length;
+    let badge = '';
+    if (cnt===2) badge = `<span class="ml-1.5 text-[10px] font-extrabold text-slate-900 bg-emerald-400 px-2 py-0.5 rounded shadow-sm">✓ 2명</span>`;
+    else if (cnt===1) badge = `<span class="ml-1.5 text-[10px] font-extrabold text-slate-900 bg-sky-400 px-2 py-0.5 rounded shadow-sm">✓ 1명</span>`;
+    else badge = `<span class="ml-1.5 text-[10px] font-bold text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">미선택</span>`;
+    const cls = isActive
+      ? 'bg-yellow-400 text-slate-950 font-black border-yellow-400 ring-2 ring-yellow-400/30'
+      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800 font-medium';
+    return `<button onclick="switchTab('${v.name}')" class="flex-1 py-3 px-4 border rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 min-w-max ${cls}">
+      <i class="fa-solid ${v.icon} text-xs ${isActive?'text-slate-950':'text-slate-500'}"></i>
+      <span>${v.name}</span>${badge}
+    </button>`;
+  }).join('');
+
+  const cnt = (myBallot[currentValue]||[]).length;
+  document.getElementById('tab-instruction').innerHTML = `
+    <span class="bg-yellow-400/10 text-yellow-600 border border-yellow-400/20 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-bold">
+      <i class="fa-solid fa-circle-check"></i>
+      [${currentValue}] <strong class="text-yellow-700">${cnt}명 선택됨</strong> <span class="text-slate-400 font-normal text-[10px]">(최대 2명)</span>
+    </span>`;
+}
+
+// ════════════════════════════════════════════
+//  RENDER CANDIDATES
+// ════════════════════════════════════════════
+function switchTab(v) { currentValue = v; document.getElementById('search-input').value=''; searchKeyword=''; renderTabs(); renderCandidates(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function filterCandidates() { searchKeyword = document.getElementById('search-input').value.trim().toLowerCase(); renderCandidates(); }
+
+function renderCandidates() {
+  const names = VALUE_CANDIDATES[currentValue] || [];
+  let items = names.map((name, i) => ({ name, idx: i }));
+
+  if (searchKeyword) {
+    items = items.filter(({ name }) => {
+      const noms = (NOMINATIONS[name]||[]).filter(n=>n.value===currentValue);
+      return noms.some(n => n.case.toLowerCase().includes(searchKeyword));
+    });
+  }
+
+  const grid = document.getElementById('candidates-grid');
+  const noRes = document.getElementById('no-results');
+  if (!items.length) { grid.classList.add('hidden'); noRes.classList.remove('hidden'); return; }
+  grid.classList.remove('hidden'); noRes.classList.add('hidden');
+
+  grid.innerHTML = items.map(({ name, idx }) => {
+    const noms = (NOMINATIONS[name]||[]).filter(n=>n.value===currentValue);
+    const driveUrl = DRIVE_LINKS[name]||'#';
+    const isSelected = (myBallot[currentValue]||[]).includes(name);
+    const blindLabel = `후보자 ${idx+1}`;
+    const ownLabel = `후보자 ${idx+1}`;
+    const leftBar = isSelected ? 'border-l-[6px] border-yellow-400' : 'border-l-[4px] border-slate-300';
+    const selectedCls = isSelected ? 'selected-active' : '';
+
+    const complaintsHtml = noms.map(n => `
+      <div class="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-[13px] text-slate-700 font-normal leading-7 flex items-start gap-2">
+        <i class="fa-solid fa-star text-yellow-400 text-[9px] mt-1 shrink-0"></i>
+        <div>
+          <span class="inline-block bg-yellow-300/30 text-yellow-700 font-bold text-[10px] px-2 py-0.5 rounded mb-1.5">${n.month}</span>
+          <p>${blurText(n.case, name, ownLabel)}</p>
+        </div>
+      </div>
+    `).join('');
+
+    return `<div class="celebrate-card rounded-2xl p-6 flex flex-col justify-between ${selectedCls} ${leftBar}">
+      <div>
+        <!-- Card header -->
+        <div class="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-5">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl ${isSelected?'bg-yellow-400 text-slate-950':'bg-slate-100 text-slate-500'} font-bold text-sm flex items-center justify-center border ${isSelected?'border-yellow-500':'border-slate-200'} transition-all shadow-inner">
+              <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <h3 class="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">${blindLabel}</h3>
+          </div>
+          ${isSelected?`<span class="bg-yellow-400 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-circle-check"></i> 선택됨</span>`:''}
+        </div>
+
+        <div class="space-y-4">
+          <!-- 추천서 -->
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-[11px] text-slate-800 font-black tracking-tight mb-2">
+              <i class="fa-solid fa-feather-pointed text-yellow-400 text-xs"></i> 조직장 추천서
+            </span>
+            ${(function() {
+              const recText = (RECOMMENDATION_TEXTS[name] || {})[currentValue] || null;
+              if (!recsLoaded) {
+                return `<div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-2 text-xs text-slate-400 font-medium">
+                  <i class="fa-solid fa-spinner animate-spin text-yellow-300"></i> 추천서 불러오는 중...
+                </div>`;
+              }
+              if (recText) {
+                return `<div class="bg-white border border-slate-200 rounded-xl px-5 py-4 max-h-72 overflow-y-auto">
+                  ${renderRecText(recText, name, ownLabel)}
+                </div>`;
+              }
+              return `<div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                <span class="text-xs text-slate-400 font-medium">문서를 직접 확인해 주세요</span>
+                <a href="${driveUrl}" target="_blank" onclick="event.stopPropagation()"
+                  class="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-black bg-slate-900 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg transition whitespace-nowrap">
+                  <i class="fa-solid fa-file-lines text-[10px]"></i> 추천서 보기
+                </a>
+              </div>`;
+            })()}
+          </div>
+
+          <!-- 칭찬 내역 -->
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-[11px] text-slate-800 font-black tracking-tight mb-2">
+              <i class="fa-solid fa-comments text-yellow-400 text-xs"></i> 칭찬 챌린지 내역
+            </span>
+            <div class="space-y-2">${complaintsHtml||'<p class="text-xs text-slate-400 font-medium">내역 없음</p>'}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vote button -->
+      <div class="pt-5 border-t border-slate-100 mt-6">
+        <button onclick="toggleVote('${name}')"
+          class="w-full px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 border
+            ${isSelected?'bg-yellow-400 text-slate-950 border-yellow-500 hover:bg-yellow-500 shadow-md':'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'}">
+          <i class="fa-solid ${isSelected?'fa-circle-xmark':'fa-check text-yellow-400'}"></i>
+          ${isSelected?'선택 해제':'이 후보에게 투표'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════
+//  VOTE TOGGLE
+// ════════════════════════════════════════════
+function toggleVote(name) {
+  const list = myBallot[currentValue]||[];
+  const idx = list.indexOf(name);
+  if (idx > -1) { list.splice(idx,1); }
+  else {
+    if (list.length >= 2) { showAlert('투표 정원 초과', `[${currentValue}] 부문은 이미 2명을 선택하셨습니다.\n다른 후보를 선택하려면 먼저 선택을 해제해 주세요.`); return; }
+    list.push(name);
+  }
+  myBallot[currentValue] = list;
+  renderTabs();
+  renderCandidates();
+  updateProgress();
+  // 2명 선택 완료 시 다음 탭으로 자동 이동
+  if (list.length === 2) {
+    const curIdx = CORE_VALUES.findIndex(v => v.name === currentValue);
+    if (curIdx < CORE_VALUES.length - 1) {
+      setTimeout(() => {
+        switchTab(CORE_VALUES[curIdx + 1].name);
+      }, 400);
+    }
+  }
+}
+
+// ════════════════════════════════════════════
+//  PROGRESS
+// ════════════════════════════════════════════
+function updateProgress() {
+  const total = Object.values(myBallot).reduce((s,a)=>s+a.length,0);
+  document.getElementById('voted-counter').textContent = `${total}/10`;
+  document.getElementById('progress-dots').innerHTML = CORE_VALUES.map(v => {
+    const cnt = (myBallot[v.name]||[]).length;
+    const bg = cnt===2?'bg-emerald-500 border-emerald-400 shadow-sm':cnt===1?'bg-sky-400 border-sky-500 shadow-sm':'bg-slate-200 border-slate-300';
+    return `<span class="w-3 h-3 rounded-full border ${bg} transition-colors duration-300" title="${v.name}: ${cnt}/2"></span>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════
+//  RESET
+// ════════════════════════════════════════════
+function resetBallot() {
+  showAlert('선택 내역 초기화', '모든 선택 내역이 지워집니다. 계속하시겠습니까?', true, () => {
+    Object.keys(myBallot).forEach(k => myBallot[k]=[]);
+    renderTabs(); renderCandidates(); updateProgress();
+  });
+}
+
+// ════════════════════════════════════════════
+//  SUBMIT
+// ════════════════════════════════════════════
+function requestSubmitVotes() {
+  const empty = CORE_VALUES.filter(v=>(myBallot[v.name]||[]).length===0).map(v=>v.name);
+  if (empty.length) {
+    showAlert('투표 미완료', `핵심가치마다 최소 1명은 선택해야 합니다.\n\n• 미선택: ${empty.join(', ')}`);
+    return;
+  }
+  let summary = `[${voterName}]님의 투표를 최종 제출합니다.\n\n`;
+  CORE_VALUES.forEach(v => {
+    const names = VALUE_CANDIDATES[v.name];
+    const selected = myBallot[v.name];
+    const labels = selected.map(n => {
+      const i = names.indexOf(n);
+      return `후보자 ${i+1}`;
+    });
+    summary += `• [${v.name}]: ${labels.join(', ')}\n`;
+  });
+  showAlert('최종 제출 확인', summary, true, () => sendVotes());
+}
+
+function sendVotes() {
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+  overlay.innerHTML = `<div class="text-center bg-white border border-slate-200 rounded-2xl p-8 max-w-sm shadow-2xl">
+    <i class="fa-solid fa-spinner text-4xl text-yellow-400 animate-spin mb-4"></i>
+    <p class="text-sm text-slate-900 font-bold">투표 데이터 전송 중</p>
+    <p class="text-xs text-slate-400 font-medium mt-1">잠시만 기다려 주세요...</p>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  const payload = JSON.stringify({ voter: voterName, affil: voterAffil, votes: myBallot });
+
+  function onSuccess(res) {
+    document.body.removeChild(overlay);
+    try {
+      const r = JSON.parse(res);
+      if (r.success) { showSuccessView(); }
+      else { showAlert('제출 실패', '오류: ' + (r.error||'알 수 없는 오류')); }
+    } catch(e) { showSuccessView(); }
+  }
+  function onFail(err) {
+    document.body.removeChild(overlay);
+    showAlert('서버 오류', err.message||String(err));
+  }
+
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFail).saveVotes(payload);
+  } else {
+    setTimeout(() => { document.body.removeChild(overlay); showSuccessView(); }, 900);
+  }
+}
+
+function showSuccessView() {
+  const rows = CORE_VALUES.map(v => {
+    const names = VALUE_CANDIDATES[v.name];
+    const labels = myBallot[v.name].map(n=>`후보자 ${names.indexOf(n)+1}`);
+    return `<div class="flex justify-between items-center py-3 border-b border-slate-100 last:border-0 text-xs">
+      <span class="text-slate-500 font-bold">${v.name}</span>
+      <span class="flex gap-2">
+        ${labels.map(l=>`<span class="bg-yellow-50 text-yellow-700 px-2.5 py-1 rounded border border-yellow-100 text-xs font-bold">${l}</span>`).join('')}
+      </span>
+    </div>`;
+  }).join('');
+
+  const el = document.createElement('div');
+  el.className = 'fixed inset-0 bg-slate-100 z-50 flex items-center justify-center p-4 overflow-y-auto';
+  el.innerHTML = `<div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl my-8">
+    <div class="w-14 h-14 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner animate-bounce">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <h3 class="text-base sm:text-lg font-black text-slate-900 mb-1">투표가 완료되었습니다!</h3>
+    <p class="text-xs text-slate-400 mb-6 font-medium">귀중한 한 표가 정상적으로 접수되었습니다.</p>
+    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left mb-6 shadow-inner">
+      <span class="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-wider">
+        <i class="fa-solid fa-receipt mr-1"></i> 투표 영수증 — ${voterName}
+      </span>
+      <div>${rows}</div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+// ════════════════════════════════════════════
+//  ALERT
+// ════════════════════════════════════════════
+function showAlert(title, msg, showCancel=false, callback=null) {
+  document.getElementById('alert-title').textContent = title;
+  document.getElementById('alert-message').textContent = msg;
+  const cancelBtn = document.getElementById('alert-cancel');
+  showCancel ? cancelBtn.classList.remove('hidden') : cancelBtn.classList.add('hidden');
+  alertCallback = callback;
+  document.getElementById('alert-modal').classList.remove('hidden');
+}
+function closeAlert(confirmed) {
+  document.getElementById('alert-modal').classList.add('hidden');
+  if (confirmed && alertCallback) alertCallback();
+  alertCallback = null;
+}
+</script>
+</body>
+</html>

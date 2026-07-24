@@ -1,0 +1,40 @@
+const SPREADSHEET_ID = '1-hrcKWh6mRCmcSX0fqo4-EHoPWdvrM_VZieUc7LH56Y';
+
+function doGet() {
+  return HtmlService
+    .createHtmlOutputFromFile('voting')
+    .setTitle('VNTG Star Awards 2026 — 5대 핵심가치 우수 실천자 투표')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function saveVotes(payload) {
+  try {
+    const data = JSON.parse(payload);
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let sheet = ss.getSheetByName('투표결과');
+    if (!sheet) {
+      sheet = ss.insertSheet('투표결과');
+      sheet.appendRow([
+        '타임스탬프', '투표자', '소속',
+        '책임_1순위', '책임_2순위',
+        '배려_1순위', '배려_2순위',
+        '긍정_1순위', '긍정_2순위',
+        '신뢰_1순위', '신뢰_2순위',
+        '혁신_1순위', '혁신_2순위',
+      ]);
+      const header = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+      header.setFontWeight('bold');
+      header.setBackground('#1e2a52');
+      header.setFontColor('#ffffff');
+    }
+    const row = [new Date(), data.voter || '익명', data.affil || ''];
+    for (const v of ['책임', '배려', '긍정', '신뢰', '혁신']) {
+      const sel = (data.votes || {})[v] || [];
+      row.push(sel[0] || '', sel[1] || '');
+    }
+    sheet.appendRow(row);
+    return JSON.stringify({ success: true });
+  } catch (e) {
+    return JSON.stringify({ success: false, error: e.message });
+  }
+}

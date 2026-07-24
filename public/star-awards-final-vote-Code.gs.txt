@@ -1,0 +1,36 @@
+const SPREADSHEET_ID = '1MmTZiZRKZai1iOaYwEqRf8Ae09qmVwgiGBB8cVh9hxE';
+
+function doGet() {
+  return HtmlService
+    .createHtmlOutputFromFile('final_vote')
+    .setTitle('VNTG Star Awards 2026 — 전사 최종 투표')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function saveVotes(payload) {
+  try {
+    const data = JSON.parse(payload);
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let sheet = ss.getSheetByName('전사투표결과');
+    if (!sheet) {
+      sheet = ss.insertSheet('전사투표결과');
+      sheet.appendRow([
+        '타임스탬프', '투표자', '소속',
+        '책임', '배려', '긍정', '신뢰', '혁신',
+      ]);
+      const header = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+      header.setFontWeight('bold');
+      header.setBackground('#1A3A7A');
+      header.setFontColor('#ffffff');
+    }
+    const row = [new Date(), data.voter || '익명', data.affil || ''];
+    const votes = data.votes || {};
+    for (const v of ['책임', '배려', '긍정', '신뢰', '혁신']) {
+      row.push(votes[v] || '');
+    }
+    sheet.appendRow(row);
+    return JSON.stringify({ success: true });
+  } catch (e) {
+    return JSON.stringify({ success: false, error: e.message });
+  }
+}
