@@ -60,8 +60,23 @@ const supabaseHost = (() => {
   }
 })()
 
+const connectSrcHosts = ['https://www.google-analytics.com', ...(supabaseHost ? [`https://${supabaseHost}`, `wss://${supabaseHost}`] : [])].join(' ')
+
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  `connect-src 'self' ${connectSrcHosts}`,
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
 const nextConfig: NextConfig = {
   output: 'standalone', // Cloud Run 등 컨테이너 배포용 최소 빌드
+  poweredByHeader: false,
   experimental: {
     // Server Action 기본 본문 제한(1MB) 초과 에러 방지
     serverActions: {
@@ -73,6 +88,21 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
       ...(supabaseHost ? [{ protocol: 'https' as const, hostname: supabaseHost, pathname: '/**' }] : []),
     ],
+  },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'Content-Security-Policy', value: contentSecurityPolicy },
+        ],
+      },
+    ]
   },
 }
 

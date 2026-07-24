@@ -134,10 +134,30 @@ export async function deleteNoticeComment(
 
 // ── 관리자 액션 ──────────────────────────────────────────────────────────────
 
+async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+  const admin = createAdminClient()
+  const { data: me, error } = await admin
+    .from('users')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !me?.is_admin) return { ok: false, error: '관리자 권한이 필요합니다.' }
+  return { ok: true, userId: user.id }
+}
+
 export async function toggleNoticePopup(
   id: string,
   show: boolean
 ): Promise<{ error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { error: auth.error }
   const supabase = createAdminClient()
   const { error } = await supabase
     .from('notices')
@@ -158,6 +178,8 @@ export async function createNotice(params: {
   popup_start_at?: string | null
   popup_end_at?: string | null
 }): Promise<{ id: string | null; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { id: null, error: auth.error }
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('notices')
@@ -173,6 +195,8 @@ export async function updateNotice(
   id: string,
   params: { title: string; body: string; image_url: string; is_published: boolean; show_as_popup?: boolean; popup_start_at?: string | null; popup_end_at?: string | null }
 ): Promise<{ error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { error: auth.error }
   const supabase = createAdminClient()
   const { error } = await supabase
     .from('notices')
@@ -189,6 +213,8 @@ export async function fetchNoticeComments(noticeId: string) {
 }
 
 export async function deleteNotice(id: string): Promise<{ error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { error: auth.error }
   const supabase = createAdminClient()
   const { error } = await supabase.from('notices').delete().eq('id', id)
   if (error) return { error: error.message }
@@ -196,9 +222,14 @@ export async function deleteNotice(id: string): Promise<{ error: string | null }
   return { error: null }
 }
 
+/** 댓글 @멘션 자동완성용 — 관리자 전용이 아니라 로그인한 사용자 전체가 사용(NoticeList/PopupNotice 댓글창) */
 export async function fetchMentionableUsers(query: string) {
-  const supabase = createAdminClient()
-  const { data } = await supabase
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const admin = createAdminClient()
+  const { data } = await admin
     .from('users')
     .select('user_id, name, dept_name')
     .is('deleted_at', null)
@@ -208,6 +239,8 @@ export async function fetchMentionableUsers(query: string) {
 }
 
 export async function getNoticesForAdmin() {
+  const auth = await requireAdmin()
+  if (!auth.ok) return []
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('notices')

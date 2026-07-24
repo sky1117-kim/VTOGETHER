@@ -1,7 +1,26 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+
+async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+  const admin = createAdminClient()
+  const { data: me, error } = await admin
+    .from('users')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !me?.is_admin) return { ok: false, error: '관리자 권한이 필요합니다.' }
+  return { ok: true, userId: user.id }
+}
 
 export type DonationTargetRow = {
   target_id: string
@@ -20,6 +39,8 @@ export async function getDonationTargetsForAdmin(): Promise<{
   data: DonationTargetRow[] | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase
@@ -42,6 +63,8 @@ export async function updateDonationTargetAmount(
   if (targetAmount < 0 || !Number.isInteger(targetAmount)) {
     return { success: false, error: '목표 금액은 0 이상의 정수여야 합니다.' }
   }
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -67,6 +90,8 @@ export async function addOfflineDonation(
   if (amount <= 0 || !Number.isInteger(amount)) {
     return { success: false, error: '추가할 금액은 1 이상의 정수여야 합니다.' }
   }
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data: row, error: fetchError } = await supabase

@@ -1292,6 +1292,8 @@ function seoulYmdFromIso(iso: string): string {
 export async function getLinkedHealthSeasonForEvent(
   eventId: string
 ): Promise<{ data: LinkedHealthSeasonEditorData | null; error: string | null }> {
+  const gate = await assertIsAdmin()
+  if ('error' in gate) return { data: null, error: gate.error }
   try {
     const admin = createAdminClient()
     let season: {

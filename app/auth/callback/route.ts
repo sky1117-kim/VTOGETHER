@@ -4,6 +4,7 @@ import { getErrorMessage, sendGoogleChatAlert } from '@/lib/google-chat-alert'
 import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPublicAppOrigin } from '@/lib/public-app-url'
+import { toSafeNextPath } from '@/lib/safe-redirect'
 import { cookies } from 'next/headers'
 
 /** PKCE verifier 누락은 중복 요청·프리페치·다른 기기 등에서 흔하며, 로그인 성공 후에도 알림만 남는 경우가 많습니다. */
@@ -19,8 +20,7 @@ function isBenignPkceVerifierError(message: string) {
  * (getPublicAppOrigin()만 쓰면 호스트 불일치로 세션 쿠키·다음 화면이 엇갈릴 수 있음)
  */
 function toSameOriginRedirect(path: string, requestUrl: URL) {
-  const safePath = path.startsWith('/') ? path : '/'
-  return new URL(safePath, requestUrl.origin)
+  return new URL(toSafeNextPath(path), requestUrl.origin)
 }
 
 function getOriginFromRequest(request: NextRequest) {
@@ -47,8 +47,7 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get('code')
   const oauthError = requestUrl.searchParams.get('error')
   const oauthErrorDesc = requestUrl.searchParams.get('error_description')
-  const nextRaw = requestUrl.searchParams.get('next') || '/'
-  const next = nextRaw.startsWith('/') ? nextRaw : '/'
+  const next = toSafeNextPath(requestUrl.searchParams.get('next'))
 
   // Supabase/Google이 에러 쿼리로 돌려보낸 경우
   if (oauthError) {

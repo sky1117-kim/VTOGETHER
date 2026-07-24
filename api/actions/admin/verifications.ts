@@ -766,7 +766,8 @@ export async function searchBackfillUsers(
 ): Promise<{ success: boolean; error: string | null; users?: BackfillRecipientCandidate[] }> {
   const auth = await requireAdminReviewer()
   if (!auth.ok) return { success: false, error: auth.error }
-  const q = keyword.trim()
+  // PostgREST .or() 필터 문법 예약 문자(,.()\)를 제거해 필터 인젝션 방지
+  const q = keyword.trim().replace(/[,.()\\]/g, ' ').trim()
   if (!q) return { success: true, error: null, users: [] }
 
   try {

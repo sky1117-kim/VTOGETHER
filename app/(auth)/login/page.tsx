@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabasePublicCredentials } from '@/lib/supabase/public-credentials'
+import { toSafeNextPath } from '@/lib/safe-redirect'
 import { redirect } from 'next/navigation'
 import LoginForm from './LoginForm'
 
@@ -17,7 +18,7 @@ export default async function LoginPage({
 
   // 이미 로그인한 사용자는 메인 페이지(또는 next 경로)로 리다이렉트
   if (user) {
-    redirect(next && next.startsWith('/') ? next : '/')
+    redirect(toSafeNextPath(next))
   }
 
   const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabasePublicCredentials()

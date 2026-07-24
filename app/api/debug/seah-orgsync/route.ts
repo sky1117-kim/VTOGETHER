@@ -1,7 +1,10 @@
 /**
  * 세아웍스 API 디버그용 — 실제 응답 형식 확인
  * 로컬: http://localhost:3000/api/debug/seah-orgsync
- * 프로덕션: 관리자 로그인 후 /api/debug/seah-orgsync?email=본인이메일
+ * 프로덕션: SEAH_ORGSYNC_DEBUG_ENABLED=true 로 명시적으로 켜야만 접근 가능(관리자 로그인 필요, ?email=본인이메일)
+ *
+ * NODE_ENV만으로 게이트하면 배포 환경변수 설정 실수 시 직원 PII가 그대로 노출되므로,
+ * 프로덕션에서는 별도 플래그를 추가로 요구해 이중 게이트를 둡니다.
  */
 import { createClient } from '@/lib/supabase/server'
 import { fetchEmployeesDebug, getDeptNameByEmail } from '@/lib/seah-orgsync'
@@ -23,8 +26,14 @@ export async function GET(request: Request) {
 
   let currentUserEmail: string | null = null
 
+  const isProd = process.env.NODE_ENV === 'production'
+  // 프로덕션에서는 명시적 플래그 없이는 라우트 자체를 숨김(존재 자체를 404로)
+  if (isProd && process.env.SEAH_ORGSYNC_DEBUG_ENABLED !== 'true') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 })
+  }
+
   // 프로덕션: 관리자만 접근
-  if (process.env.NODE_ENV === 'production') {
+  if (isProd) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {

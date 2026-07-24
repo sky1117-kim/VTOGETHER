@@ -1,8 +1,10 @@
 'use server'
 
+import { randomUUID } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { detectImageExtension } from '@/lib/validate-image-upload'
 
 type ProductType = 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
 
@@ -25,6 +27,8 @@ async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: fals
 }
 
 export async function getShopProductsForAdmin() {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, error: auth.error }
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('shop_products')
@@ -123,13 +127,12 @@ export async function uploadShopProductImage(
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   const maxSize = 5 * 1024 * 1024
   if (file.size > maxSize) return { url: null, error: '파일은 5MB 이하여야 합니다.' }
-  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-  if (!allowed.includes(file.type)) return { url: null, error: '이미지 파일만 업로드할 수 있습니다.' }
+  const detected = await detectImageExtension(file)
+  if (detected.error) return { url: null, error: detected.error }
 
   try {
     const admin = createAdminClient()
-    const ext = file.name.split('.').pop() || 'jpg'
-    const path = `shop-products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path = `shop-products/${Date.now()}-${randomUUID()}.${detected.ext}`
     const { data, error } = await admin.storage.from('event-verification').upload(path, file, {
       cacheControl: '3600',
       upsert: false,

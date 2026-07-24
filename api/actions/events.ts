@@ -1,11 +1,13 @@
 'use server'
 
+import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getEventForParticipation } from '@/api/queries/events'
 import { sendGoogleChatAdminAlert } from '@/lib/google-chat-alert'
 import { parseChoiceOptions } from '@/lib/verification-choice-options'
+import { detectImageExtension, detectImageOrPdfExtension } from '@/lib/validate-image-upload'
 
 function isMultiPeerSelectMode(method: { options?: unknown }): boolean {
   return Array.isArray(method.options) && method.options.includes('MULTIPLE')
@@ -19,13 +21,12 @@ export async function uploadEventVerificationPhoto(
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   const maxSize = 5 * 1024 * 1024
   if (file.size > maxSize) return { url: null, error: '파일은 5MB 이하여야 합니다.' }
-  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-  if (!allowed.includes(file.type)) return { url: null, error: '이미지 파일만 업로드할 수 있습니다.' }
+  const detected = await detectImageExtension(file)
+  if (detected.error) return { url: null, error: detected.error }
 
   try {
     const supabase = createAdminClient()
-    const ext = file.name.split('.').pop() || 'jpg'
-    const path = `verification/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path = `verification/${Date.now()}-${randomUUID()}.${detected.ext}`
     const { data, error } = await supabase.storage.from('event-verification').upload(path, file, {
       cacheControl: '3600',
       upsert: false,
@@ -46,21 +47,12 @@ export async function uploadHealthCriteriaAttachment(
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   const maxSize = 15 * 1024 * 1024
   if (file.size > maxSize) return { url: null, error: '파일은 15MB 이하여야 합니다.' }
-  const allowed = [
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-    'application/pdf',
-  ]
-  if (!allowed.includes(file.type)) {
-    return { url: null, error: 'PDF 또는 이미지(jpg, png, webp, gif)만 업로드할 수 있습니다.' }
-  }
+  const detected = await detectImageOrPdfExtension(file)
+  if (detected.error) return { url: null, error: detected.error }
 
   try {
     const supabase = createAdminClient()
-    const ext = file.name.split('.').pop() || (file.type === 'application/pdf' ? 'pdf' : 'jpg')
-    const path = `health-criteria/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path = `health-criteria/${Date.now()}-${randomUUID()}.${detected.ext}`
     const { data, error } = await supabase.storage.from('event-verification').upload(path, file, {
       cacheControl: '3600',
       upsert: false,
@@ -81,13 +73,12 @@ export async function uploadEventRepresentativeImage(
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   const maxSize = 5 * 1024 * 1024
   if (file.size > maxSize) return { url: null, error: '파일은 5MB 이하여야 합니다.' }
-  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-  if (!allowed.includes(file.type)) return { url: null, error: '이미지 파일만 업로드할 수 있습니다.' }
+  const detected = await detectImageExtension(file)
+  if (detected.error) return { url: null, error: detected.error }
 
   try {
     const supabase = createAdminClient()
-    const ext = file.name.split('.').pop() || 'jpg'
-    const path = `representative/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path = `representative/${Date.now()}-${randomUUID()}.${detected.ext}`
     const { data, error } = await supabase.storage.from('event-verification').upload(path, file, {
       cacheControl: '3600',
       upsert: false,

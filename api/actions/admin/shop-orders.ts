@@ -4,6 +4,24 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
+async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+  const admin = createAdminClient()
+  const { data: me, error } = await admin
+    .from('users')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !me?.is_admin) return { ok: false, error: '관리자 권한이 필요합니다.' }
+  return { ok: true, userId: user.id }
+}
+
 export type ShopOrderAdminRow = {
   order_id: string
   user_id: string
@@ -44,7 +62,11 @@ export async function getShopOrdersForAdmin(options: {
   const to = from + pageSize - 1
   const kind: ShopOrderKindFilter = options.kind === 'PHYSICAL' || options.kind === 'CREDIT_PACK' ? options.kind : 'ALL'
   const qRaw = (options.q ?? '').trim()
-  const qSafe = qRaw.replace(/[%_,]/g, ' ').trim()
+  // PostgREST .or() 필터 문법 예약 문자(,.()\)를 전부 제거해 필터 인젝션 방지
+  const qSafe = qRaw.replace(/[%_,.()\\]/g, ' ').trim()
+
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: [], total: 0, page, pageSize, error: auth.error }
 
   try {
     const admin = createAdminClient()
@@ -159,24 +181,10 @@ export async function setShopOrderFulfillment(
   orderId: string,
   fulfilled: boolean
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   try {
-    const auth = await createClient()
-    const {
-      data: { user },
-    } = await auth.auth.getUser()
-    if (!user) return { success: false, error: '로그인이 필요합니다.' }
-
     const admin = createAdminClient()
-    const { data: me, error: meErr } = await admin
-      .from('users')
-      .select('is_admin')
-      .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .single()
-    if (meErr || !me?.is_admin) {
-      return { success: false, error: '관리자만 지급 상태를 변경할 수 있습니다.' }
-    }
-
     const now = new Date().toISOString()
     const { error } = await admin
       .from('shop_orders')

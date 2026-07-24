@@ -1,5 +1,13 @@
 import { syncSeahOrgsyncSnapshot } from '@/api/actions/admin/seah-orgsync'
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
 
 /**
  * 세아웍스 인사 배치 동기화 (하루 1회 호출 권장)
@@ -16,7 +24,7 @@ export async function GET(request: Request) {
 
   const auth = request.headers.get('authorization') ?? ''
   const expected = `Bearer ${secret}`
-  if (auth !== expected) {
+  if (!safeEqual(auth, expected)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 

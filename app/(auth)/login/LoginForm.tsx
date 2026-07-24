@@ -2,6 +2,7 @@
 
 import { createBrowserClient } from '@supabase/ssr'
 import { useState } from 'react'
+import { isSafeNextPath } from '@/lib/safe-redirect'
 
 function formatLoginError(raw: string, fromUrl: boolean) {
   if (raw === 'invalid_domain') {
@@ -56,10 +57,9 @@ export default function LoginForm({
       // Cloud Run 기본 URL로 들어왔는데 env는 커스텀 도메인인 경우 등 PKCE 쿠키가 콜백까지 안 맞아
       // "code challenge does not match ... code verifier" 가 납니다.
       const appOrigin = window.location.origin
-      const callbackUrl =
-        next && next.startsWith('/')
-          ? `${appOrigin}/auth/callback?next=${encodeURIComponent(next)}`
-          : `${appOrigin}/auth/callback`
+      const callbackUrl = isSafeNextPath(next)
+        ? `${appOrigin}/auth/callback?next=${encodeURIComponent(next)}`
+        : `${appOrigin}/auth/callback`
 
       // PKCE code verifier는 브라우저(document.cookie)에 저장되어야 콜백에서 세션 교환이 됩니다.
       // Server Action + redirect()로 시작하면 Set-Cookie가 누락되는 경우가 있어 클라이언트에서 시작합니다.

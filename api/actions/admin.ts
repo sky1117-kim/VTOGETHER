@@ -3,8 +3,32 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { randomUUID } from 'crypto'
 import { getTotalDonationStats } from '@/api/queries/donation'
 import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
+import { detectImageExtension } from '@/lib/validate-image-upload'
+
+/**
+ * 호출자가 관리자인지 확인합니다. Server Action은 페이지 가드(app/admin/layout.tsx)와
+ * 무관하게 직접 호출 가능한 엔드포인트이므로, 서비스 롤 클라이언트를 쓰는 함수는
+ * 반드시 이 체크를 거쳐야 합니다.
+ */
+async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const supabaseAuth = await createClient()
+  const {
+    data: { user },
+  } = await supabaseAuth.auth.getUser()
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+  const admin = createAdminClient()
+  const { data: me, error } = await admin
+    .from('users')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .single()
+  if (error || !me?.is_admin) return { ok: false, error: '관리자 권한이 필요합니다.' }
+  return { ok: true, userId: user.id }
+}
 
 export type SiteContentKey = 'hero_season_badge' | 'hero_title' | 'hero_subtitle' | 'popup_enabled' | 'popup_image_url' | 'popup_title' | 'popup_text' | 'popup_notice_id'
 
@@ -49,6 +73,8 @@ export type AdminPointTransactionRow = {
 
 export async function getUsersForAdmin(): Promise<{ data: UserRow[] | null; error: string | null }> {
   try {
+    const auth = await requireAdmin()
+    if (!auth.ok) return { data: null, error: auth.error }
     const supabase = createAdminClient()
     let selectColumns =
       'user_id, email, name, dept_name, current_points, current_medals, total_donated_amount, level, is_admin, last_active_at'
@@ -149,6 +175,8 @@ export async function getPointTransactionsForAdmin(
   error: string | null
 }> {
   try {
+    const auth = await requireAdmin()
+    if (!auth.ok) return { data: null, total: 0, page: 1, pageSize: 30, error: auth.error }
     const supabase = createAdminClient()
     const safePage = Number.isInteger(filter.page) && (filter.page ?? 1) > 0 ? (filter.page as number) : 1
     const safePageSize =
@@ -174,7 +202,7 @@ export async function getPointTransactionsForAdmin(
     if (filter.from?.trim()) query = query.gte('created_at', filter.from.trim())
     if (filter.to?.trim()) query = query.lte('created_at', `${filter.to.trim()}T23:59:59.999Z`)
     if (filter.q?.trim()) {
-      const q = filter.q.trim().replace(/,/g, ' ')
+      const q = filter.q.trim().replace(/[,.()\\]/g, ' ')
       query = query.or(`user_name.ilike.%${q}%,user_email.ilike.%${q}%,description.ilike.%${q}%`)
     }
 
@@ -192,7 +220,7 @@ export async function getPointTransactionsForAdmin(
       if (filter.from?.trim()) fallbackQuery = fallbackQuery.gte('created_at', filter.from.trim())
       if (filter.to?.trim()) fallbackQuery = fallbackQuery.lte('created_at', `${filter.to.trim()}T23:59:59.999Z`)
       if (filter.q?.trim()) {
-        const q = filter.q.trim().replace(/,/g, ' ')
+        const q = filter.q.trim().replace(/[,.()\\]/g, ' ')
         fallbackQuery = fallbackQuery.or(`user_name.ilike.%${q}%,user_email.ilike.%${q}%,description.ilike.%${q}%`)
       }
       const fallback = await fallbackQuery.range(fromIndex, toIndex)
@@ -844,6 +872,19 @@ export async function getAdminDashboardStats(): Promise<{
   mau: number | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) {
+    return {
+      totalCurrent: 0,
+      totalTarget: 0,
+      progress: 0,
+      completedCount: 0,
+      activeEventsCount: 0,
+      pendingCount: 0,
+      mau: null,
+      error: auth.error,
+    }
+  }
   try {
     const [donation, matchingByTarget] = await Promise.all([
       getTotalDonationStats(),
@@ -905,6 +946,8 @@ export async function getDonationAmountsByPeriod(): Promise<{
   thisMonth: number
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { today: 0, thisWeek: 0, thisMonth: 0, error: auth.error }
   try {
     const now = new Date()
     const startMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
@@ -974,6 +1017,8 @@ export async function getEventEarnedStats(): Promise<{
     totalCollected: 0,
     error: null as string | null,
   }
+  const auth = await requireAdmin()
+  if (!auth.ok) return { ...empty, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data: txRows, error: txErr } = await supabase
@@ -1057,6 +1102,8 @@ export async function getEventEarnedStats(): Promise<{
 
 /** 관리자: 기부처별 매칭금(V.Medal 전환 기부금 1:1) 합계 조회 */
 export async function getMatchingAmountByTarget(): Promise<Record<string, number>> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return {}
   try {
     const supabase = createAdminClient()
     const { data: allocRows } = await supabase
@@ -1119,6 +1166,8 @@ export async function getOverTargetDonors(targetId: string): Promise<{
   targetName: string
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: [], targetAmount: 0, targetName: '', error: auth.error }
   try {
     const supabase = createAdminClient()
 
@@ -1199,6 +1248,8 @@ export async function getEventsForRewardFulfillment(): Promise<{
   data: { event_id: string; title: string }[] | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { data: subs } = await supabase
@@ -1230,6 +1281,8 @@ export async function getNonPointRewardFulfillmentList(
   data: NonPointRewardRow[] | null
   error: string | null
 }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: null, error: auth.error }
   try {
     const supabase = createAdminClient()
     let query = supabase
@@ -1311,6 +1364,8 @@ export async function setRewardFulfillment(
   submissionId: string,
   fulfilled: boolean
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -1330,6 +1385,8 @@ export async function setRewardFulfillment(
 }
 
 export async function getSiteContentForAdmin(): Promise<Record<string, string>> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return {}
   const supabase = createAdminClient()
   const { data } = await supabase.from('site_content').select('key, value').is('deleted_at', null)
   const map: Record<string, string> = {}
@@ -1343,6 +1400,8 @@ export async function updateSiteContent(
   key: SiteContentKey,
   value: string
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -1364,6 +1423,8 @@ export async function updateSiteContent(
 }
 
 export async function syncPopupToNoticeManual(): Promise<{ error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { error: auth.error }
   try {
     const supabase = createAdminClient()
     await syncPopupToNotice(supabase)
@@ -1413,16 +1474,16 @@ async function syncPopupToNotice(supabase: ReturnType<typeof createAdminClient>)
 export async function uploadPopupImage(
   formData: FormData
 ): Promise<{ url: string | null; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { url: null, error: auth.error }
   const file = formData.get('file') as File | null
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   if (file.size > 5 * 1024 * 1024) return { url: null, error: '파일은 5MB 이하여야 합니다.' }
-  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
-    return { url: null, error: '이미지 파일(jpg, png, webp, gif)만 업로드할 수 있습니다.' }
-  }
+  const detected = await detectImageExtension(file)
+  if (detected.error) return { url: null, error: detected.error }
   try {
     const supabase = createAdminClient()
-    const ext = file.name.split('.').pop() || 'jpg'
-    const path = `popup/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path = `popup/${Date.now()}-${randomUUID()}.${detected.ext}`
     const { data, error } = await supabase.storage.from('event-verification').upload(path, file, {
       cacheControl: '3600',
       upsert: false,
@@ -1437,6 +1498,11 @@ export async function uploadPopupImage(
 
 /** 기존 데이터 정리 후 테스트용 데이터로 채움 (포인트 지급·기부·랭킹 확인용) */
 export async function resetAndSeedTestData(): Promise<{ success: boolean; error: string | null }> {
+  if (process.env.NODE_ENV === 'production') {
+    return { success: false, error: '운영 환경에서는 테스트 데이터 초기화를 사용할 수 없습니다.' }
+  }
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
   try {
     const supabase = createAdminClient()
 

@@ -70,6 +70,16 @@ export async function getShopProducts(): Promise<{
   }
 }
 
+/** RPC 응답: docs/migrations/053-shop-purchase-atomic-rpc.sql 참고 */
+type PurchaseShopProductRpcResult = {
+  success: boolean
+  productName: string
+  totalCreditGranted: number
+  creditTransactionId: string | null
+  userEmail: string | null
+  userName: string | null
+}
+
 export async function purchaseShopProduct(productId: string, quantity = 1): Promise<{
   success: boolean
   error: string | null
@@ -86,103 +96,25 @@ export async function purchaseShopProduct(productId: string, quantity = 1): Prom
     if (!user?.id) return { success: false, error: '로그인이 필요합니다.' }
 
     const admin = createAdminClient()
-    const { data: me, error: meErr } = await admin
-      .from('users')
-      .select('current_medals, name, email')
-      .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .single()
-    if (meErr || !me) return { success: false, error: '사용자 정보를 찾을 수 없습니다.' }
-    const snapshotName = typeof me.name === 'string' && me.name.trim() ? me.name.trim() : null
-    const snapshotEmail = typeof me.email === 'string' && me.email.trim() ? me.email.trim() : null
-
-    const { data: product, error: productErr } = await admin
-      .from('shop_products')
-      .select('product_id, name, product_type, price_medal, credit_amount, stock, is_active')
-      .eq('product_id', productId)
-      .is('deleted_at', null)
-      .single()
-    if (productErr || !product || !product.is_active) return { success: false, error: '구매 가능한 상품이 아닙니다.' }
-    if (product.stock != null && product.stock < safeQuantity) return { success: false, error: '재고가 부족합니다.' }
-    const totalPaymentMedal = product.price_medal * safeQuantity
-    if ((me.current_medals ?? 0) < totalPaymentMedal) return { success: false, error: 'V.Medal이 부족합니다.' }
-
-    const { error: debitErr } = await admin
-      .from('users')
-      .update({ current_medals: (me.current_medals ?? 0) - totalPaymentMedal })
-      .eq('user_id', user.id)
-    if (debitErr) return { success: false, error: 'V.Medal 차감 실패' }
-
-    if (product.stock != null) {
-      await admin.from('shop_products').update({ stock: product.stock - safeQuantity }).eq('product_id', product.product_id)
-    }
-
-    const creditGrantedPerUnit = product.product_type === 'CREDIT_PACK' ? Number(product.credit_amount ?? 0) : 0
-    const totalCreditGranted = creditGrantedPerUnit * safeQuantity
-    const orderPayload = Array.from({ length: safeQuantity }, () => ({
-      user_id: user.id,
-      product_id: product.product_id,
-      product_snapshot_name: product.name,
-      product_type: product.product_type,
-      payment_medal: product.price_medal,
-      credit_granted: creditGrantedPerUnit,
-      status: 'COMPLETED',
-    }))
-    const { error: orderErr } = await admin.from('shop_orders').insert(orderPayload)
-    if (orderErr) return { success: false, error: `주문 저장 실패: ${orderErr.message}` }
-
-    await admin.from('point_transactions').insert({
-      user_id: user.id,
-      type: 'USED',
-      amount: -totalPaymentMedal,
-      currency_type: 'V_MEDAL',
-      related_id: product.product_id,
-      related_type: 'SHOP_PURCHASE',
-      description: `상점 구매: ${product.name} x${safeQuantity}`,
-      user_name: snapshotName,
-      user_email: snapshotEmail,
+    // 잔액 확인·차감, 재고 확인·차감, 주문/거래 기록을 DB 트랜잭션 안에서 원자적으로 처리합니다.
+    // (별개의 조회 후 갱신으로 처리하면 동시 요청 시 잔액/재고 이중 차감이 가능해집니다.)
+    const { data, error } = await admin.rpc('purchase_shop_product_atomic', {
+      p_product_id: productId,
+      p_quantity: safeQuantity,
+      p_user_id: user.id,
     })
+    if (error) return { success: false, error: error.message }
 
-    if (totalCreditGranted > 0) {
-      const { data: userRow } = await admin
-        .from('users')
-        .select('current_points')
-        .eq('user_id', user.id)
-        .is('deleted_at', null)
-        .single()
-      const currentPoints = userRow?.current_points ?? 0
-      await admin.from('users').update({ current_points: currentPoints + totalCreditGranted }).eq('user_id', user.id)
-      await admin.from('credit_lots').insert({
-        user_id: user.id,
-        source_type: 'MEDAL_EXCHANGE',
-        initial_amount: totalCreditGranted,
-        remaining_amount: totalCreditGranted,
-        related_id: product.product_id,
-        description: `V.Medal 전환 구매: ${product.name} x${safeQuantity}`,
-      })
-      const shopEarnedDescription = `V.Medal 전환: ${product.name} x${safeQuantity}`
-      const { data: shopTxRow } = await admin
-        .from('point_transactions')
-        .insert({
-          user_id: user.id,
-          type: 'EARNED',
-          amount: totalCreditGranted,
-          currency_type: 'V_CREDIT',
-          related_id: product.product_id,
-          related_type: 'SHOP_EXCHANGE',
-          description: shopEarnedDescription,
-          user_name: snapshotName,
-          user_email: snapshotEmail,
-        })
-        .select('transaction_id')
-        .single()
+    const result = data as PurchaseShopProductRpcResult
+
+    if (result.totalCreditGranted > 0) {
       scheduleEarnedNotificationEmail({
-        toEmail: snapshotEmail,
-        userName: snapshotName,
-        description: shopEarnedDescription,
-        amount: totalCreditGranted,
+        toEmail: result.userEmail,
+        userName: result.userName,
+        description: `V.Medal 전환: ${result.productName} x${safeQuantity}`,
+        amount: result.totalCreditGranted,
         currencyType: 'V_CREDIT',
-        transactionId: shopTxRow?.transaction_id,
+        transactionId: result.creditTransactionId ?? undefined,
       })
     }
 

@@ -24,7 +24,8 @@ export async function donatePoints(targetId: string, amount: number) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const useGuestTest = !user && !!GUEST_TEST_USER_ID
+  const allowGuestTestUser = process.env.NODE_ENV !== 'production'
+  const useGuestTest = !user && allowGuestTestUser && !!GUEST_TEST_USER_ID
   if (!user && !useGuestTest) {
     return { error: '로그인이 필요합니다' }
   }
