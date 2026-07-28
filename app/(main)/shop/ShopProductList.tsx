@@ -105,6 +105,7 @@ export function ShopProductList({
 
   const openPurchaseModal = (target: PurchaseTarget) => {
     setPurchaseQuantity(1)
+    setMessage(null)
     setPurchaseTarget(target)
   }
 
@@ -615,6 +616,12 @@ export function ShopProductList({
             <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
               정말로 교환하시겠어요? 확인을 누르면 즉시 처리됩니다.
             </p>
+
+            {message && (
+              <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                {message}
+              </p>
+            )}
 
             <div className="mt-4 flex items-center gap-2">
               <button
