@@ -28,7 +28,13 @@ DECLARE
   i INTEGER;
 BEGIN
   -- 이 함수는 서버 액션이 이미 로그인 사용자를 확인한 뒤 서비스 롤로만 호출해야 합니다.
-  v_caller_role := current_setting('request.jwt.claim.role', true);
+  -- PostgREST가 개별 GUC(request.jwt.claim.role) 대신 JSON GUC(request.jwt.claims)만 채우는
+  -- 환경에서는 위 값이 항상 NULL이 되어 정상 호출까지 막히므로, auth.role()과 동일하게
+  -- request.jwt.claims JSON에서도 role을 읽어오도록 폴백을 둡니다.
+  v_caller_role := COALESCE(
+    NULLIF(current_setting('request.jwt.claim.role', true), ''),
+    NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role'
+  );
   IF v_caller_role IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION '권한이 없습니다';
   END IF;
