@@ -847,6 +847,8 @@ export async function deleteUserAccountByAdmin(
 
 /** 네비게이션 배지용: 승인 대기 인증 건수만 조회 (가벼운 쿼리) */
 export async function getPendingVerificationCount(): Promise<number> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return 0
   try {
     const supabase = createAdminClient()
     const { count, error } = await supabase

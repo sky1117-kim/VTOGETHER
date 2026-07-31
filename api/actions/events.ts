@@ -13,10 +13,34 @@ function isMultiPeerSelectMode(method: { options?: unknown }): boolean {
   return Array.isArray(method.options) && method.options.includes('MULTIPLE')
 }
 
-/** 인증 사진 업로드 → Storage에 저장 후 공개 URL 반환. bucket 'event-verification' 필요 */
+async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+  const admin = createAdminClient()
+  const { data: me, error } = await admin
+    .from('users')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !me?.is_admin) return { ok: false, error: '관리자 권한이 필요합니다.' }
+  return { ok: true, userId: user.id }
+}
+
+/** 인증 사진 업로드 → Storage에 저장 후 공개 URL 반환. bucket 'event-verification' 필요 (로그인 사용자 전용) */
 export async function uploadEventVerificationPhoto(
   formData: FormData
 ): Promise<{ url: string | null; error: string | null }> {
+  const authClient = await createClient()
+  const {
+    data: { user },
+  } = await authClient.auth.getUser()
+  if (!user) return { url: null, error: '로그인이 필요합니다.' }
+
   const file = formData.get('file') as File | null
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   const maxSize = 5 * 1024 * 1024
@@ -39,10 +63,13 @@ export async function uploadEventVerificationPhoto(
   }
 }
 
-/** 건강 챌린지 참가 기준표(PDF·이미지) 업로드 → health-criteria/ 경로 */
+/** 건강 챌린지 참가 기준표(PDF·이미지) 업로드 → health-criteria/ 경로 (관리자 전용) */
 export async function uploadHealthCriteriaAttachment(
   formData: FormData
 ): Promise<{ url: string | null; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { url: null, error: auth.error }
+
   const file = formData.get('file') as File | null
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   const maxSize = 15 * 1024 * 1024
@@ -65,10 +92,13 @@ export async function uploadHealthCriteriaAttachment(
   }
 }
 
-/** 이벤트 대표 이미지 업로드 → Storage에 저장 후 공개 URL 반환. bucket 'event-verification' 내 representative/ 경로 사용 */
+/** 이벤트 대표 이미지 업로드 → Storage에 저장 후 공개 URL 반환. bucket 'event-verification' 내 representative/ 경로 사용 (관리자 전용) */
 export async function uploadEventRepresentativeImage(
   formData: FormData
 ): Promise<{ url: string | null; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { url: null, error: auth.error }
+
   const file = formData.get('file') as File | null
   if (!file?.size) return { url: null, error: '파일을 선택하세요.' }
   const maxSize = 5 * 1024 * 1024
