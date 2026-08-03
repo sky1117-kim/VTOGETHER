@@ -227,6 +227,7 @@ export async function getHealthChallengeUserProgress(
       .select('season_id')
       .eq('status', 'ACTIVE')
       .is('deleted_at', null)
+      .order('starts_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
@@ -286,6 +287,7 @@ export async function getHealthChallengeMonthlySubmissionState(
       .select('season_id')
       .eq('status', 'ACTIVE')
       .is('deleted_at', null)
+      .order('starts_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
