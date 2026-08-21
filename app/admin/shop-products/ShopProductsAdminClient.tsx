@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Image from 'next/image'
 import {
   createShopProduct,
+  deleteShopProduct,
   toggleShopProductActive,
   updateShopProduct,
   uploadShopProductImage,
@@ -201,6 +202,18 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
     })
   }
 
+  function handleDelete(p: ProductRow) {
+    if (!window.confirm(`'${p.name}' 상품을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return
+    setMessage(null)
+    startTransition(async () => {
+      const result = await deleteShopProduct(p.product_id)
+      if (!result.success) return setMessage(result.error ?? '삭제 실패')
+      if (editingId === p.product_id) setEditingId(null)
+      setMessage('상품을 삭제했습니다.')
+      router.refresh()
+    })
+  }
+
   const filteredProducts = products.filter((p) => {
     const matchesKeyword =
       keyword.trim() === '' ||
@@ -327,26 +340,36 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                   <h4 className="text-sm font-semibold text-gray-900">{p.name}</h4>
                   <p className="mt-1 text-xs text-gray-500">{p.description ?? '설명 없음'}</p>
                 </div>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => {
-                    setEditingId(p.product_id)
-                    setEditForm({
-                      name: p.name,
-                      description: p.description ?? '',
-                      product_type: p.product_type,
-                      price_medal: p.price_medal,
-                      credit_amount: p.credit_amount ?? 1000,
-                      stock: p.stock == null ? '' : String(p.stock),
-                      image_url: p.image_url ?? '',
-                      is_active: p.is_active,
-                    })
-                  }}
-                  className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  수정
-                </button>
+                <div className="flex shrink-0 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
+                      setEditingId(p.product_id)
+                      setEditForm({
+                        name: p.name,
+                        description: p.description ?? '',
+                        product_type: p.product_type,
+                        price_medal: p.price_medal,
+                        credit_amount: p.credit_amount ?? 1000,
+                        stock: p.stock == null ? '' : String(p.stock),
+                        image_url: p.image_url ?? '',
+                        is_active: p.is_active,
+                      })
+                    }}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    수정
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleDelete(p)}
+                    className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                  >
+                    삭제
+                  </button>
+                </div>
               </div>
               {previewUrl && (
                 <div className="relative mt-3 h-32 overflow-hidden rounded-lg border border-gray-200">
@@ -453,26 +476,36 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                   </button>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => {
-                      setEditingId(p.product_id)
-                      setEditForm({
-                        name: p.name,
-                        description: p.description ?? '',
-                        product_type: p.product_type,
-                        price_medal: p.price_medal,
-                        credit_amount: p.credit_amount ?? 1000,
-                        stock: p.stock == null ? '' : String(p.stock),
-                        image_url: p.image_url ?? '',
-                        is_active: p.is_active,
-                      })
-                    }}
-                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                  >
-                    수정
-                  </button>
+                  <div className="flex justify-end gap-1.5">
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        setEditingId(p.product_id)
+                        setEditForm({
+                          name: p.name,
+                          description: p.description ?? '',
+                          product_type: p.product_type,
+                          price_medal: p.price_medal,
+                          credit_amount: p.credit_amount ?? 1000,
+                          stock: p.stock == null ? '' : String(p.stock),
+                          image_url: p.image_url ?? '',
+                          is_active: p.is_active,
+                        })
+                      }}
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      수정
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => handleDelete(p)}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

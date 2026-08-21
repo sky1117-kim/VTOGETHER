@@ -106,6 +106,20 @@ export async function updateShopProduct(input: {
   return { success: true, error: null }
 }
 
+export async function deleteShopProduct(productId: string) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('shop_products')
+    .update({ deleted_at: new Date().toISOString(), is_active: false })
+    .eq('product_id', productId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/admin/shop-products')
+  revalidatePath('/shop')
+  return { success: true, error: null }
+}
+
 export async function toggleShopProductActive(productId: string, isActive: boolean) {
   const auth = await requireAdmin()
   if (!auth.ok) return { success: false, error: auth.error }

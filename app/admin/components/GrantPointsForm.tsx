@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { grantCurrencyBatchToUsers } from '@/api/actions/admin'
 import type { UserRow } from '@/api/actions/admin'
-import { AlertCircle, CheckCircle2, Coins, History, Medal, Search, Users, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ClipboardPaste, Coins, History, Medal, Search, Users, X } from 'lucide-react'
 import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
 
 interface GrantPointsFormProps {
@@ -14,6 +14,27 @@ const RECENT_STORAGE_KEY = 'vtogether.adminGrantRecentUserIds'
 
 function normalize(s: string) {
   return s.toLowerCase().replace(/\s/g, '')
+}
+
+/** 엑셀·메일에서 붙여넣은 텍스트를 이메일 토큰 목록으로 분해 (줄바꿈/쉼표/세미콜론/탭/공백 구분자 모두 허용) */
+function parseEmailTokens(text: string): string[] {
+  const seen = new Set<string>()
+  const tokens: string[] = []
+  for (const raw of text.split(/[\s,;、，]+/)) {
+    const t = raw.trim()
+    if (!t) continue
+    const key = normalize(t)
+    if (seen.has(key)) continue
+    seen.add(key)
+    tokens.push(t)
+  }
+  return tokens
+}
+
+type PasteResult = {
+  addedCount: number
+  alreadyPickedCount: number
+  unmatched: string[]
 }
 
 type GrantCurrency = 'V_CREDIT' | 'V_MEDAL'
@@ -48,6 +69,8 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
   const [message, setMessage] = useState<{ type: 'ok' | 'warn' | 'error'; text: string } | null>(null)
   const [pending, setPending] = useState(false)
   const [recentIds, setRecentIds] = useState<string[]>([])
+  const [pasteText, setPasteText] = useState('')
+  const [pasteResult, setPasteResult] = useState<PasteResult | null>(null)
   const amountInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -112,6 +135,45 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
   }, [filteredUsers])
 
   const clearAll = useCallback(() => setPicked([]), [])
+
+  const emailMap = useMemo(() => {
+    const map = new Map<string, UserRow>()
+    for (const u of users) {
+      if (u.email) map.set(normalize(u.email), u)
+    }
+    return map
+  }, [users])
+
+  const applyPasteEmails = useCallback(() => {
+    const tokens = parseEmailTokens(pasteText)
+    if (tokens.length === 0) {
+      setPasteResult(null)
+      return
+    }
+    const matchedIds: string[] = []
+    const unmatched: string[] = []
+    for (const token of tokens) {
+      const u = emailMap.get(normalize(token))
+      if (u) matchedIds.push(u.user_id)
+      else unmatched.push(token)
+    }
+    let alreadyPickedCount = 0
+    setPicked((prev) => {
+      const prevSet = new Set(prev)
+      alreadyPickedCount = matchedIds.filter((id) => prevSet.has(id)).length
+      return [...new Set([...prev, ...matchedIds])]
+    })
+    setPasteResult({
+      addedCount: matchedIds.length - alreadyPickedCount,
+      alreadyPickedCount,
+      unmatched,
+    })
+  }, [pasteText, emailMap])
+
+  const clearPaste = useCallback(() => {
+    setPasteText('')
+    setPasteResult(null)
+  }, [])
 
   function bumpAmount(delta: number) {
     const cur = parseInt(sanitizeIntegerInput(amount), 10)
@@ -224,6 +286,51 @@ export function GrantPointsForm({ users }: GrantPointsFormProps) {
             전체 비우기
           </button>
         </div>
+      </div>
+
+      <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+          <ClipboardPaste className="size-3.5 text-gray-500" aria-hidden />
+          이메일 붙여넣기로 한 번에 선택
+        </p>
+        <textarea
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+          placeholder={'엑셀·메일에서 이메일 목록을 그대로 붙여넣으세요 (줄바꿈·쉼표·공백 구분 자동 인식)\n예) a@vntgcorp.com, b@vntgcorp.com'}
+          rows={3}
+          className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/30"
+        />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={applyPasteEmails}
+            disabled={!pasteText.trim()}
+            className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            선택에 추가
+          </button>
+          <button
+            type="button"
+            onClick={clearPaste}
+            disabled={!pasteText.trim() && !pasteResult}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            붙여넣기 지우기
+          </button>
+        </div>
+        {pasteResult && (
+          <div className="mt-2 space-y-1 text-xs">
+            <p className="font-medium text-green-800">
+              신규 {pasteResult.addedCount}명 추가됨
+              {pasteResult.alreadyPickedCount > 0 && ` · 이미 선택됨 ${pasteResult.alreadyPickedCount}명`}
+            </p>
+            {pasteResult.unmatched.length > 0 && (
+              <p className="text-amber-700">
+                미매칭 {pasteResult.unmatched.length}건(등록되지 않았거나 오타 의심): {pasteResult.unmatched.join(', ')}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {recentUsers.length > 0 && (

@@ -127,7 +127,7 @@ export default async function AdminPointGrantPage({
         <div className="flex flex-col gap-3 border-b border-gray-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-base font-semibold text-gray-900">수동 지급 (C · M)</h2>
-            <p className="mt-0.5 text-xs text-gray-500">체크로 여러 명 선택 → 동일 금액 일괄 지급 (최대 80명).</p>
+            <p className="mt-0.5 text-xs text-gray-500">체크 또는 이메일 붙여넣기로 여러 명 선택 → 동일 금액 일괄 지급 (최대 300명).</p>
           </div>
           <Link
             href="/admin/point-grant?txType=EARNED&relatedType=ADMIN_GRANT&page=1"

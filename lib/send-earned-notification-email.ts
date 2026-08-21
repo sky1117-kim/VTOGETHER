@@ -17,6 +17,8 @@ export type EarnedNotificationEmailPayload = {
   compliment?: ComplimentEmailBlock | null
   /** 칭찬 수신 알림 시 같은 부서 팀장 등 참조 */
   ccEmails?: string[]
+  /** 알림 내용 섹션 제목 (기본 "🔔 알림 내용"). 관리자 수동 지급 메일은 "📝 지급 사유"로 표시 */
+  notificationHeading?: string
 }
 
 function resolveDisplayName(userName: string | null | undefined): string {
@@ -77,6 +79,7 @@ export async function sendEarnedNotificationEmail(
     earnedDetails,
     appLink: buildAppLink(payload.transactionId),
     compliment: payload.compliment,
+    notificationHeading: payload.notificationHeading,
   })
   const subject = buildSubject(payload.amount, payload.currencyType, payload.compliment)
 

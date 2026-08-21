@@ -322,6 +322,7 @@ async function applyAdminCreditGrantOnce(
     amount,
     currencyType: 'V_CREDIT',
     transactionId: txRow?.transaction_id,
+    notificationHeading: '📝 지급 사유',
   })
   const { error: lotErr } = await supabase.from('credit_lots').insert({
     user_id: userId,
@@ -386,6 +387,7 @@ async function applyAdminMedalGrantOnce(
     amount,
     currencyType: 'V_MEDAL',
     transactionId: txRow?.transaction_id,
+    notificationHeading: '📝 지급 사유',
   })
   return null
 }
@@ -432,7 +434,7 @@ export async function grantPoints(
   }
 }
 
-/** 관리자: 선택한 여러 명에게 동일 금액·동일 사유로 일괄 지급 (최대 80명) */
+/** 관리자: 선택한 여러 명에게 동일 금액·동일 사유로 일괄 지급 (최대 300명, 대량 발송 지원) */
 export async function grantCurrencyBatchToUsers(params: {
   userIds: string[]
   currency: 'V_CREDIT' | 'V_MEDAL'
@@ -444,7 +446,7 @@ export async function grantCurrencyBatchToUsers(params: {
   grantedCount: number
   failed: { userId: string; detail: string }[]
 }> {
-  const MAX = 80
+  const MAX = 300
   if (params.amount <= 0 || !Number.isInteger(params.amount)) {
     return { success: false, error: '1 이상의 정수만 입력해주세요.', grantedCount: 0, failed: [] }
   }
@@ -485,15 +487,23 @@ export async function grantCurrencyBatchToUsers(params: {
     const failed: { userId: string; detail: string }[] = []
     let grantedCount = 0
 
-    for (const userId of unique) {
-      const err =
-        params.currency === 'V_CREDIT'
-          ? await applyAdminCreditGrantOnce(supabase, userId, params.amount, description)
-          : await applyAdminMedalGrantOnce(supabase, userId, params.amount, description)
-      if (err) {
-        failed.push({ userId, detail: err })
-      } else {
-        grantedCount++
+    // 대량 발송 시 순차 처리로 인한 지연·타임아웃을 피하기 위해 일정 개수씩 동시에 처리합니다.
+    // 사용자마다 서로 다른 행을 다루므로 동시 처리해도 갱신 충돌은 없습니다.
+    const CONCURRENCY = 10
+    for (let i = 0; i < unique.length; i += CONCURRENCY) {
+      const chunk = unique.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(
+        chunk.map(async (userId) => ({
+          userId,
+          err:
+            params.currency === 'V_CREDIT'
+              ? await applyAdminCreditGrantOnce(supabase, userId, params.amount, description)
+              : await applyAdminMedalGrantOnce(supabase, userId, params.amount, description),
+        }))
+      )
+      for (const { userId, err } of results) {
+        if (err) failed.push({ userId, detail: err })
+        else grantedCount++
       }
     }
 
@@ -1132,6 +1142,7 @@ export async function getMatchingAmountByTarget(): Promise<Record<string, number
       .from('donations')
       .select('donation_id, target_id')
       .in('donation_id', donationIds)
+      .is('deleted_at', null)
 
     const donationToTarget = new Map((donations ?? []).map((d) => [d.donation_id, d.target_id]))
     const result: Record<string, number> = {}
@@ -1185,6 +1196,7 @@ export async function getOverTargetDonors(targetId: string): Promise<{
       .from('donations')
       .select('donation_id, user_id, amount, created_at')
       .eq('target_id', targetId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
     if (donErr) return { data: [], targetAmount: targetRow.target_amount, targetName: targetRow.name, error: donErr.message }
 

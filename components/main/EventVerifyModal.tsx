@@ -238,7 +238,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
     }
     setSubmitPending(true)
     setError(null)
-    const result = await submitEventSubmission(eventId, roundId, verificationData, normalizedPeerUserIds, isAnonymous)
+    const result = await submitEventSubmission(eventId, roundId, verificationData, isAnonymous)
     setSubmitPending(false)
     if (result.error) {
       setError(result.error)
@@ -491,7 +491,6 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         ? filtered.filter(
                             (u) =>
                               (u.name ?? '').toLowerCase().includes(peerSearch.toLowerCase()) ||
-                              (u.email ?? '').toLowerCase().includes(peerSearch.toLowerCase()) ||
                               (u.dept_name ?? '').toLowerCase().includes(peerSearch.toLowerCase())
                           )
                         : []
@@ -507,14 +506,14 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                         .sort((a, b) => b[1].length - a[1].length)
                       const selectedPeerIds = parsePeerSelectPayload(m.method_id).peer_user_ids
                       const peerLabel = (u: PeerSelectionUserRow) =>
-                        [u.name || '이름 없음', u.dept_name, u.email].filter(Boolean).join(' · ')
+                        [u.name || '이름 없음', u.dept_name].filter(Boolean).join(' · ')
                       // 제목은 사용자 행동이 바로 보이도록 고정 문구를 사용합니다.
                       const displayLabel = '칭찬 대상 추가'
                       const peerSearchPlaceholder = resolveInputPlaceholder(
                         m,
                         isMultiMode
-                          ? '이름/이메일/팀명 검색 후 대상 추가'
-                          : '이름/이메일/팀명 검색 후 대상 1명 추가'
+                          ? '이름/팀명 검색 후 대상 추가'
+                          : '이름/팀명 검색 후 대상 1명 추가'
                       )
                       return (
                         <div key={m.method_id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -703,7 +702,7 @@ export function EventVerifyModal({ eventId, isOpen, onClose, onSuccess }: EventV
                                 )}
                                 {!hasSearch ? (
                                   <p className="mt-2 text-xs text-gray-500">
-                                    이름/이메일/팀명 검색으로 대상자를 추가하세요.
+                                    이름/팀명 검색으로 대상자를 추가하세요.
                                   </p>
                                 ) : (
                                   <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">

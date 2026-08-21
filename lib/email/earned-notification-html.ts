@@ -98,8 +98,11 @@ export function buildEarnedNotificationHtml(params: {
   earnedDetails: string
   appLink: string
   compliment?: ComplimentEmailBlock | null
+  /** 알림 내용 섹션 제목 (기본 "🔔 알림 내용"). 관리자 수동 지급 메일은 "📝 지급 사유"로 표시 */
+  notificationHeading?: string
 }): string {
   const userName = escapeHtml(params.userName)
+  const notificationHeading = escapeHtml(params.notificationHeading?.trim() || '🔔 알림 내용')
   const earnedDetails = escapeHtml(params.earnedDetails)
   const appLink = escapeHtml(params.appLink)
   const complimentHtml =
@@ -159,7 +162,7 @@ export function buildEarnedNotificationHtml(params: {
                                         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 25px;">
                                             <tr>
                                                 <td style="padding-bottom: 8px; font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
-                                                    🔔 알림 내용
+                                                    ${notificationHeading}
                                                 </td>
                                             </tr>
                                             <tr>

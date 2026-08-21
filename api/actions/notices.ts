@@ -51,7 +51,11 @@ export async function addNoticeComment(
     ...(parentId ? { parent_id: parentId } : {}),
   })
 
-  if (error) return { error: error.message }
+  // 4.1.3 조치: DB 원본 에러(테이블명·제약조건명 등 내부 구조 노출)를 그대로 반환하지 않습니다.
+  if (error) {
+    console.error('[notices] addNoticeComment 실패:', error)
+    return { error: '댓글을 등록하지 못했습니다. 잠시 후 다시 시도해주세요.' }
+  }
 
   // @멘션 파싱 → 태그된 유저에게 알림 전송
   const mentionedNames = [...new Set((trimmed.match(/@([가-힣\w]+)/g) ?? []).map((m) => m.slice(1)))]
@@ -228,13 +232,17 @@ export async function fetchMentionableUsers(query: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // 4.1.5 조치: 빈 문자열·한 글자 검색으로 전사 명단을 순차 수집하지 못하도록 최소 길이를 강제합니다.
+  const q = query.trim()
+  if (q.length < 2) return []
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('users')
     .select('user_id, name, dept_name')
     .is('deleted_at', null)
-    .ilike('name', `%${query}%`)
-    .limit(8)
+    .ilike('name', `%${q}%`)
+    .limit(5)
   return (data ?? []) as { user_id: string; name: string; dept_name: string | null }[]
 }
 

@@ -221,11 +221,10 @@ export type RoundForParticipation = {
   status?: 'LOCKED' | 'OPEN' | 'SUBMITTED' | 'APPROVED' | 'DONE' | 'FAILED' | 'REJECTED'
 }
 
-/** 동료 선택(PEER_SELECT)용 플랫폼 가입자 한 명 */
+/** 동료 선택(PEER_SELECT)용 플랫폼 가입자 한 명 (4.1.1 조치: 이메일은 응답에 포함하지 않음) */
 export type PeerSelectionUserRow = {
   user_id: string
   name: string | null
-  email: string | null
   dept_name: string | null
 }
 
@@ -268,13 +267,12 @@ export async function getEventForParticipation(
   if (hasPeerSelect) {
     const { data: users } = await supabase
       .from('users')
-      .select('user_id, name, email, dept_name')
+      .select('user_id, name, dept_name')
       .is('deleted_at', null)
       .order('name', { ascending: true, nullsFirst: false })
     peerSelectionUsers = (users ?? []).map((u) => ({
       user_id: u.user_id,
       name: u.name ?? null,
-      email: u.email ?? null,
       dept_name: u.dept_name ?? null,
     }))
   }

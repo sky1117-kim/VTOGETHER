@@ -159,7 +159,6 @@ export async function submitEventSubmission(
   eventId: string,
   roundId: string | null,
   verificationData: Record<string, unknown>,
-  peerUserIds?: string[] | null,
   isAnonymous?: boolean
 ): Promise<{ success: boolean; error: string | null }> {
   try {
@@ -195,10 +194,9 @@ export async function submitEventSubmission(
       .is('deleted_at', null)
     const methodList = methods ?? []
     const hasPeerSelect = methodList.some((r) => (r as { method_type?: string }).method_type === 'PEER_SELECT')
-    const normalizedPeerUserIds = [...new Set((peerUserIds ?? []).map((id) => String(id).trim()).filter(Boolean))]
-    if (hasPeerSelect && normalizedPeerUserIds.length === 0) {
-      return { success: false, error: '칭찬할 동료를 선택해주세요.' }
-    }
+    // 4.1.2 프로세스 검증누락 조치: 클라이언트가 보낸 peer_user_ids를 신뢰하지 않고
+    // 아래 검증 루프를 통과한 값만 이 배열에 채워 최종 저장에 사용합니다.
+    const validatedPeerUserIds: string[] = []
     const requiredMethods = methodList as {
       method_id: string
       method_type: string
@@ -213,24 +211,51 @@ export async function submitEventSubmission(
           return { success: false, error: '사진을 1장 이상 제출해주세요.' }
         }
       } else if (m.method_type === 'PEER_SELECT') {
-        let selectedCount = 0
+        let peerIds: string[] = []
+        let organizationName: string | null = null
         if (val && typeof val === 'object' && !Array.isArray(val)) {
           const obj = val as { peer_user_ids?: unknown; organization_name?: unknown }
-          selectedCount = Array.isArray(obj.peer_user_ids)
-            ? obj.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim()).length
-            : 0
+          peerIds = Array.isArray(obj.peer_user_ids)
+            ? obj.peer_user_ids.filter((x): x is string => typeof x === 'string' && !!x.trim())
+            : []
+          organizationName =
+            typeof obj.organization_name === 'string' && obj.organization_name.trim()
+              ? obj.organization_name.trim()
+              : null
         } else if (Array.isArray(val)) {
-          selectedCount = val.filter((x): x is string => typeof x === 'string' && !!x.trim()).length
+          peerIds = val.filter((x): x is string => typeof x === 'string' && !!x.trim())
         } else if (typeof val === 'string' && val.trim()) {
-          selectedCount = 1
+          peerIds = [val.trim()]
         }
-        if (selectedCount === 0) {
+        peerIds = [...new Set(peerIds)]
+        if (peerIds.length === 0) {
           return { success: false, error: '칭찬할 동료를 1명 이상 선택해주세요.' }
         }
         const isMultiMode = isMultiPeerSelectMode(m)
-        if (!isMultiMode && selectedCount > 1) {
+        if (!isMultiMode && peerIds.length > 1) {
           return { success: false, error: '개인형 칭찬 챌린지는 동료 1명만 선택할 수 있습니다.' }
         }
+        // 본인을 칭찬 대상에 포함하는 '셀프 보상' 차단
+        if (peerIds.includes(userId)) {
+          return { success: false, error: '본인을 칭찬 대상으로 선택할 수 없습니다.' }
+        }
+        // 실제 존재하는 사용자인지, (조직형인 경우) 신청한 조직 소속이 맞는지 서버에서 재대조
+        const { data: verifiedPeers, error: peerLookupErr } = await supabase
+          .from('users')
+          .select('user_id, dept_name')
+          .in('user_id', peerIds)
+          .is('deleted_at', null)
+        if (peerLookupErr) {
+          return { success: false, error: '대상자 확인 중 오류가 발생했습니다.' }
+        }
+        const deptByUserId = new Map((verifiedPeers ?? []).map((u) => [u.user_id, u.dept_name]))
+        if (deptByUserId.size !== peerIds.length) {
+          return { success: false, error: '선택한 대상 중 존재하지 않는 사용자가 있습니다.' }
+        }
+        if (organizationName && peerIds.some((id) => deptByUserId.get(id) !== organizationName)) {
+          return { success: false, error: '선택한 대상 중 실제 소속 조직과 일치하지 않는 인원이 있습니다.' }
+        }
+        validatedPeerUserIds.push(...peerIds)
       } else if (val === undefined || val === null || String(val).trim() === '') {
         return { success: false, error: '필수 인증 항목(사진·텍스트 등)을 모두 입력해주세요.' }
       } else if (m.method_type === 'TEXT' && m.input_style === 'CHOICE') {
@@ -245,9 +270,10 @@ export async function submitEventSubmission(
       }
     }
 
+    const finalPeerUserIds = [...new Set(validatedPeerUserIds)]
     const payloadVerificationData =
-      hasPeerSelect && normalizedPeerUserIds.length > 0
-        ? { ...verificationData, peer_user_ids: normalizedPeerUserIds }
+      hasPeerSelect && finalPeerUserIds.length > 0
+        ? { ...verificationData, peer_user_ids: finalPeerUserIds }
         : verificationData
 
     const insertRow = {
@@ -256,7 +282,7 @@ export async function submitEventSubmission(
       user_id: userId,
       status: 'PENDING' as const,
       verification_data: payloadVerificationData,
-      peer_user_id: normalizedPeerUserIds[0] ?? null,
+      peer_user_id: finalPeerUserIds[0] ?? null,
       is_anonymous: hasPeerSelect && !!isAnonymous,
     }
 
@@ -314,7 +340,7 @@ export async function submitEventSubmission(
         .update({
           status: 'PENDING',
           verification_data: payloadVerificationData,
-          peer_user_id: normalizedPeerUserIds[0] ?? null,
+          peer_user_id: finalPeerUserIds[0] ?? null,
           is_anonymous: hasPeerSelect && !!isAnonymous,
           rejection_reason: null,
           reviewed_by: null,
