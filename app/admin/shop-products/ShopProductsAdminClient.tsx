@@ -4,10 +4,15 @@ import { useState, useTransition } from 'react'
 import Image from 'next/image'
 import {
   createShopProduct,
+  createShopProductVariant,
   deleteShopProduct,
+  deleteShopProductVariant,
+  getShopProductVariants,
   toggleShopProductActive,
   updateShopProduct,
+  updateShopProductVariant,
   uploadShopProductImage,
+  type ShopProductVariantRow,
 } from '@/api/actions/admin/shop-products'
 import { useRouter } from 'next/navigation'
 import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
@@ -22,6 +27,77 @@ type ProductRow = {
   stock: number | null
   image_url: string | null
   is_active: boolean
+  has_variants: boolean
+}
+
+type VariantDraft = { key: string; color: string; size: string; stock: string }
+
+function VariantDraftEditor({
+  drafts,
+  onChange,
+  tone,
+}: {
+  drafts: VariantDraft[]
+  onChange: (next: VariantDraft[]) => void
+  tone: 'create' | 'edit'
+}) {
+  const borderTone = tone === 'create' ? 'border-gray-200 bg-gray-50/40' : 'border-green-200 bg-white'
+  return (
+    <div className={`space-y-2 rounded-xl border p-3 md:col-span-2 ${borderTone}`}>
+      <p className="text-xs font-semibold text-gray-600">색상/사이즈 옵션별 재고</p>
+      {drafts.length === 0 && <p className="text-xs text-gray-400">등록된 옵션이 없습니다. 아래에서 추가하세요.</p>}
+      {drafts.map((d, idx) => (
+        <div key={d.key} className="flex flex-wrap items-center gap-2">
+          <input
+            className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+            placeholder="색상"
+            value={d.color}
+            onChange={(e) => {
+              const next = [...drafts]
+              next[idx] = { ...d, color: e.target.value }
+              onChange(next)
+            }}
+          />
+          <input
+            className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+            placeholder="사이즈"
+            value={d.size}
+            onChange={(e) => {
+              const next = [...drafts]
+              next[idx] = { ...d, size: e.target.value }
+              onChange(next)
+            }}
+          />
+          <input
+            type="text"
+            inputMode="numeric"
+            className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+            placeholder="재고"
+            value={formatIntegerWithCommas(d.stock)}
+            onChange={(e) => {
+              const next = [...drafts]
+              next[idx] = { ...d, stock: sanitizeIntegerInput(e.target.value) }
+              onChange(next)
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => onChange(drafts.filter((_, i) => i !== idx))}
+            className="rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+          >
+            삭제
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...drafts, { key: `${Date.now()}-${drafts.length}`, color: '', size: '', stock: '0' }])}
+        className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+      >
+        옵션 추가
+      </button>
+    </div>
+  )
 }
 
 function parseImageUrls(raw: string): string[] {
@@ -158,8 +234,10 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
     price_medal: 10,
     credit_amount: 1000,
     stock: '',
+    has_variants: false,
     image_url: '',
   })
+  const [createVariantDrafts, setCreateVariantDrafts] = useState<VariantDraft[]>([])
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
@@ -167,9 +245,19 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
     price_medal: 10,
     credit_amount: 1000,
     stock: '',
+    has_variants: false,
     image_url: '',
     is_active: true,
   })
+  const [editVariants, setEditVariants] = useState<ShopProductVariantRow[]>([])
+  const [newEditVariant, setNewEditVariant] = useState<VariantDraft | null>(null)
+
+  function loadEditVariants(productId: string) {
+    startTransition(async () => {
+      const result = await getShopProductVariants(productId)
+      if (result.data) setEditVariants(result.data)
+    })
+  }
 
   async function handleUpload(files: File[], target: 'create' | 'edit') {
     if (files.length === 0) return
@@ -242,7 +330,21 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
           </select>
           <input className="rounded-lg border border-gray-200 px-3 py-2 text-sm md:col-span-2" placeholder="설명" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
           <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="가격(Medal)" value={formatIntegerWithCommas(form.price_medal)} onChange={(e) => setForm((p) => ({ ...p, price_medal: Number(sanitizeIntegerInput(e.target.value) || 0) }))} />
-          <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="재고(비우면 무제한)" value={formatIntegerWithCommas(form.stock)} onChange={(e) => setForm((p) => ({ ...p, stock: sanitizeIntegerInput(e.target.value) }))} />
+          <label className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={form.has_variants}
+              onChange={(e) => setForm((p) => ({ ...p, has_variants: e.target.checked }))}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            색상/사이즈 옵션 사용
+          </label>
+          {!form.has_variants && (
+            <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="재고(비우면 무제한)" value={formatIntegerWithCommas(form.stock)} onChange={(e) => setForm((p) => ({ ...p, stock: sanitizeIntegerInput(e.target.value) }))} />
+          )}
+          {form.has_variants && (
+            <VariantDraftEditor tone="create" drafts={createVariantDrafts} onChange={setCreateVariantDrafts} />
+          )}
           <ProductImageUploadBox
             imageUrl={form.image_url}
             borderTone="border-gray-200 bg-gray-50/30"
@@ -268,9 +370,21 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 price_medal: form.price_medal,
                 credit_amount: form.product_type === 'CREDIT_PACK' ? form.credit_amount : null,
                 stock: form.stock.trim() === '' ? null : Number(sanitizeIntegerInput(form.stock)),
+                has_variants: form.has_variants,
                 image_url: form.image_url.trim() || null,
               })
               if (!result.success) return setMessage(result.error ?? '등록 실패')
+              if (form.has_variants && result.product_id) {
+                for (const d of createVariantDrafts) {
+                  if (!d.color.trim() && !d.size.trim()) continue
+                  await createShopProductVariant({
+                    product_id: result.product_id,
+                    color: d.color,
+                    size: d.size,
+                    stock: Number(sanitizeIntegerInput(d.stock) || '0'),
+                  })
+                }
+              }
               setMessage('상품이 등록되었습니다.')
               setForm({
                 name: '',
@@ -279,8 +393,10 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 price_medal: 10,
                 credit_amount: 1000,
                 stock: '',
+                has_variants: false,
                 image_url: '',
               })
+              setCreateVariantDrafts([])
               router.refresh()
             })
           }}
@@ -353,9 +469,13 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                         price_medal: p.price_medal,
                         credit_amount: p.credit_amount ?? 1000,
                         stock: p.stock == null ? '' : String(p.stock),
+                        has_variants: p.has_variants,
                         image_url: p.image_url ?? '',
                         is_active: p.is_active,
                       })
+                      setEditVariants([])
+                      setNewEditVariant(null)
+                      if (p.has_variants) loadEditVariants(p.product_id)
                     }}
                     className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                   >
@@ -396,7 +516,9 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 </div>
                 <div className="rounded-lg bg-gray-50 px-2 py-1.5 text-right">
                   <p className="text-gray-500">재고</p>
-                  <p className="mt-1 font-semibold text-gray-800">{p.stock == null ? '무제한' : p.stock.toLocaleString()}</p>
+                  <p className="mt-1 font-semibold text-gray-800">
+                    {p.has_variants ? '옵션별 관리' : p.stock == null ? '무제한' : p.stock.toLocaleString()}
+                  </p>
                 </div>
               </div>
               <div className="mt-3">
@@ -443,7 +565,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 <td className="px-4 py-3">{p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ALMAENG_STORE' ? '알맹상점' : '굿즈'}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{p.price_medal.toLocaleString()}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{(p.credit_amount ?? 0).toLocaleString()}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{p.stock == null ? '무제한' : p.stock.toLocaleString()}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{p.has_variants ? '옵션별 관리' : p.stock == null ? '무제한' : p.stock.toLocaleString()}</td>
                 <td className="px-4 py-3">
                   {(() => {
                     const previewUrls = parseImageUrls(p.image_url ?? '')
@@ -489,9 +611,13 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                           price_medal: p.price_medal,
                           credit_amount: p.credit_amount ?? 1000,
                           stock: p.stock == null ? '' : String(p.stock),
+                          has_variants: p.has_variants,
                           image_url: p.image_url ?? '',
                           is_active: p.is_active,
                         })
+                        setEditVariants([])
+                        setNewEditVariant(null)
+                        if (p.has_variants) loadEditVariants(p.product_id)
                       }}
                       className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                     >
@@ -558,14 +684,182 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
               value={formatIntegerWithCommas(editForm.price_medal)}
               onChange={(e) => setEditForm((prev) => ({ ...prev, price_medal: Number(sanitizeIntegerInput(e.target.value) || 0) }))}
             />
-            <input
-              type="text"
-              inputMode="numeric"
-              className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
-              placeholder="재고(비우면 무제한)"
-              value={formatIntegerWithCommas(editForm.stock)}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, stock: sanitizeIntegerInput(e.target.value) }))}
-            />
+            <label className="flex items-center gap-2 rounded-lg border border-green-200 bg-white px-3 py-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={editForm.has_variants}
+                onChange={(e) => {
+                  const checked = e.target.checked
+                  setEditForm((prev) => ({ ...prev, has_variants: checked }))
+                  if (checked && editingId) loadEditVariants(editingId)
+                }}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              색상/사이즈 옵션 사용
+            </label>
+            {!editForm.has_variants && (
+              <input
+                type="text"
+                inputMode="numeric"
+                className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
+                placeholder="재고(비우면 무제한)"
+                value={formatIntegerWithCommas(editForm.stock)}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, stock: sanitizeIntegerInput(e.target.value) }))}
+              />
+            )}
+            {editForm.has_variants && editingId && (
+              <div className="space-y-2 rounded-xl border border-green-200 bg-white p-3 md:col-span-2">
+                <p className="text-xs font-semibold text-gray-600">색상/사이즈 옵션별 재고</p>
+                {editVariants.length === 0 && (
+                  <p className="text-xs text-gray-400">등록된 옵션이 없습니다. 아래에서 추가하세요.</p>
+                )}
+                {editVariants.map((v, idx) => (
+                  <div key={v.variant_id} className="flex flex-wrap items-center gap-2">
+                    <input
+                      className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      placeholder="색상"
+                      value={v.color ?? ''}
+                      onChange={(e) => {
+                        const next = [...editVariants]
+                        next[idx] = { ...v, color: e.target.value }
+                        setEditVariants(next)
+                      }}
+                    />
+                    <input
+                      className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      placeholder="사이즈"
+                      value={v.size ?? ''}
+                      onChange={(e) => {
+                        const next = [...editVariants]
+                        next[idx] = { ...v, size: e.target.value }
+                        setEditVariants(next)
+                      }}
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      placeholder="재고"
+                      value={formatIntegerWithCommas(v.stock)}
+                      onChange={(e) => {
+                        const next = [...editVariants]
+                        next[idx] = { ...v, stock: Number(sanitizeIntegerInput(e.target.value) || '0') }
+                        setEditVariants(next)
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = [...editVariants]
+                        next[idx] = { ...v, is_active: !v.is_active }
+                        setEditVariants(next)
+                      }}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${v.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}
+                    >
+                      {v.is_active ? '판매중' : '비활성'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await updateShopProductVariant({
+                            variant_id: v.variant_id,
+                            color: v.color,
+                            size: v.size,
+                            stock: v.stock,
+                            is_active: v.is_active,
+                          })
+                          if (!result.success) return setMessage(result.error ?? '옵션 저장 실패')
+                          setMessage('옵션을 저장했습니다.')
+                          router.refresh()
+                        })
+                      }}
+                      className="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await deleteShopProductVariant(v.variant_id)
+                          if (!result.success) return setMessage(result.error ?? '옵션 삭제 실패')
+                          setEditVariants(editVariants.filter((item) => item.variant_id !== v.variant_id))
+                          setMessage('옵션을 삭제했습니다.')
+                          router.refresh()
+                        })
+                      }}
+                      className="rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+                {newEditVariant ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      placeholder="색상"
+                      value={newEditVariant.color}
+                      onChange={(e) => setNewEditVariant({ ...newEditVariant, color: e.target.value })}
+                    />
+                    <input
+                      className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      placeholder="사이즈"
+                      value={newEditVariant.size}
+                      onChange={(e) => setNewEditVariant({ ...newEditVariant, size: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                      placeholder="재고"
+                      value={formatIntegerWithCommas(newEditVariant.stock)}
+                      onChange={(e) => setNewEditVariant({ ...newEditVariant, stock: sanitizeIntegerInput(e.target.value) })}
+                    />
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await createShopProductVariant({
+                            product_id: editingId,
+                            color: newEditVariant.color,
+                            size: newEditVariant.size,
+                            stock: Number(sanitizeIntegerInput(newEditVariant.stock) || '0'),
+                          })
+                          if (!result.success) return setMessage(result.error ?? '옵션 추가 실패')
+                          setNewEditVariant(null)
+                          loadEditVariants(editingId)
+                          setMessage('옵션을 추가했습니다.')
+                          router.refresh()
+                        })
+                      }}
+                      className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                    >
+                      추가
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewEditVariant(null)}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setNewEditVariant({ key: 'new', color: '', size: '', stock: '0' })}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                  >
+                    옵션 추가
+                  </button>
+                )}
+              </div>
+            )}
             <ProductImageUploadBox
               imageUrl={editForm.image_url}
               borderTone="border-green-200 bg-green-100/30"
@@ -599,6 +893,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                     price_medal: editForm.price_medal,
                     credit_amount: editForm.product_type === 'CREDIT_PACK' ? editForm.credit_amount : null,
                     stock: editForm.stock.trim() === '' ? null : Number(sanitizeIntegerInput(editForm.stock)),
+                    has_variants: editForm.has_variants,
                     image_url: editForm.image_url.trim() || null,
                     is_active: editForm.is_active,
                   })

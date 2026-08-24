@@ -5,6 +5,13 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
 
+export type ShopProductVariantOption = {
+  variant_id: string
+  color: string | null
+  size: string | null
+  stock: number
+}
+
 type ShopProductRow = {
   product_id: string
   name: string
@@ -15,10 +22,12 @@ type ShopProductRow = {
   stock: number | null
   image_url: string | null
   is_active: boolean
+  has_variants: boolean
   created_at: string
   order_count: number
   is_new: boolean
   is_best: boolean
+  variants: ShopProductVariantOption[]
 }
 
 export async function getShopProducts(): Promise<{
@@ -29,13 +38,30 @@ export async function getShopProducts(): Promise<{
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('shop_products')
-      .select('product_id, name, description, product_type, price_medal, credit_amount, stock, image_url, is_active, created_at')
+      .select('product_id, name, description, product_type, price_medal, credit_amount, stock, image_url, is_active, has_variants, created_at')
       .eq('is_active', true)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
     if (error) return { data: null, error: error.message }
 
-    const rows = (data ?? []) as Array<Omit<ShopProductRow, 'order_count' | 'is_new' | 'is_best'>>
+    const rows = (data ?? []) as Array<Omit<ShopProductRow, 'order_count' | 'is_new' | 'is_best' | 'variants'>>
+
+    const variantProductIds = rows.filter((r) => r.has_variants).map((r) => r.product_id)
+    const variantsByProductId = new Map<string, ShopProductVariantOption[]>()
+    if (variantProductIds.length > 0) {
+      const { data: variantRows } = await admin
+        .from('shop_product_variants')
+        .select('variant_id, product_id, color, size, stock')
+        .in('product_id', variantProductIds)
+        .eq('is_active', true)
+        .is('deleted_at', null)
+      for (const row of (variantRows ?? []) as Array<ShopProductVariantOption & { product_id: string }>) {
+        const list = variantsByProductId.get(row.product_id) ?? []
+        list.push({ variant_id: row.variant_id, color: row.color, size: row.size, stock: row.stock })
+        variantsByProductId.set(row.product_id, list)
+      }
+    }
+
     const { data: orderRows } = await admin
       .from('shop_orders')
       .select('product_id')
@@ -61,6 +87,7 @@ export async function getShopProducts(): Promise<{
         order_count: orderCount,
         is_new: isNew,
         is_best: bestProductId != null && bestProductId === row.product_id && orderCount > 0,
+        variants: row.has_variants ? variantsByProductId.get(row.product_id) ?? [] : [],
       }
     })
 
@@ -80,7 +107,7 @@ type PurchaseShopProductRpcResult = {
   userName: string | null
 }
 
-export async function purchaseShopProduct(productId: string, quantity = 1): Promise<{
+export async function purchaseShopProduct(productId: string, quantity = 1, variantId?: string | null): Promise<{
   success: boolean
   error: string | null
 }> {
@@ -102,6 +129,7 @@ export async function purchaseShopProduct(productId: string, quantity = 1): Prom
       p_product_id: productId,
       p_quantity: safeQuantity,
       p_user_id: user.id,
+      p_variant_id: variantId ?? null,
     })
     if (error) return { success: false, error: error.message }
 

@@ -6,6 +6,13 @@ import Image from 'next/image'
 import { purchaseShopProduct } from '@/api/actions/shop'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
 
+type ShopProductVariantOption = {
+  variant_id: string
+  color: string | null
+  size: string | null
+  stock: number
+}
+
 type ShopProduct = {
   product_id: string
   name: string
@@ -18,6 +25,8 @@ type ShopProduct = {
   order_count: number
   is_new: boolean
   is_best: boolean
+  has_variants: boolean
+  variants: ShopProductVariantOption[]
 }
 
 type PurchaseTarget = {
@@ -27,6 +36,16 @@ type PurchaseTarget = {
   stock: number | null
   productType: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
   creditAmount: number | null
+  hasVariants: boolean
+  variants: ShopProductVariantOption[]
+}
+
+function variantLabel(v: ShopProductVariantOption): string {
+  return [v.color, v.size].filter(Boolean).join(' / ') || '옵션'
+}
+
+function totalVariantStock(variants: ShopProductVariantOption[]): number {
+  return variants.reduce((sum, v) => sum + Math.max(0, v.stock), 0)
 }
 
 function parseProductImageUrls(raw: string | null): string[] {
@@ -56,6 +75,7 @@ export function ShopProductList({
   const [touchStartXByProductId, setTouchStartXByProductId] = useState<Record<string, number>>({})
   const [purchaseTarget, setPurchaseTarget] = useState<PurchaseTarget | null>(null)
   const [purchaseQuantity, setPurchaseQuantity] = useState(1)
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   useBodyScrollLock(!!expandedDescriptionProductId || !!purchaseTarget)
 
   useEffect(() => {
@@ -88,6 +108,12 @@ export function ShopProductList({
   }, [products, sortBy, productTypeFilter])
 
   const gridClass = 'grid items-start gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3'
+  const selectedVariant = purchaseTarget?.variants.find((v) => v.variant_id === selectedVariantId) ?? null
+  const effectiveStock = purchaseTarget
+    ? purchaseTarget.hasVariants
+      ? selectedVariant?.stock ?? 0
+      : purchaseTarget.stock
+    : null
   const purchaseTotalMedal = purchaseTarget ? purchaseTarget.priceMedal * purchaseQuantity : 0
   const purchaseTotalCredit =
     purchaseTarget?.productType === 'CREDIT_PACK'
@@ -97,7 +123,7 @@ export function ShopProductList({
     ? Math.max(
         1,
         Math.min(
-          purchaseTarget.stock == null ? 99 : Math.max(1, Math.min(99, purchaseTarget.stock)),
+          effectiveStock == null ? 99 : Math.max(1, Math.min(99, effectiveStock)),
           purchaseTarget.priceMedal <= 0 ? 99 : Math.max(1, Math.min(99, Math.floor(currentMedals / purchaseTarget.priceMedal))),
         ),
       )
@@ -107,13 +133,19 @@ export function ShopProductList({
     setPurchaseQuantity(1)
     setMessage(null)
     setPurchaseTarget(target)
+    const buyableVariants = target.variants.filter((v) => v.stock > 0)
+    setSelectedVariantId(target.hasVariants && buyableVariants.length === 1 ? buyableVariants[0].variant_id : null)
   }
 
   const handleConfirmPurchase = () => {
     if (!purchaseTarget) return
+    if (purchaseTarget.hasVariants && !selectedVariantId) {
+      setMessage('옵션을 선택하세요.')
+      return
+    }
     setMessage(null)
     startTransition(async () => {
-      const result = await purchaseShopProduct(purchaseTarget.productId, purchaseQuantity)
+      const result = await purchaseShopProduct(purchaseTarget.productId, purchaseQuantity, selectedVariantId)
       if (!result.success) {
         setMessage(result.error ?? '구매 실패')
         return
@@ -203,7 +235,7 @@ export function ShopProductList({
       ) : (
       <div className={`animate-fade-up ${gridClass}`} style={{ animationDelay: '0.16s' }}>
         {visibleProducts.map((p, idx) => {
-          const soldOut = p.stock != null && p.stock <= 0
+          const soldOut = p.has_variants ? totalVariantStock(p.variants) <= 0 : p.stock != null && p.stock <= 0
           const disabled = isPending || soldOut || currentMedals < p.price_medal
           return (
             <article
@@ -285,7 +317,11 @@ export function ShopProductList({
                   )}
                 </div>
                 <div className="absolute right-2 top-2 rounded-md border border-white/20 bg-black/45 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
-                  {p.stock == null ? '재고 무제한' : `재고 ${p.stock.toLocaleString()}개`}
+                  {p.has_variants
+                    ? `재고 ${totalVariantStock(p.variants).toLocaleString()}개`
+                    : p.stock == null
+                      ? '재고 무제한'
+                      : `재고 ${p.stock.toLocaleString()}개`}
                 </div>
                 {imageCount > 1 && (
                   <>
@@ -377,6 +413,8 @@ export function ShopProductList({
                       stock: p.stock,
                       productType: p.product_type,
                       creditAmount: p.credit_amount,
+                      hasVariants: p.has_variants,
+                      variants: p.variants,
                     })
                   }}
                   className="mb-0 w-full rounded-xl bg-emerald-600 px-3 py-1.5 text-[12px] font-extrabold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
@@ -404,7 +442,9 @@ export function ShopProductList({
               const imageUrls = parseProductImageUrls(product.image_url)
               const imageCount = imageUrls.length
               const modalImageIndex = Math.min(expandedImageIndex, Math.max(imageCount - 1, 0))
-              const soldOut = product.stock != null && product.stock <= 0
+              const soldOut = product.has_variants
+                ? totalVariantStock(product.variants) <= 0
+                : product.stock != null && product.stock <= 0
               const disabled = isPending || soldOut || currentMedals < product.price_medal
 
               return (
@@ -483,7 +523,11 @@ export function ShopProductList({
                         </p>
                       </div>
                       <p className="mt-2 text-[11px] font-medium text-slate-500">
-                        {product.stock == null ? '재고 무제한 상품' : `남은 수량 ${product.stock.toLocaleString()}개`}
+                        {product.has_variants
+                          ? `옵션 재고 합계 ${totalVariantStock(product.variants).toLocaleString()}개`
+                          : product.stock == null
+                            ? '재고 무제한 상품'
+                            : `남은 수량 ${product.stock.toLocaleString()}개`}
                       </p>
                     </div>
 
@@ -515,6 +559,8 @@ export function ShopProductList({
                             stock: product.stock,
                             productType: product.product_type,
                             creditAmount: product.credit_amount,
+                            hasVariants: product.has_variants,
+                            variants: product.variants,
                           })
                         }
                         className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-extrabold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
@@ -567,6 +613,37 @@ export function ShopProductList({
               </div>
             </div>
 
+            {purchaseTarget.hasVariants && (
+              <div className="mt-4">
+                <p className="text-sm font-semibold text-slate-700">옵션 선택</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {purchaseTarget.variants.map((v) => {
+                    const optionSoldOut = v.stock <= 0
+                    const selected = selectedVariantId === v.variant_id
+                    return (
+                      <button
+                        key={v.variant_id}
+                        type="button"
+                        disabled={optionSoldOut}
+                        onClick={() => {
+                          setSelectedVariantId(v.variant_id)
+                          setPurchaseQuantity(1)
+                        }}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                          selected
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                        } disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400`}
+                      >
+                        {variantLabel(v)}
+                        {optionSoldOut ? ' (품절)' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="mt-4">
               <label htmlFor="purchase-quantity" className="text-sm font-semibold text-slate-700">
                 수량
@@ -609,7 +686,11 @@ export function ShopProductList({
                 className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 focus:border-emerald-400 focus:outline-none"
               />
               <p className="mt-2 text-xs text-slate-500">
-                {purchaseTarget.stock == null ? '최대 99개까지 선택할 수 있습니다.' : `재고 기준 최대 ${purchaseTarget.stock.toLocaleString()}개`}
+                {purchaseTarget.hasVariants && !selectedVariant
+                  ? '옵션을 먼저 선택하세요.'
+                  : effectiveStock == null
+                    ? '최대 99개까지 선택할 수 있습니다.'
+                    : `재고 기준 최대 ${effectiveStock.toLocaleString()}개`}
               </p>
             </div>
 
@@ -633,7 +714,7 @@ export function ShopProductList({
               </button>
               <button
                 type="button"
-                disabled={isPending || purchaseTotalMedal > currentMedals}
+                disabled={isPending || purchaseTotalMedal > currentMedals || (purchaseTarget.hasVariants && !selectedVariantId)}
                 onClick={handleConfirmPurchase}
                 className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-extrabold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               >

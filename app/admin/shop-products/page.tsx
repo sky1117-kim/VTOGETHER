@@ -14,6 +14,7 @@ export default async function AdminShopProductsPage() {
     stock: number | null
     image_url: string | null
     is_active: boolean
+    has_variants: boolean
   }[]
 
   return (

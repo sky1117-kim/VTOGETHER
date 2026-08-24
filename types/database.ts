@@ -225,6 +225,7 @@ export interface Database {
           stock: number | null
           image_url: string | null
           is_active: boolean
+          has_variants: boolean
           created_by: string | null
           created_at: string
           updated_at: string
@@ -240,6 +241,7 @@ export interface Database {
           stock?: number | null
           image_url?: string | null
           is_active?: boolean
+          has_variants?: boolean
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -255,7 +257,42 @@ export interface Database {
           stock?: number | null
           image_url?: string | null
           is_active?: boolean
+          has_variants?: boolean
           created_by?: string | null
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      shop_product_variants: {
+        Row: {
+          variant_id: string
+          product_id: string
+          color: string | null
+          size: string | null
+          stock: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          variant_id?: string
+          product_id: string
+          color?: string | null
+          size?: string | null
+          stock?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          variant_id?: string
+          product_id?: string
+          color?: string | null
+          size?: string | null
+          stock?: number
+          is_active?: boolean
           updated_at?: string
           deleted_at?: string | null
         }
@@ -270,6 +307,9 @@ export interface Database {
           payment_medal: number
           credit_granted: number
           status: 'COMPLETED' | 'CANCELLED'
+          variant_id: string | null
+          variant_color: string | null
+          variant_size: string | null
           created_at: string
           deleted_at: string | null
         }
@@ -282,6 +322,9 @@ export interface Database {
           payment_medal: number
           credit_granted?: number
           status?: 'COMPLETED' | 'CANCELLED'
+          variant_id?: string | null
+          variant_color?: string | null
+          variant_size?: string | null
           created_at?: string
           deleted_at?: string | null
         }
@@ -294,6 +337,9 @@ export interface Database {
           payment_medal?: number
           credit_granted?: number
           status?: 'COMPLETED' | 'CANCELLED'
+          variant_id?: string | null
+          variant_color?: string | null
+          variant_size?: string | null
           deleted_at?: string | null
         }
       }

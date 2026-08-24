@@ -84,6 +84,11 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
                 </td>
                 <td className="px-3 py-2 text-gray-800">
                   <span className="font-medium">{row.product_snapshot_name}</span>
+                  {(row.variant_color || row.variant_size) && (
+                    <div className="mt-0.5 text-xs font-semibold text-emerald-700">
+                      {[row.variant_color, row.variant_size].filter(Boolean).join(' / ')}
+                    </div>
+                  )}
                   <div className="mt-0.5 font-mono text-[10px] text-gray-400">{row.product_id.slice(0, 8)}…</div>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-gray-700">{productTypeLabel(row.product_type)}</td>

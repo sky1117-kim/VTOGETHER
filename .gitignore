@@ -61,3 +61,9 @@ supabase/.temp/
 # 과제/보고서 자료(저장소에 올리지 않음)
 docs/V.Together_과제결과보고서.pptx
 docs/~$*.pptx
+
+# 모의해킹 등 보안 점검 보고서 및 단발성 데이터 조치 스크립트(저장소에 올리지 않음)
+*.docx.pdf
+docs/migrations/054-pentest-2026-08-07-fixes.sql
+docs/migrations/055-donation-matching-close-fix-and-refund.sql
+docs/migrations/055-revert-park-seo-test-credits.sql
