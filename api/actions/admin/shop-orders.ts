@@ -35,6 +35,7 @@ export type ShopOrderAdminRow = {
   credit_granted: number
   status: string
   fulfilled_at: string | null
+  variant_id: string | null
   variant_color: string | null
   variant_size: string | null
   created_at: string
@@ -88,10 +89,9 @@ export async function getShopOrdersForAdmin(options: {
     let query = admin
       .from('shop_orders')
       .select(
-        'order_id, user_id, product_id, product_snapshot_name, product_type, payment_medal, credit_granted, status, fulfilled_at, variant_color, variant_size, created_at',
+        'order_id, user_id, product_id, product_snapshot_name, product_type, payment_medal, credit_granted, status, fulfilled_at, variant_id, variant_color, variant_size, created_at',
         { count: 'exact' }
       )
-      .eq('status', 'COMPLETED')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
@@ -116,10 +116,9 @@ export async function getShopOrdersForAdmin(options: {
       const fallbackQuery = admin
         .from('shop_orders')
         .select(
-          'order_id, user_id, product_id, product_snapshot_name, product_type, payment_medal, credit_granted, status, variant_color, variant_size, created_at',
+          'order_id, user_id, product_id, product_snapshot_name, product_type, payment_medal, credit_granted, status, variant_id, variant_color, variant_size, created_at',
           { count: 'exact' }
         )
-        .eq('status', 'COMPLETED')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
       let q2 = fallbackQuery
@@ -206,5 +205,26 @@ export async function setShopOrderFulfillment(
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '지급 상태 변경 실패' }
+  }
+}
+
+/** 관리자: 상점 실물/알맹 주문(지급 전) 취소 — 메달 환불 + 재고 복구 */
+export async function cancelShopOrder(orderId: string): Promise<{ success: boolean; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+  try {
+    const admin = createAdminClient()
+    const { error } = await admin.rpc('cancel_shop_order_atomic', { p_order_id: orderId })
+    if (error) {
+      if (error.message?.includes('cancel_shop_order_atomic')) {
+        return { success: false, error: '마이그레이션이 필요합니다: 057-shop-order-cancel-atomic.sql 실행 후 다시 시도하세요.' }
+      }
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath('/admin/shop-orders')
+    return { success: true, error: null }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : '주문 취소 실패' }
   }
 }

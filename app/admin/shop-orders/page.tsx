@@ -58,7 +58,7 @@ export default async function AdminShopOrdersPage({
     <div className="space-y-6">
       <AdminPageHeader
         title="상점 주문 내역"
-        description="누가 어떤 상품을 구매했는지 확인하고, 실물 굿즈·알맹 스토어 상품은 지급 처리에 활용하세요. V.Credit 전환 상품은 결제 시 자동 적립됩니다."
+        description="누가 어떤 상품을 구매했는지 확인하고, 실물 굿즈·알맹 스토어 상품은 지급 처리에 활용하세요. V.Credit 전환 상품은 결제 시 자동 적립됩니다. 지급 전 실물·알맹 요청은 취소할 수 있습니다."
         breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '상점 주문' }]}
       />
 

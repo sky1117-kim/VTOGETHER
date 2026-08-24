@@ -1,9 +1,11 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import type { ShopOrderAdminRow } from '@/api/actions/admin/shop-orders'
-import { setShopOrderFulfillment } from '@/api/actions/admin/shop-orders'
+import { cancelShopOrder, setShopOrderFulfillment } from '@/api/actions/admin/shop-orders'
 import { useRouter } from 'next/navigation'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { AlertModal } from '@/components/ui/AlertModal'
 
 function productTypeLabel(t: string): string {
   const k = t.toUpperCase()
@@ -20,12 +22,25 @@ interface ShopOrdersTableProps {
 export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [cancelTarget, setCancelTarget] = useState<ShopOrderAdminRow | null>(null)
+  const [alertMessage, setAlertMessage] = useState<string | null>(null)
 
   const handleToggle = (orderId: string, checked: boolean) => {
     startTransition(async () => {
       const result = await setShopOrderFulfillment(orderId, checked)
       if (result.success) router.refresh()
       else if (result.error) alert(result.error)
+    })
+  }
+
+  const handleConfirmCancel = () => {
+    if (!cancelTarget) return
+    const orderId = cancelTarget.order_id
+    setCancelTarget(null)
+    startTransition(async () => {
+      const result = await cancelShopOrder(orderId)
+      if (result.success) router.refresh()
+      else setAlertMessage(result.error ?? '주문 취소에 실패했습니다.')
     })
   }
 
@@ -39,14 +54,16 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
             <th className="px-3 py-3">구매자</th>
             <th className="px-3 py-3">상품</th>
             <th className="whitespace-nowrap px-3 py-3">유형</th>
+            <th className="whitespace-nowrap px-3 py-3">상태</th>
             <th className="whitespace-nowrap px-3 py-3 text-right">메달</th>
             <th className="whitespace-nowrap px-3 py-3 text-right">적립 C</th>
+            <th className="whitespace-nowrap px-3 py-3">관리</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {rows.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+              <td colSpan={9} className="px-4 py-10 text-center text-gray-500">
                 주문 내역이 없습니다.
               </td>
             </tr>
@@ -54,10 +71,14 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
           {rows.map((row) => {
             const needsFulfillment = row.product_type === 'GOODS' || row.product_type === 'ALMAENG_STORE'
             const fulfilled = !!row.fulfilled_at
+            const cancelled = row.status === 'CANCELLED'
+            const canCancel = needsFulfillment && !cancelled && !fulfilled
             return (
-              <tr key={row.order_id} className="hover:bg-green-50/30">
+              <tr key={row.order_id} className={`hover:bg-green-50/30 ${cancelled ? 'opacity-60' : ''}`}>
                 <td className="whitespace-nowrap px-3 py-2">
-                  {needsFulfillment ? (
+                  {cancelled ? (
+                    <span className="text-xs text-gray-400">취소됨</span>
+                  ) : needsFulfillment ? (
                     <label className="inline-flex cursor-pointer items-center gap-2">
                       <input
                         type="checkbox"
@@ -92,17 +113,61 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
                   <div className="mt-0.5 font-mono text-[10px] text-gray-400">{row.product_id.slice(0, 8)}…</div>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-gray-700">{productTypeLabel(row.product_type)}</td>
+                <td className="whitespace-nowrap px-3 py-2">
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                      cancelled ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-700'
+                    }`}
+                  >
+                    {cancelled ? '취소됨' : '완료'}
+                  </span>
+                </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-rose-700">
                   −{row.payment_medal.toLocaleString()} M
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-emerald-700">
                   {row.credit_granted > 0 ? `+${row.credit_granted.toLocaleString()} C` : '—'}
                 </td>
+                <td className="whitespace-nowrap px-3 py-2">
+                  {canCancel ? (
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => setCancelTarget(row)}
+                      className="rounded-lg border border-red-300 bg-white px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                    >
+                      요청 취소
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-300">—</span>
+                  )}
+                </td>
               </tr>
             )
           })}
         </tbody>
       </table>
+      <ConfirmModal
+        isOpen={!!cancelTarget}
+        title="상품 요청 취소"
+        message={
+          cancelTarget
+            ? `"${cancelTarget.product_snapshot_name}" 요청을 취소하시겠습니까?\n${cancelTarget.payment_medal.toLocaleString()} Medal이 환불되고 재고가 복구됩니다.`
+            : ''
+        }
+        confirmLabel="취소하기"
+        cancelLabel="닫기"
+        variant="danger"
+        onConfirm={handleConfirmCancel}
+        onCancel={() => setCancelTarget(null)}
+      />
+      <AlertModal
+        isOpen={!!alertMessage}
+        title="취소 실패"
+        message={alertMessage ?? ''}
+        variant="error"
+        onClose={() => setAlertMessage(null)}
+      />
     </div>
   )
 }
