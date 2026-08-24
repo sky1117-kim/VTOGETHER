@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { purchaseShopProduct } from '@/api/actions/shop'
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 
 type ShopProductVariantOption = {
   variant_id: string
@@ -68,7 +69,7 @@ export function ShopProductList({
   const [message, setMessage] = useState<string | null>(null)
   const [expandedDescriptionProductId, setExpandedDescriptionProductId] = useState<string | null>(null)
   const [expandedImageIndex, setExpandedImageIndex] = useState(0)
-  const [sortBy, setSortBy] = useState<'POPULAR' | 'LATEST'>('POPULAR')
+  const [sortBy, setSortBy] = useState<'POPULAR' | 'LATEST'>('LATEST')
   const [productTypeFilter, setProductTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'>('ALL')
   const [showSkeleton, setShowSkeleton] = useState(true)
   const [imageIndexByProductId, setImageIndexByProductId] = useState<Record<string, number>>({})
@@ -76,6 +77,7 @@ export function ShopProductList({
   const [purchaseTarget, setPurchaseTarget] = useState<PurchaseTarget | null>(null)
   const [purchaseQuantity, setPurchaseQuantity] = useState(1)
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
+  const [isFinalConfirmOpen, setIsFinalConfirmOpen] = useState(false)
   useBodyScrollLock(!!expandedDescriptionProductId || !!purchaseTarget)
 
   useEffect(() => {
@@ -132,18 +134,25 @@ export function ShopProductList({
   const openPurchaseModal = (target: PurchaseTarget) => {
     setPurchaseQuantity(1)
     setMessage(null)
+    setIsFinalConfirmOpen(false)
     setPurchaseTarget(target)
     const buyableVariants = target.variants.filter((v) => v.stock > 0)
     setSelectedVariantId(target.hasVariants && buyableVariants.length === 1 ? buyableVariants[0].variant_id : null)
   }
 
-  const handleConfirmPurchase = () => {
+  const requestPurchaseConfirm = () => {
     if (!purchaseTarget) return
     if (purchaseTarget.hasVariants && !selectedVariantId) {
       setMessage('옵션을 선택하세요.')
       return
     }
     setMessage(null)
+    setIsFinalConfirmOpen(true)
+  }
+
+  const handleConfirmPurchase = () => {
+    if (!purchaseTarget) return
+    setIsFinalConfirmOpen(false)
     startTransition(async () => {
       const result = await purchaseShopProduct(purchaseTarget.productId, purchaseQuantity, selectedVariantId)
       if (!result.success) {
@@ -583,7 +592,10 @@ export function ShopProductList({
       {purchaseTarget && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
-          onClick={() => setPurchaseTarget(null)}
+          onClick={() => {
+            setIsFinalConfirmOpen(false)
+            setPurchaseTarget(null)
+          }}
         >
           <div
             className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
@@ -707,7 +719,10 @@ export function ShopProductList({
             <div className="mt-4 flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setPurchaseTarget(null)}
+                onClick={() => {
+                  setIsFinalConfirmOpen(false)
+                  setPurchaseTarget(null)
+                }}
                 className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
               >
                 취소
@@ -715,7 +730,7 @@ export function ShopProductList({
               <button
                 type="button"
                 disabled={isPending || purchaseTotalMedal > currentMedals || (purchaseTarget.hasVariants && !selectedVariantId)}
-                onClick={handleConfirmPurchase}
+                onClick={requestPurchaseConfirm}
                 className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-extrabold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               >
                 {isPending ? '처리 중...' : '확인하고 교환'}
@@ -724,6 +739,19 @@ export function ShopProductList({
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={isFinalConfirmOpen}
+        title="구매 확인"
+        message={
+          purchaseTarget
+            ? `${purchaseTarget.name} ${purchaseQuantity}개를 ${purchaseTotalMedal.toLocaleString()} Medal로 구매합니다.\n정말 구매하시겠습니까?`
+            : ''
+        }
+        confirmLabel="구매하기"
+        cancelLabel="취소"
+        onConfirm={handleConfirmPurchase}
+        onCancel={() => setIsFinalConfirmOpen(false)}
+      />
     </div>
   )
 }
