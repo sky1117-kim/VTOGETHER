@@ -250,16 +250,16 @@ export default async function AdminPointGrantPage({
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-gray-200">
-          <table className="min-w-[900px] w-full text-sm">
+          <table className="min-w-[1080px] w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold">일시</th>
-                <th className="px-3 py-2 text-left font-semibold">직원</th>
-                <th className="px-3 py-2 text-left font-semibold">유형</th>
-                <th className="px-3 py-2 text-left font-semibold">재화</th>
-                <th className="px-3 py-2 text-right font-semibold">금액</th>
-                <th className="px-3 py-2 text-left font-semibold">출처</th>
-                <th className="px-3 py-2 text-left font-semibold">사유/설명</th>
+                <th className="w-[100px] px-3 py-2 text-left font-semibold">일시</th>
+                <th className="w-[180px] px-3 py-2 text-left font-semibold">직원</th>
+                <th className="w-[80px] px-3 py-2 text-left font-semibold">유형</th>
+                <th className="w-[80px] px-3 py-2 text-left font-semibold">재화</th>
+                <th className="w-[110px] px-3 py-2 text-right font-semibold">금액</th>
+                <th className="w-[90px] px-3 py-2 text-left font-semibold">출처</th>
+                <th className="min-w-[320px] px-3 py-2 text-left font-semibold">사유/설명</th>
                 <th className="w-[100px] px-2 py-2 text-center font-semibold">취소</th>
               </tr>
             </thead>
@@ -277,7 +277,7 @@ export default async function AdminPointGrantPage({
                     {new Date(row.created_at).toLocaleDateString('ko-KR')}
                   </td>
                   <td className="px-3 py-2 text-gray-900">
-                    <div className="truncate font-medium">{row.user_name || '이름 없음'}</div>
+                    <div className="max-w-[160px] truncate font-medium">{row.user_name || '이름 없음'}</div>
                     <div className="max-w-[160px] truncate text-xs text-gray-500">{row.user_email || row.user_id}</div>
                   </td>
                   <td className="whitespace-nowrap px-2 py-2">
@@ -296,7 +296,7 @@ export default async function AdminPointGrantPage({
                       {getRelatedTypeBadgeLabel(row.related_type)}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-gray-700 whitespace-pre-wrap break-words leading-6 align-top">
+                  <td className="min-w-[320px] px-3 py-2 text-gray-700 whitespace-pre-wrap break-words leading-6 align-top">
                     {getCompactDescription(row)}
                   </td>
                   <td className="px-2 py-2 align-top">

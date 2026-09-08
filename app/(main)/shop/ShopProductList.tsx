@@ -49,6 +49,10 @@ function totalVariantStock(variants: ShopProductVariantOption[]): number {
   return variants.reduce((sum, v) => sum + Math.max(0, v.stock), 0)
 }
 
+function isSoldOut(p: ShopProduct): boolean {
+  return p.has_variants ? totalVariantStock(p.variants) <= 0 : p.stock != null && p.stock <= 0
+}
+
 function parseProductImageUrls(raw: string | null): string[] {
   if (!raw) return []
   return raw
@@ -92,6 +96,8 @@ export function ShopProductList({
         : products.filter((item) => item.product_type === productTypeFilter)
     if (sortBy === 'POPULAR') {
       copied.sort((a, b) => {
+        const soldOutDiff = Number(isSoldOut(a)) - Number(isSoldOut(b))
+        if (soldOutDiff !== 0) return soldOutDiff
         const scoreA = (a.order_count ?? 0) + (a.is_best ? 100000 : 0)
         const scoreB = (b.order_count ?? 0) + (b.is_best ? 100000 : 0)
         return scoreB - scoreA
@@ -100,6 +106,8 @@ export function ShopProductList({
     }
     if (sortBy === 'LATEST') {
       copied.sort((a, b) => {
+        const soldOutDiff = Number(isSoldOut(a)) - Number(isSoldOut(b))
+        if (soldOutDiff !== 0) return soldOutDiff
         const scoreA = (a.is_new ? 100000 : 0) + (a.order_count ?? 0)
         const scoreB = (b.is_new ? 100000 : 0) + (b.order_count ?? 0)
         return scoreB - scoreA
@@ -244,7 +252,7 @@ export function ShopProductList({
       ) : (
       <div className={`animate-fade-up ${gridClass}`} style={{ animationDelay: '0.16s' }}>
         {visibleProducts.map((p, idx) => {
-          const soldOut = p.has_variants ? totalVariantStock(p.variants) <= 0 : p.stock != null && p.stock <= 0
+          const soldOut = isSoldOut(p)
           const disabled = isPending || soldOut || currentMedals < p.price_medal
           return (
             <article
@@ -451,9 +459,7 @@ export function ShopProductList({
               const imageUrls = parseProductImageUrls(product.image_url)
               const imageCount = imageUrls.length
               const modalImageIndex = Math.min(expandedImageIndex, Math.max(imageCount - 1, 0))
-              const soldOut = product.has_variants
-                ? totalVariantStock(product.variants) <= 0
-                : product.stock != null && product.stock <= 0
+              const soldOut = isSoldOut(product)
               const disabled = isPending || soldOut || currentMedals < product.price_medal
 
               return (

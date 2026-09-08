@@ -42,10 +42,37 @@ export type ShopOrderAdminRow = {
 }
 
 export type ShopOrderKindFilter = 'ALL' | 'PHYSICAL' | 'CREDIT_PACK'
+export type ShopOrderFulfillmentFilter = 'ALL' | 'NEEDED' | 'DONE' | 'CANCELLED'
+
+/** 관리자: 상점 주문 화면의 부서 필터 드롭다운용 — 실제 등록된 부서명 목록 */
+export async function getShopOrderDeptOptions(): Promise<{ data: string[]; error: string | null }> {
+  const auth = await requireAdmin()
+  if (!auth.ok) return { data: [], error: auth.error }
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('users')
+      .select('dept_name')
+      .is('deleted_at', null)
+      .not('dept_name', 'is', null)
+      .limit(5000)
+    if (error) return { data: [], error: error.message }
+    const set = new Set<string>()
+    for (const r of data ?? []) {
+      const name = (r as { dept_name: string | null }).dept_name?.trim()
+      if (name) set.add(name)
+    }
+    return { data: [...set].sort((a, b) => a.localeCompare(b, 'ko')), error: null }
+  } catch (e) {
+    return { data: [], error: e instanceof Error ? e.message : '부서 목록 조회 실패' }
+  }
+}
 
 /** 관리자: 상점 주문(누가 무엇을 샀는지) 목록 — shop_orders + users 조합 */
 export async function getShopOrdersForAdmin(options: {
   kind?: ShopOrderKindFilter
+  fulfillment?: ShopOrderFulfillmentFilter
+  dept?: string
   q?: string
   page?: number
   pageSize?: number
@@ -64,6 +91,11 @@ export async function getShopOrdersForAdmin(options: {
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
   const kind: ShopOrderKindFilter = options.kind === 'PHYSICAL' || options.kind === 'CREDIT_PACK' ? options.kind : 'ALL'
+  const fulfillment: ShopOrderFulfillmentFilter =
+    options.fulfillment === 'NEEDED' || options.fulfillment === 'DONE' || options.fulfillment === 'CANCELLED'
+      ? options.fulfillment
+      : 'ALL'
+  const deptRaw = (options.dept ?? '').trim()
   const qRaw = (options.q ?? '').trim()
   // PostgREST .or() 필터 문법 예약 문자(,.()\)를 전부 제거해 필터 인젝션 방지
   const qSafe = qRaw.replace(/[%_,.()\\]/g, ' ').trim()
@@ -73,6 +105,21 @@ export async function getShopOrdersForAdmin(options: {
 
   try {
     const admin = createAdminClient()
+
+    let deptUserIds: string[] | null = null
+    if (deptRaw.length > 0) {
+      const { data: deptUsers, error: dErr } = await admin
+        .from('users')
+        .select('user_id')
+        .eq('dept_name', deptRaw)
+        .is('deleted_at', null)
+        .limit(2000)
+      if (dErr) return { data: [], total: 0, page, pageSize, error: dErr.message }
+      deptUserIds = (deptUsers ?? []).map((r) => String((r as { user_id: string }).user_id))
+      if (deptUserIds.length === 0) {
+        return { data: [], total: 0, page, pageSize, error: null }
+      }
+    }
 
     let userIdsFromSearch: string[] = []
     if (qSafe.length > 0) {
@@ -101,6 +148,18 @@ export async function getShopOrdersForAdmin(options: {
       query = query.eq('product_type', 'CREDIT_PACK')
     }
 
+    if (fulfillment === 'CANCELLED') {
+      query = query.eq('status', 'CANCELLED')
+    } else if (fulfillment === 'NEEDED') {
+      query = query.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ALMAENG_STORE']).is('fulfilled_at', null)
+    } else if (fulfillment === 'DONE') {
+      query = query.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ALMAENG_STORE']).not('fulfilled_at', 'is', null)
+    }
+
+    if (deptUserIds) {
+      query = query.in('user_id', deptUserIds)
+    }
+
     if (qSafe.length > 0) {
       const productPat = `product_snapshot_name.ilike.%${qSafe}%`
       const uidSlice = userIdsFromSearch.slice(0, 80)
@@ -124,6 +183,14 @@ export async function getShopOrdersForAdmin(options: {
       let q2 = fallbackQuery
       if (kind === 'PHYSICAL') q2 = q2.in('product_type', ['GOODS', 'ALMAENG_STORE'])
       else if (kind === 'CREDIT_PACK') q2 = q2.eq('product_type', 'CREDIT_PACK')
+      if (fulfillment === 'CANCELLED') {
+        q2 = q2.eq('status', 'CANCELLED')
+      } else if (fulfillment === 'NEEDED' || fulfillment === 'DONE') {
+        // fulfilled_at 컬럼이 없는 환경(마이그레이션 044 미적용)에서는 지급 여부를 구분할 수 없어
+        // 실물/알맹 완료 주문까지만 좁힌다.
+        q2 = q2.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ALMAENG_STORE'])
+      }
+      if (deptUserIds) q2 = q2.in('user_id', deptUserIds)
       if (qSafe.length > 0) {
         const productPat = `product_snapshot_name.ilike.%${qSafe}%`
         const uidSlice = userIdsFromSearch.slice(0, 80)
