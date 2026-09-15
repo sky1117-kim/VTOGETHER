@@ -77,7 +77,9 @@ export async function getCurrentUser() {
 
     if (!guestError && guestData) {
       // MAU 집계용: 테스트 유저 접속 시에도 last_active_at 갱신
-      void supabase
+      // 054 마이그레이션에서 authenticated 롤의 users UPDATE 권한을 회수했으므로
+      // (WEB-340 is_admin 탈취 방지) 반드시 admin(service_role) 클라이언트로 갱신해야 함
+      void createAdminClient()
         .from('users')
         .update({ last_active_at: new Date().toISOString() })
         .eq('user_id', GUEST_TEST_USER_ID)
@@ -120,8 +122,10 @@ export async function getCurrentUser() {
   }
 
   // MAU 집계용: 접속 시 last_active_at 갱신 (비동기, 응답 지연 최소화)
+  // 054 마이그레이션에서 authenticated 롤의 users UPDATE 권한을 회수했으므로
+  // (WEB-340 is_admin 탈취 방지) 반드시 admin(service_role) 클라이언트로 갱신해야 함
   const now = new Date().toISOString()
-  void supabase
+  void createAdminClient()
     .from('users')
     .update({ last_active_at: now })
     .eq('user_id', user.id)
