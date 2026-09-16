@@ -30,7 +30,7 @@ export type ShopOrderAdminRow = {
   dept_name: string | null
   product_id: string
   product_snapshot_name: string
-  product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+  product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
   payment_medal: number
   credit_granted: number
   status: string
@@ -143,7 +143,7 @@ export async function getShopOrdersForAdmin(options: {
       .order('created_at', { ascending: false })
 
     if (kind === 'PHYSICAL') {
-      query = query.in('product_type', ['GOODS', 'ALMAENG_STORE'])
+      query = query.in('product_type', ['GOODS', 'ESG'])
     } else if (kind === 'CREDIT_PACK') {
       query = query.eq('product_type', 'CREDIT_PACK')
     }
@@ -151,9 +151,9 @@ export async function getShopOrdersForAdmin(options: {
     if (fulfillment === 'CANCELLED') {
       query = query.eq('status', 'CANCELLED')
     } else if (fulfillment === 'NEEDED') {
-      query = query.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ALMAENG_STORE']).is('fulfilled_at', null)
+      query = query.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ESG']).is('fulfilled_at', null)
     } else if (fulfillment === 'DONE') {
-      query = query.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ALMAENG_STORE']).not('fulfilled_at', 'is', null)
+      query = query.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ESG']).not('fulfilled_at', 'is', null)
     }
 
     if (deptUserIds) {
@@ -181,14 +181,14 @@ export async function getShopOrdersForAdmin(options: {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
       let q2 = fallbackQuery
-      if (kind === 'PHYSICAL') q2 = q2.in('product_type', ['GOODS', 'ALMAENG_STORE'])
+      if (kind === 'PHYSICAL') q2 = q2.in('product_type', ['GOODS', 'ESG'])
       else if (kind === 'CREDIT_PACK') q2 = q2.eq('product_type', 'CREDIT_PACK')
       if (fulfillment === 'CANCELLED') {
         q2 = q2.eq('status', 'CANCELLED')
       } else if (fulfillment === 'NEEDED' || fulfillment === 'DONE') {
         // fulfilled_at 컬럼이 없는 환경(마이그레이션 044 미적용)에서는 지급 여부를 구분할 수 없어
-        // 실물/알맹 완료 주문까지만 좁힌다.
-        q2 = q2.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ALMAENG_STORE'])
+        // 실물/ESG 완료 주문까지만 좁힌다.
+        q2 = q2.eq('status', 'COMPLETED').in('product_type', ['GOODS', 'ESG'])
       }
       if (deptUserIds) q2 = q2.in('user_id', deptUserIds)
       if (qSafe.length > 0) {
@@ -259,7 +259,7 @@ export async function setShopOrderFulfillment(
       .update({ fulfilled_at: fulfilled ? now : null })
       .eq('order_id', orderId)
       .is('deleted_at', null)
-      .in('product_type', ['GOODS', 'ALMAENG_STORE'])
+      .in('product_type', ['GOODS', 'ESG'])
       .eq('status', 'COMPLETED')
     if (error) {
       if (error.message?.includes('fulfilled_at')) {
@@ -275,7 +275,7 @@ export async function setShopOrderFulfillment(
   }
 }
 
-/** 관리자: 상점 실물/알맹 주문(지급 전) 취소 — 메달 환불 + 재고 복구 */
+/** 관리자: 상점 실물/ESG 주문(지급 전) 취소 — 메달 환불 + 재고 복구 */
 export async function cancelShopOrder(orderId: string): Promise<{ success: boolean; error: string | null }> {
   const auth = await requireAdmin()
   if (!auth.ok) return { success: false, error: auth.error }

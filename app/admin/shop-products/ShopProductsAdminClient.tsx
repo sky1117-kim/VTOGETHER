@@ -21,7 +21,7 @@ type ProductRow = {
   product_id: string
   name: string
   description: string | null
-  product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+  product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
   price_medal: number
   credit_amount: number | null
   stock: number | null
@@ -225,12 +225,12 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
   const [message, setMessage] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'>('ALL')
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ESG'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
   const [form, setForm] = useState({
     name: '',
     description: '',
-    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE',
+    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK' | 'ESG',
     price_medal: 10,
     credit_amount: 1000,
     stock: '',
@@ -241,7 +241,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
-    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE',
+    product_type: 'GOODS' as 'GOODS' | 'CREDIT_PACK' | 'ESG',
     price_medal: 10,
     credit_amount: 1000,
     stock: '',
@@ -323,10 +323,10 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
         <h3 className="text-base font-semibold text-gray-900">상품 등록</h3>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <input className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="상품명" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-          <select className="rounded-lg border border-gray-200 px-3 py-2 text-sm" value={form.product_type} onChange={(e) => setForm((p) => ({ ...p, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE' }))}>
+          <select className="rounded-lg border border-gray-200 px-3 py-2 text-sm" value={form.product_type} onChange={(e) => setForm((p) => ({ ...p, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' | 'ESG' }))}>
             <option value="GOODS">굿즈</option>
             <option value="CREDIT_PACK">V.Credit</option>
-            <option value="ALMAENG_STORE">알맹상점</option>
+            <option value="ESG">ESG</option>
           </select>
           <input className="rounded-lg border border-gray-200 px-3 py-2 text-sm md:col-span-2" placeholder="설명" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
           <input type="text" inputMode="numeric" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="가격(Medal)" value={formatIntegerWithCommas(form.price_medal)} onChange={(e) => setForm((p) => ({ ...p, price_medal: Number(sanitizeIntegerInput(e.target.value) || 0) }))} />
@@ -420,13 +420,13 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
           />
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE')}
+            onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ESG')}
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
           >
             <option value="ALL">유형 전체</option>
             <option value="GOODS">굿즈</option>
             <option value="CREDIT_PACK">V.Credit</option>
-            <option value="ALMAENG_STORE">알맹상점</option>
+            <option value="ESG">ESG</option>
           </select>
           <select
             value={statusFilter}
@@ -503,7 +503,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 <div className="rounded-lg bg-gray-50 px-2 py-1.5">
                   <p className="text-gray-500">유형</p>
                   <p className="mt-1 font-semibold text-gray-800">
-                    {p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ALMAENG_STORE' ? '알맹상점' : '굿즈'}
+                    {p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ESG' ? 'ESG' : '굿즈'}
                   </p>
                 </div>
                 <div className="rounded-lg bg-gray-50 px-2 py-1.5 text-right">
@@ -562,7 +562,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
             {filteredProducts.map((p) => (
               <tr key={p.product_id}>
                 <td className="px-4 py-3">{p.name}</td>
-                <td className="px-4 py-3">{p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ALMAENG_STORE' ? '알맹상점' : '굿즈'}</td>
+                <td className="px-4 py-3">{p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ESG' ? 'ESG' : '굿즈'}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{p.price_medal.toLocaleString()}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{(p.credit_amount ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{p.has_variants ? '옵션별 관리' : p.stock == null ? '무제한' : p.stock.toLocaleString()}</td>
@@ -663,12 +663,12 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
               className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
               value={editForm.product_type}
               onChange={(e) =>
-                setEditForm((prev) => ({ ...prev, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE' }))
+                setEditForm((prev) => ({ ...prev, product_type: e.target.value as 'GOODS' | 'CREDIT_PACK' | 'ESG' }))
               }
             >
               <option value="GOODS">굿즈</option>
               <option value="CREDIT_PACK">V.Credit</option>
-              <option value="ALMAENG_STORE">알맹상점</option>
+              <option value="ESG">ESG</option>
             </select>
             <input
               className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm md:col-span-2"

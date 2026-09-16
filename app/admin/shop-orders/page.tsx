@@ -84,7 +84,7 @@ export default async function AdminShopOrdersPage({
   }
 
   const activeFilterChips: string[] = []
-  if (kind !== 'ALL') activeFilterChips.push(kind === 'PHYSICAL' ? '실물·알맹' : '크레딧팩')
+  if (kind !== 'ALL') activeFilterChips.push(kind === 'PHYSICAL' ? '실물·ESG' : '크레딧팩')
   if (fulfillment !== 'ALL') activeFilterChips.push(fulfillmentLabel[fulfillment])
   if (dept) activeFilterChips.push(dept)
   if (q.trim()) activeFilterChips.push(`검색: ${q.trim()}`)
@@ -93,7 +93,7 @@ export default async function AdminShopOrdersPage({
     <div className="space-y-6">
       <AdminPageHeader
         title="상점 주문 내역"
-        description="누가 어떤 상품을 구매했는지 확인하고, 실물 굿즈·알맹 스토어 상품은 지급 처리에 활용하세요. V.Credit 전환 상품은 결제 시 자동 적립됩니다. 지급 전 실물·알맹 요청은 취소할 수 있습니다."
+        description="누가 어떤 상품을 구매했는지 확인하고, 실물 굿즈·ESG 상품은 지급 처리에 활용하세요. V.Credit 전환 상품은 결제 시 자동 적립됩니다. 지급 전 실물·ESG 요청은 취소할 수 있습니다."
         breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '상점 주문' }]}
       />
 
@@ -104,7 +104,7 @@ export default async function AdminShopOrdersPage({
       <div className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap gap-2">
           {tab('ALL', '전체')}
-          {tab('PHYSICAL', '실물·알맹 (지급 필요)')}
+          {tab('PHYSICAL', '실물·ESG (지급 필요)')}
           {tab('CREDIT_PACK', '크레딧팩 (자동 적립)')}
         </div>
 

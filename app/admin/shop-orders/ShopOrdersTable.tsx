@@ -11,7 +11,7 @@ function productTypeLabel(t: string): string {
   const k = t.toUpperCase()
   if (k === 'GOODS') return '실물 굿즈'
   if (k === 'CREDIT_PACK') return 'V.Credit 전환'
-  if (k === 'ALMAENG_STORE') return '알맹 스토어'
+  if (k === 'ESG') return 'ESG'
   return t
 }
 
@@ -69,7 +69,7 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
             </tr>
           )}
           {rows.map((row) => {
-            const needsFulfillment = row.product_type === 'GOODS' || row.product_type === 'ALMAENG_STORE'
+            const needsFulfillment = row.product_type === 'GOODS' || row.product_type === 'ESG'
             const fulfilled = !!row.fulfilled_at
             const cancelled = row.status === 'CANCELLED'
             const canCancel = needsFulfillment && !cancelled && !fulfilled

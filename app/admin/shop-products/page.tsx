@@ -8,7 +8,7 @@ export default async function AdminShopProductsPage() {
     product_id: string
     name: string
     description: string | null
-    product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+    product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
     price_medal: number
     credit_amount: number | null
     stock: number | null

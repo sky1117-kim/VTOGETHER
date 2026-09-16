@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { detectImageExtension } from '@/lib/validate-image-upload'
 
-type ProductType = 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+type ProductType = 'GOODS' | 'CREDIT_PACK' | 'ESG'
 
 async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const auth = await createClient()

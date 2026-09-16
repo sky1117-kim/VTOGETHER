@@ -219,7 +219,7 @@ export interface Database {
           product_id: string
           name: string
           description: string | null
-          product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+          product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
           price_medal: number
           credit_amount: number | null
           stock: number | null
@@ -235,7 +235,7 @@ export interface Database {
           product_id?: string
           name: string
           description?: string | null
-          product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+          product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
           price_medal: number
           credit_amount?: number | null
           stock?: number | null
@@ -251,7 +251,7 @@ export interface Database {
           product_id?: string
           name?: string
           description?: string | null
-          product_type?: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+          product_type?: 'GOODS' | 'CREDIT_PACK' | 'ESG'
           price_medal?: number
           credit_amount?: number | null
           stock?: number | null
@@ -303,7 +303,7 @@ export interface Database {
           user_id: string
           product_id: string
           product_snapshot_name: string
-          product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+          product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
           payment_medal: number
           credit_granted: number
           status: 'COMPLETED' | 'CANCELLED'
@@ -318,7 +318,7 @@ export interface Database {
           user_id: string
           product_id: string
           product_snapshot_name: string
-          product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+          product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
           payment_medal: number
           credit_granted?: number
           status?: 'COMPLETED' | 'CANCELLED'
@@ -333,7 +333,7 @@ export interface Database {
           user_id?: string
           product_id?: string
           product_snapshot_name?: string
-          product_type?: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+          product_type?: 'GOODS' | 'CREDIT_PACK' | 'ESG'
           payment_medal?: number
           credit_granted?: number
           status?: 'COMPLETED' | 'CANCELLED'

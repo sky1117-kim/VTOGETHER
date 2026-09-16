@@ -18,7 +18,7 @@ type ShopProduct = {
   product_id: string
   name: string
   description: string | null
-  product_type: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+  product_type: 'GOODS' | 'CREDIT_PACK' | 'ESG'
   price_medal: number
   credit_amount: number | null
   stock: number | null
@@ -35,7 +35,7 @@ type PurchaseTarget = {
   name: string
   priceMedal: number
   stock: number | null
-  productType: 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'
+  productType: 'GOODS' | 'CREDIT_PACK' | 'ESG'
   creditAmount: number | null
   hasVariants: boolean
   variants: ShopProductVariantOption[]
@@ -74,7 +74,7 @@ export function ShopProductList({
   const [expandedDescriptionProductId, setExpandedDescriptionProductId] = useState<string | null>(null)
   const [expandedImageIndex, setExpandedImageIndex] = useState(0)
   const [sortBy, setSortBy] = useState<'POPULAR' | 'LATEST'>('LATEST')
-  const [productTypeFilter, setProductTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE'>('ALL')
+  const [productTypeFilter, setProductTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ESG'>('ALL')
   const [showSkeleton, setShowSkeleton] = useState(true)
   const [imageIndexByProductId, setImageIndexByProductId] = useState<Record<string, number>>({})
   const [touchStartXByProductId, setTouchStartXByProductId] = useState<Record<string, number>>({})
@@ -211,12 +211,12 @@ export function ShopProductList({
             { key: 'ALL', label: '전체' },
             { key: 'GOODS', label: '굿즈' },
             { key: 'CREDIT_PACK', label: 'V.Credit' },
-            { key: 'ALMAENG_STORE', label: '알맹상점' },
+            { key: 'ESG', label: 'ESG' },
           ].map((tab) => (
             <button
               key={tab.key}
               type="button"
-              onClick={() => setProductTypeFilter(tab.key as 'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ALMAENG_STORE')}
+              onClick={() => setProductTypeFilter(tab.key as 'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ESG')}
               className={`btn-press rounded-lg border px-3 py-1.5 text-[11px] font-bold transition ${
                 productTypeFilter === tab.key
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
@@ -387,12 +387,12 @@ export function ShopProductList({
                     className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${
                       p.product_type === 'CREDIT_PACK'
                         ? 'border-green-200 bg-green-50 text-green-700'
-                        : p.product_type === 'ALMAENG_STORE'
+                        : p.product_type === 'ESG'
                           ? 'border-amber-200 bg-amber-50 text-amber-700'
                           : 'border-blue-200 bg-blue-50 text-blue-700'
                     }`}
                   >
-                    {p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ALMAENG_STORE' ? '알맹상점' : '굿즈'}
+                    {p.product_type === 'CREDIT_PACK' ? 'V.Credit' : p.product_type === 'ESG' ? 'ESG' : '굿즈'}
                   </span>
                 </div>
                 <div className="mb-2 h-px w-full bg-slate-300/80" />
