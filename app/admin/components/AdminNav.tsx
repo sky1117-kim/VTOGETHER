@@ -52,7 +52,7 @@ export function AdminNav({
       className={`flex gap-1 ${isHorizontal ? 'flex-row overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin' : 'flex-col'}`}
     >
       {NAV_ITEMS.map(({ href, label, icon: Icon, badgeKey }) => {
-        const isActive = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
+        const isActive = href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`)
         const count =
           badgeKey === 'verification'
             ? pendingVerificationCount + pendingHealthCount
