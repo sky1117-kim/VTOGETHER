@@ -30,7 +30,7 @@ async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: fals
   return { ok: true, userId: user.id }
 }
 
-export type SiteContentKey = 'hero_season_badge' | 'hero_title' | 'hero_subtitle' | 'popup_enabled' | 'popup_image_url' | 'popup_title' | 'popup_text' | 'popup_notice_id'
+export type SiteContentKey = 'hero_season_badge' | 'hero_title' | 'hero_subtitle' | 'popup_enabled' | 'popup_image_url' | 'popup_title' | 'popup_text' | 'popup_notice_id' | 'annual_donation_goal'
 
 export type UserRow = {
   user_id: string
@@ -1430,6 +1430,7 @@ export async function updateSiteContent(
 
     revalidatePath('/')
     revalidatePath('/notices')
+    revalidatePath('/donation')
     return { success: true, error: null }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : '저장 실패' }

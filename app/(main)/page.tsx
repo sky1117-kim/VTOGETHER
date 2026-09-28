@@ -1,6 +1,6 @@
 import { getCurrentUser } from '@/api/actions/auth'
 import { getMatchingAmountByTarget } from '@/api/actions/admin'
-import { getTotalDonationStats, getDonationTargets } from '@/api/queries/donation'
+import { getTotalDonationStats, getDonationTargets, getMyPayrollPledges } from '@/api/queries/donation'
 import { getSiteContent } from '@/api/queries/siteContent'
 import { getPopupNotices } from '@/api/queries/notices'
 import {
@@ -35,9 +35,10 @@ export default async function HomePage({ searchParams }: PageProps) {
   let events: Awaited<ReturnType<typeof getEventsWithRoundsForPublic>> = []
   let healthChallengesByEventId: Record<string, HealthChallengeBundle> = {}
   let popupNotices: Awaited<ReturnType<typeof getPopupNotices>> = []
+  let myPledgesByTarget: Record<string, number> = {}
 
   try {
-    const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes, matchingByTarget, popupRes] = await Promise.all([
+    const [statsRes, targetsRes, contentRes, personalRes, teamRes, eventsRes, matchingByTarget, popupRes, pledgesRes] = await Promise.all([
       getTotalDonationStats(),
       getDonationTargets(),
       getSiteContent(),
@@ -46,7 +47,9 @@ export default async function HomePage({ searchParams }: PageProps) {
       getEventsWithRoundsForPublic(user?.id ?? null),
       getMatchingAmountByTarget(),
       getPopupNotices(user?.id ?? null),
+      getMyPayrollPledges(user?.id ?? null),
     ])
+    myPledgesByTarget = pledgesRes
     const totalMatching = Object.values(matchingByTarget).reduce((sum, v) => sum + v, 0)
     stats = { ...statsRes, totalCurrent: statsRes.totalCurrent + totalMatching }
     targets = (targetsRes ?? []).map((t) => {
@@ -123,6 +126,7 @@ export default async function HomePage({ searchParams }: PageProps) {
           totalCurrent={stats.totalCurrent}
           targets={targets}
           userPoints={currentPoints}
+          myPledgesByTarget={myPledgesByTarget}
         />
       </div>
       <div className="animate-fade-up mt-8">

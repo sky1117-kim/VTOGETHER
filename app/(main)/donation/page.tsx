@@ -1,5 +1,7 @@
 import { getCurrentUser } from '@/api/actions/auth'
-import { getDonationTargets, getTotalDonationStats } from '@/api/queries/donation'
+import { getMatchingAmountByTarget } from '@/api/actions/admin'
+import { getDonationTargets, getTotalDonationStats, getMyPayrollPledges } from '@/api/queries/donation'
+import { getDonationFundingType, getDonationBreakdownSegments } from '@/constants/donationTargets'
 import { DonationCard } from '@/components/donation/DonationCard'
 import { ProgressBar } from '@/components/donation/ProgressBar'
 
@@ -9,9 +11,25 @@ export default async function DonationPage() {
 
   let targets: Awaited<ReturnType<typeof getDonationTargets>> = []
   let stats = { totalTarget: 40000000, totalCurrent: 0, completedCount: 0, progress: 0 }
+  let myPledgesByTarget: Record<string, number> = {}
   try {
-    targets = (await getDonationTargets()) ?? []
-    stats = await getTotalDonationStats()
+    const [targetsRes, statsRes, matchingByTarget, pledgesRes] = await Promise.all([
+      getDonationTargets(),
+      getTotalDonationStats(),
+      getMatchingAmountByTarget(),
+      getMyPayrollPledges(user?.id ?? null),
+    ])
+    const totalMatching = Object.values(matchingByTarget).reduce((sum, v) => sum + v, 0)
+    stats = { ...statsRes, totalCurrent: statsRes.totalCurrent + totalMatching }
+    targets = (targetsRes ?? []).map((t) => {
+      const effectiveAmount = t.current_amount + (matchingByTarget[t.target_id] ?? 0)
+      return {
+        ...t,
+        current_amount: effectiveAmount,
+        status: (effectiveAmount >= t.target_amount ? 'COMPLETED' : t.status) as 'ACTIVE' | 'COMPLETED',
+      }
+    })
+    myPledgesByTarget = pledgesRes
   } catch {
     // DB 미설정 시
   }
@@ -25,7 +43,7 @@ export default async function DonationPage() {
             상시 기부 (V.Credit)
           </h1>
           <p className="mt-1 text-gray-500">
-            기부처별 목표 <strong className="text-green-700">1,000만원</strong> 달성 시 해당 모금은 마감됩니다.
+            연간 전사 기부 목표 <strong className="text-green-700">4,000만원</strong> 달성 시 상시 기부가 마감됩니다.
           </p>
         </div>
         <div className="hidden text-right sm:block">
@@ -41,14 +59,50 @@ export default async function DonationPage() {
           totalTarget={stats.totalTarget}
           totalCurrent={stats.totalCurrent}
           completedCount={stats.completedCount}
+          breakdownSegments={getDonationBreakdownSegments(targets)}
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {targets.map((target) => (
-          <DonationCard key={target.target_id} target={target} userPoints={userPoints} />
-        ))}
-      </div>
+      {targets.length > 0 && (
+        <div className="space-y-10">
+          <div>
+            <div className="mb-4 flex items-baseline gap-2.5">
+              <span className="h-5 w-1 shrink-0 rounded-full bg-green-500" aria-hidden />
+              <h2 className="text-base font-bold text-gray-900">일반모금</h2>
+              <span className="hidden text-sm text-gray-400 sm:inline">보유한 V.Credit(적립한 V.Medal을 전환한 크레딧 포함)으로 참여</span>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {targets
+                .filter((target) => getDonationFundingType(target.name) === '일반모금')
+                .map((target) => (
+                  <DonationCard key={target.target_id} target={target} userPoints={userPoints} />
+                ))}
+            </div>
+          </div>
+
+          {targets.some((target) => getDonationFundingType(target.name) === '특별모금') && (
+            <div className="border-t border-gray-100 pt-10">
+              <div className="mb-4 flex items-baseline gap-2.5">
+                <span className="h-5 w-1 shrink-0 rounded-full bg-slate-500" aria-hidden />
+                <h2 className="text-base font-bold text-gray-900">특별모금</h2>
+                <span className="hidden text-sm text-gray-400 sm:inline">재난 등 긴급 이슈에 대응해 급여에서 별도로 공제해 참여</span>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {targets
+                  .filter((target) => getDonationFundingType(target.name) === '특별모금')
+                  .map((target) => (
+                    <DonationCard
+                      key={target.target_id}
+                      target={target}
+                      userPoints={userPoints}
+                      myPledgeAmount={myPledgesByTarget[target.target_id] ?? 0}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {targets.length === 0 && (
         <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">

@@ -1,33 +1,31 @@
 import Link from 'next/link'
-import { getDonationTargetsForAdmin } from '@/api/actions/admin/donation-targets'
-import { getOverTargetDonors, getMatchingAmountByTarget } from '@/api/actions/admin'
+import { getDonationTargetsForAdmin, getPayrollPledgesForAdmin } from '@/api/actions/admin/donation-targets'
+import { getMatchingAmountByTarget } from '@/api/actions/admin'
 import { formatPoints } from '@/lib/formatPoints'
-import { TARGET_DISPLAY_NAMES } from '@/constants/donationTargets'
+import { TARGET_DISPLAY_NAMES, getDonationAmountUnit, getDonationFundingType } from '@/constants/donationTargets'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 import { TargetAmountEdit } from './components/TargetAmountEdit'
 import { OfflineDonationForm } from './components/OfflineDonationForm'
+import { PayrollMatchingEdit } from './components/PayrollMatchingEdit'
 
 export default async function AdminDonationTargetsPage() {
-  const [{ data: targets, error }, matchingByTarget] = await Promise.all([
+  const [{ data: targets, error }, matchingByTarget, { data: pledges }] = await Promise.all([
     getDonationTargetsForAdmin(),
     getMatchingAmountByTarget(),
+    getPayrollPledgesForAdmin(),
   ])
   const list = targets ?? []
-
-  // 매칭 포함 effective amount 기준으로 초과 타겟 찾기
-  const overTargets = list.filter((t) => {
-    const effective = t.current_amount + (matchingByTarget[t.target_id] ?? 0)
-    return effective > t.target_amount
-  })
-  const overTargetResults = await Promise.all(
-    overTargets.map((t) => getOverTargetDonors(t.target_id))
-  )
+  const pledgeList = pledges ?? []
+  const pledgesByTargetName = pledgeList.reduce<Record<string, typeof pledgeList>>((acc, p) => {
+    ;(acc[p.target_name] ??= []).push(p)
+    return acc
+  }, {})
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="기부처 관리"
-        description="목표 금액 수정 및 오프라인 성금 합산을 할 수 있습니다."
+        description="기부처별 목표금액은 참고용 표기일 뿐이며 더 이상 자동 마감 기준으로 쓰이지 않습니다. 실제 마감은 연간 전사 목표(4,000만원) 도달 시 전체 기부처에 일괄 적용됩니다."
         breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '기부처' }]}
         actions={
           <Link
@@ -65,39 +63,44 @@ export default async function AdminDonationTargetsPage() {
               <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
                 <tr>
                   <th className="px-4 py-3 font-medium">기부처</th>
-                  <th className="px-4 py-3 font-medium text-right">목표 금액</th>
+                  <th className="px-4 py-3 font-medium text-right">참고 목표</th>
                   <th className="px-4 py-3 font-medium text-right">현재 모금액</th>
                   <th className="px-4 py-3 font-medium text-right">매칭 포함</th>
-                  <th className="px-4 py-3 font-medium text-right">달성률</th>
+                  <th className="px-4 py-3 font-medium text-right">참고 달성률</th>
                   <th className="px-4 py-3 font-medium">상태</th>
                   <th className="px-4 py-3 font-medium">목표 수정</th>
                   <th className="px-4 py-3 font-medium">오프라인 합산</th>
+                  <th className="px-4 py-3 font-medium">매칭 금액(급여공제)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {list.map((t) => {
-                  const matching = matchingByTarget[t.target_id] ?? 0
+                  const isPayroll = getDonationFundingType(t.name) === '특별모금'
+                  const matching = isPayroll ? t.payroll_matching_amount : (matchingByTarget[t.target_id] ?? 0)
                   const effective = t.current_amount + matching
                   const progress = t.target_amount > 0 ? (effective / t.target_amount) * 100 : 0
-                  const isOver = effective > t.target_amount
-                  const isCompleted = t.status === 'COMPLETED' || effective >= t.target_amount
+                  const isCompleted = t.status === 'COMPLETED'
+                  const unit = getDonationAmountUnit(t.name)
                   return (
-                    <tr key={t.target_id} className={`hover:bg-gray-50 ${isOver ? 'bg-red-50/40' : ''}`}>
+                    <tr key={t.target_id} className="hover:bg-gray-50">
                       <td className="px-4 py-4 font-medium text-gray-900">
                         {TARGET_DISPLAY_NAMES[t.name] ?? t.name}
-                        {isOver && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-bold text-red-700">초과</span>}
                       </td>
                       <td className="px-4 py-4 text-right tabular-nums text-gray-700">
-                        {formatPoints(t.target_amount)}
+                        {unit === '원' ? `${t.target_amount.toLocaleString()} 원` : formatPoints(t.target_amount)}
                       </td>
                       <td className="px-4 py-4 text-right tabular-nums font-medium text-gray-900">
-                        {t.current_amount.toLocaleString()} C
+                        {t.current_amount.toLocaleString()} {unit}
                       </td>
-                      <td className={`px-4 py-4 text-right tabular-nums font-bold ${isOver ? 'text-red-700' : 'text-gray-900'}`}>
-                        {effective.toLocaleString()} C
-                        {matching > 0 && <span className="ml-1 text-xs font-normal text-orange-500">(+{formatPoints(matching)})</span>}
+                      <td className="px-4 py-4 text-right tabular-nums font-bold text-gray-900">
+                        {effective.toLocaleString()} {unit}
+                        {matching > 0 && (
+                          <span className="ml-1 text-xs font-normal text-orange-500">
+                            (+{unit === '원' ? `${matching.toLocaleString()} 원` : formatPoints(matching)})
+                          </span>
+                        )}
                       </td>
-                      <td className={`px-4 py-4 text-right tabular-nums ${isOver ? 'font-bold text-red-700' : 'text-gray-600'}`}>
+                      <td className="px-4 py-4 text-right tabular-nums text-gray-600">
                         {progress.toFixed(1)}%
                       </td>
                       <td className="px-4 py-4">
@@ -121,6 +124,13 @@ export default async function AdminDonationTargetsPage() {
                       <td className="px-4 py-4">
                         <OfflineDonationForm targetId={t.target_id} targetName={t.name} />
                       </td>
+                      <td className="px-4 py-4">
+                        {isPayroll ? (
+                          <PayrollMatchingEdit targetId={t.target_id} currentAmount={t.payroll_matching_amount} />
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -130,81 +140,53 @@ export default async function AdminDonationTargetsPage() {
         </div>
       )}
 
-      {/* 초과 기부 — Credit 반환 대상자 */}
-      {overTargets.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-red-700">⚠ 목표 초과 기부 — Credit 반환 대상</h2>
-            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-              {overTargetResults.reduce((sum, r) => sum + r.data.length, 0)}건
-            </span>
-          </div>
-          <p className="text-sm text-gray-600">
-            목표 금액 달성 이후에 접수된 온라인 기부입니다. <strong>초과분</strong>만큼 Credit을 반환해야 합니다.
-            오프라인 합산으로 초과된 경우 온라인 기록이 0건일 수 있습니다.
-          </p>
-          {overTargetResults.map((result, i) => {
-            const target = overTargets[i]
-            const matching = matchingByTarget[target.target_id] ?? 0
-            const effectiveAmount = target.current_amount + matching
-            const overAmount = effectiveAmount - target.target_amount
+      {pledgeList.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
+            특별모금 급여공제 신청 내역
+          </h2>
+          {Object.entries(pledgesByTargetName).map(([targetName, rows]) => {
+            const total = rows.reduce((sum, r) => sum + r.amount, 0)
             return (
-              <div key={target.target_id} className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
-                <div className="border-b border-red-100 bg-red-50 px-5 py-3 flex items-center justify-between gap-4">
-                  <p className="text-sm font-bold text-red-800">
-                    {TARGET_DISPLAY_NAMES[result.targetName] ?? result.targetName}
-                    <span className="ml-2 font-normal text-red-600">목표 {formatPoints(result.targetAmount)}</span>
-                  </p>
-                  <span className="shrink-0 text-xs font-semibold text-red-700">
-                    초과 {formatPoints(overAmount)} (매칭 {formatPoints(matching)} 포함)
+              <div key={targetName} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+                  <span className="font-medium text-gray-900">{TARGET_DISPLAY_NAMES[targetName] ?? targetName}</span>
+                  <span className="text-sm text-gray-500">
+                    신청 {rows.length}건 · 합계 <span className="font-bold text-gray-900">{total.toLocaleString()}원</span>
                   </span>
                 </div>
-                {result.data.length === 0 ? (
-                  <p className="px-5 py-4 text-sm text-gray-500">
-                    온라인 기부 기록 없음 — 오프라인 합산 또는 매칭으로 초과된 케이스입니다. 수동으로 처리해 주세요.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[600px] text-left text-sm">
-                      <thead className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500">
-                        <tr>
-                          <th className="px-4 py-2 font-medium">이름</th>
-                          <th className="px-4 py-2 font-medium">이메일</th>
-                          <th className="px-4 py-2 font-medium text-right">기부액</th>
-                          <th className="px-4 py-2 font-medium text-right text-red-700">반환할 초과분</th>
-                          <th className="px-4 py-2 font-medium">기부 시각</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {result.data.map((row) => (
-                          <tr key={row.donation_id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium text-gray-900">{row.user_name ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-600">{row.user_email ?? '—'}</td>
-                            <td className="px-4 py-3 text-right tabular-nums text-gray-900">{row.amount.toLocaleString()} C</td>
-                            <td className="px-4 py-3 text-right tabular-nums font-bold text-red-700">{row.excess.toLocaleString()} C</td>
-                            <td className="px-4 py-3 text-xs tabular-nums text-gray-500">
-                              {new Date(row.created_at).toLocaleString('ko-KR')}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="border-t border-gray-200 bg-gray-50">
-                        <tr>
-                          <td colSpan={3} className="px-4 py-2 text-xs font-medium text-gray-500">합계</td>
-                          <td className="px-4 py-2 text-right tabular-nums text-sm font-bold text-red-700">
-                            {result.data.reduce((sum, r) => sum + r.excess, 0).toLocaleString()} C
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] text-left text-sm">
+                    <thead className="border-b border-gray-200 text-gray-500">
+                      <tr>
+                        <th className="px-4 py-2 font-medium">이름</th>
+                        <th className="px-4 py-2 font-medium">이메일</th>
+                        <th className="px-4 py-2 font-medium text-right">신청 금액</th>
+                        <th className="px-4 py-2 font-medium">최종 수정</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {rows.map((r) => (
+                        <tr key={r.pledge_id}>
+                          <td className="px-4 py-2 text-gray-900">{r.user_name ?? '-'}</td>
+                          <td className="px-4 py-2 text-gray-500">{r.user_email ?? '-'}</td>
+                          <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900">
+                            {r.amount.toLocaleString()}원
                           </td>
-                          <td />
+                          <td className="px-4 py-2 text-gray-400">
+                            {new Date(r.updated_at).toLocaleDateString('ko-KR')}
+                          </td>
                         </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )
           })}
-        </section>
+        </div>
       )}
+
     </div>
   )
 }
