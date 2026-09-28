@@ -13,6 +13,14 @@
 -- 이 앱 밖(HR/급여 시스템)에서 이루어지며, 이 신청 내역은 그 집행의 근거 자료로
 -- 관리자가 참고한다. 신청 즉시 해당 기부처의 모금액(예상치)에는 반영하되, V.Credit
 -- 잔액/등급(medal)에는 전혀 영향을 주지 않는다.
+--
+-- 매칭 비율은 1:1로 고정되어 있으므로(정책), 신청 금액 합계 = 회사 매칭 예상액이다.
+-- 그래서 이 RPC는 donation_targets.payroll_matching_amount도 신청 총액과 함께
+-- 실시간으로 갱신한다 — 그래야 신청이 들어오는 즉시 "전사 누적 기부액"(연간 4,000만원
+-- 목표 진행률)에도 바로 반영된다. 관리자가 payroll_matching_amount를 수동으로 고친
+-- 값은, 그 뒤에 이 기부처로 새 신청이 들어오면 신청 총액으로 다시 덮어써진다 — 모금이
+-- 마감(status='COMPLETED')된 뒤에는 더 이상 신청을 받지 않으므로 관리자가 입력한
+-- 최종값이 그대로 유지된다(세아윈드처럼 신청 시스템 없이 결과만 기록하는 경우 포함).
 
 -- ============================================================================
 -- 1. 급여공제 신청 내역 테이블
@@ -131,8 +139,10 @@ BEGIN
 
   v_new_current_amount := GREATEST(COALESCE(v_target.current_amount, 0) - v_previous_amount, 0) + p_amount;
 
+  -- 매칭 1:1 고정 정책이므로 신청 총액을 회사 매칭 예상액에도 그대로 반영한다.
   UPDATE public.donation_targets
-  SET current_amount = v_new_current_amount
+  SET current_amount = v_new_current_amount,
+      payroll_matching_amount = v_new_current_amount
   WHERE target_id = p_target_id;
 
   RETURN jsonb_build_object(

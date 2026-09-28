@@ -7,6 +7,7 @@ import { AdminPageHeader } from '../components/AdminPageHeader'
 import { TargetAmountEdit } from './components/TargetAmountEdit'
 import { OfflineDonationForm } from './components/OfflineDonationForm'
 import { PayrollMatchingEdit } from './components/PayrollMatchingEdit'
+import { PledgeCsvDownloadButton } from './components/PledgeCsvDownloadButton'
 
 export default async function AdminDonationTargetsPage() {
   const [{ data: targets, error }, matchingByTarget, { data: pledges }] = await Promise.all([
@@ -53,6 +54,59 @@ export default async function AdminDonationTargetsPage() {
           >
             대시보드로 돌아가기 →
           </Link>
+        </div>
+      )}
+
+      {pledgeList.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">특별모금 급여공제 신청 내역</h2>
+              <p className="mt-0.5 text-sm text-gray-500">
+                총 {pledgeList.length}건 · 급여 담당 부서에 공유할 때는 CSV로 다운로드해 전달하세요.
+              </p>
+            </div>
+            <PledgeCsvDownloadButton pledges={pledgeList} />
+          </div>
+          {Object.entries(pledgesByTargetName).map(([targetName, rows]) => {
+            const total = rows.reduce((sum, r) => sum + r.amount, 0)
+            return (
+              <div key={targetName} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+                  <span className="font-medium text-gray-900">{TARGET_DISPLAY_NAMES[targetName] ?? targetName}</span>
+                  <span className="text-sm text-gray-500">
+                    신청 {rows.length}건 · 합계 <span className="font-bold text-gray-900">{total.toLocaleString()}원</span>
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] text-left text-sm">
+                    <thead className="border-b border-gray-200 text-gray-500">
+                      <tr>
+                        <th className="px-4 py-2 font-medium">이름</th>
+                        <th className="px-4 py-2 font-medium">이메일</th>
+                        <th className="px-4 py-2 font-medium text-right">신청 금액</th>
+                        <th className="px-4 py-2 font-medium">최종 수정</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {rows.map((r) => (
+                        <tr key={r.pledge_id}>
+                          <td className="px-4 py-2 text-gray-900">{r.user_name ?? '-'}</td>
+                          <td className="px-4 py-2 text-gray-500">{r.user_email ?? '-'}</td>
+                          <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900">
+                            {r.amount.toLocaleString()}원
+                          </td>
+                          <td className="px-4 py-2 text-gray-400">
+                            {new Date(r.updated_at).toLocaleDateString('ko-KR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -137,53 +191,6 @@ export default async function AdminDonationTargetsPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {pledgeList.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
-            특별모금 급여공제 신청 내역
-          </h2>
-          {Object.entries(pledgesByTargetName).map(([targetName, rows]) => {
-            const total = rows.reduce((sum, r) => sum + r.amount, 0)
-            return (
-              <div key={targetName} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
-                  <span className="font-medium text-gray-900">{TARGET_DISPLAY_NAMES[targetName] ?? targetName}</span>
-                  <span className="text-sm text-gray-500">
-                    신청 {rows.length}건 · 합계 <span className="font-bold text-gray-900">{total.toLocaleString()}원</span>
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[480px] text-left text-sm">
-                    <thead className="border-b border-gray-200 text-gray-500">
-                      <tr>
-                        <th className="px-4 py-2 font-medium">이름</th>
-                        <th className="px-4 py-2 font-medium">이메일</th>
-                        <th className="px-4 py-2 font-medium text-right">신청 금액</th>
-                        <th className="px-4 py-2 font-medium">최종 수정</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {rows.map((r) => (
-                        <tr key={r.pledge_id}>
-                          <td className="px-4 py-2 text-gray-900">{r.user_name ?? '-'}</td>
-                          <td className="px-4 py-2 text-gray-500">{r.user_email ?? '-'}</td>
-                          <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900">
-                            {r.amount.toLocaleString()}원
-                          </td>
-                          <td className="px-4 py-2 text-gray-400">
-                            {new Date(r.updated_at).toLocaleDateString('ko-KR')}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )
-          })}
         </div>
       )}
 

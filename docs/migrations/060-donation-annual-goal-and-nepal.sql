@@ -39,7 +39,7 @@ ALTER TABLE public.donation_targets
 --    회사 매칭은 실제 급여공제 집행 후 관리자가 payroll_matching_amount에 입력)
 -- ============================================================================
 INSERT INTO public.donation_targets (name, description, target_amount, current_amount, status, payroll_matching_amount)
-SELECT '네팔 대홍수 특별모금', '2026년 네팔 대홍수 피해 복구를 위한 특별 모금입니다.', 10000000, 0, 'ACTIVE', 0
+SELECT '네팔 대홍수 특별모금', '2026년 네팔 대홍수 피해 복구를 위해 대한적십자사가 진행 중인 긴급구호 캠페인에 동참하는 특별 모금입니다.', 10000000, 0, 'ACTIVE', 0
 WHERE NOT EXISTS (
   SELECT 1 FROM public.donation_targets WHERE name = '네팔 대홍수 특별모금' AND deleted_at IS NULL
 );
