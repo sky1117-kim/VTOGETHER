@@ -138,7 +138,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
         isOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4"
+            className="animate-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm"
             onClick={handleBackdropClick}
             onMouseDown={(e) => e.stopPropagation()}
             role="dialog"
@@ -146,7 +146,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
             aria-labelledby="donation-modal-title"
           >
           <div
-            className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
+            className="animate-modal-panel relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-center justify-between">
@@ -156,7 +156,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                className="btn-press-link rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
                 aria-label="닫기"
               >
                 <span className="text-lg leading-none">×</span>
@@ -174,7 +174,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
                       key={value}
                       type="button"
                       onClick={() => addAmount(value)}
-                      className="rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-green-300 hover:bg-green-50 hover:text-green-700"
+                      className="btn-press rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-green-300 hover:bg-green-50 hover:text-green-700"
                     >
                       +{value.toLocaleString()}
                     </button>
@@ -182,7 +182,7 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
                   <button
                     type="button"
                     onClick={setFullAmount}
-                    className="col-span-3 rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-green-300 hover:bg-green-50 hover:text-green-700"
+                    className="btn-press col-span-3 rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-green-300 hover:bg-green-50 hover:text-green-700"
                   >
                     전액 ({userPoints.toLocaleString()} C)
                   </button>
@@ -208,14 +208,14 @@ export function DonationModal({ target, userPoints, disabled, children }: Donati
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  className="btn-press flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || amount < DONATION_STEP}
-                  className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50 btn-press"
+                  className="btn-press flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow-md disabled:opacity-50"
                 >
                   {isSubmitting ? '처리 중...' : '기부하기'}
                 </button>

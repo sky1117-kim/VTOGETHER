@@ -55,6 +55,14 @@ export async function Header() {
               >
                 상점
               </Link>
+              {user?.is_admin && (
+                <Link
+                  href="/auction"
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+                >
+                  경매
+                </Link>
+              )}
               <Link
                 href="/notices"
                 className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"

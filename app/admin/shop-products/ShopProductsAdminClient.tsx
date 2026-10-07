@@ -434,8 +434,8 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
           >
             <option value="ALL">상태 전체</option>
-            <option value="ACTIVE">판매중</option>
-            <option value="INACTIVE">비활성</option>
+            <option value="ACTIVE">노출중</option>
+            <option value="INACTIVE">숨김</option>
           </select>
         </div>
         {filteredProducts.length === 0 && (
@@ -461,6 +461,21 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                     type="button"
                     disabled={isPending}
                     onClick={() => {
+                      startTransition(async () => {
+                        const result = await toggleShopProductActive(p.product_id, !p.is_active)
+                        if (!result.success) return setMessage(result.error ?? '상태 변경 실패')
+                        setMessage(p.is_active ? '상품을 숨겼습니다.' : '상품을 다시 노출했습니다.')
+                        router.refresh()
+                      })
+                    }}
+                    className={`btn-press rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${p.is_active ? 'border-gray-200 text-gray-700 hover:bg-gray-50' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}
+                  >
+                    {p.is_active ? '숨김' : '노출'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
                       setEditingId(p.product_id)
                       setEditForm({
                         name: p.name,
@@ -477,7 +492,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                       setNewEditVariant(null)
                       if (p.has_variants) loadEditVariants(p.product_id)
                     }}
-                    className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    className="btn-press rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
                   >
                     수정
                   </button>
@@ -485,7 +500,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                     type="button"
                     disabled={isPending}
                     onClick={() => handleDelete(p)}
-                    className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    className="btn-press rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                   >
                     삭제
                   </button>
@@ -522,21 +537,11 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 </div>
               </div>
               <div className="mt-3">
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const result = await toggleShopProductActive(p.product_id, !p.is_active)
-                      if (!result.success) return setMessage(result.error ?? '상태 변경 실패')
-                      setMessage('상품 상태를 변경했습니다.')
-                      router.refresh()
-                    })
-                  }}
+                <span
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}
                 >
-                  {p.is_active ? '판매중' : '비활성'}
-                </button>
+                  {p.is_active ? '노출중' : '숨김'}
+                </span>
               </div>
                   </>
                 )
@@ -581,24 +586,29 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                   })()}
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        const result = await toggleShopProductActive(p.product_id, !p.is_active)
-                        if (!result.success) return setMessage(result.error ?? '상태 변경 실패')
-                        setMessage('상품 상태를 변경했습니다.')
-                        router.refresh()
-                      })
-                    }}
+                  <span
                     className={`rounded-full px-2.5 py-1 text-xs font-semibold ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}
                   >
-                    {p.is_active ? '판매중' : '비활성'}
-                  </button>
+                    {p.is_active ? '노출중' : '숨김'}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-1.5">
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await toggleShopProductActive(p.product_id, !p.is_active)
+                          if (!result.success) return setMessage(result.error ?? '상태 변경 실패')
+                          setMessage(p.is_active ? '상품을 숨겼습니다.' : '상품을 다시 노출했습니다.')
+                          router.refresh()
+                        })
+                      }}
+                      className={`btn-press rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${p.is_active ? 'border-gray-200 text-gray-700 hover:bg-gray-50' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}
+                    >
+                      {p.is_active ? '숨김' : '노출'}
+                    </button>
                     <button
                       type="button"
                       disabled={isPending}
@@ -619,7 +629,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                         setNewEditVariant(null)
                         if (p.has_variants) loadEditVariants(p.product_id)
                       }}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                      className="btn-press rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
                     >
                       수정
                     </button>
@@ -627,7 +637,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                       type="button"
                       disabled={isPending}
                       onClick={() => handleDelete(p)}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      className="btn-press rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                     >
                       삭제
                     </button>

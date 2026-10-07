@@ -1,12 +1,21 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Navigation } from "@/components/layout/Navigation";
+import { getCurrentUser } from "@/api/actions/auth";
 
 export default async function MainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  let isAdmin = false;
+  try {
+    const user = await getCurrentUser();
+    isAdmin = !!user?.is_admin;
+  } catch {
+    // 인증 비활성화 시
+  }
+
   return (
     <div className="page-bg flex min-h-screen min-w-0 flex-col overflow-x-clip">
       <Header />
@@ -17,7 +26,7 @@ export default async function MainLayout({
         {children}
       </main>
       <Footer />
-      <Navigation />
+      <Navigation isAdmin={isAdmin} />
     </div>
   );
 }

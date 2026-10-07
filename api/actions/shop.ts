@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scheduleEarnedNotificationEmail } from '@/lib/send-earned-notification-email'
+import { scheduleEsgSheetSync } from '@/lib/shop-orders-esg-sheet-sync'
 
 export type ShopProductVariantOption = {
   variant_id: string
@@ -134,6 +135,15 @@ export async function purchaseShopProduct(productId: string, quantity = 1, varia
     if (error) return { success: false, error: error.message }
 
     const result = data as PurchaseShopProductRpcResult
+
+    const { data: purchasedProduct } = await admin
+      .from('shop_products')
+      .select('product_type')
+      .eq('product_id', productId)
+      .maybeSingle()
+    if ((purchasedProduct as { product_type?: string } | null)?.product_type === 'ESG') {
+      scheduleEsgSheetSync()
+    }
 
     if (result.totalCreditGranted > 0) {
       scheduleEarnedNotificationEmail({

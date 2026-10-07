@@ -82,7 +82,12 @@ export function ShopProductList({
   const [purchaseQuantity, setPurchaseQuantity] = useState(1)
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [isFinalConfirmOpen, setIsFinalConfirmOpen] = useState(false)
-  useBodyScrollLock(!!expandedDescriptionProductId || !!purchaseTarget)
+  const [purchaseSuccessInfo, setPurchaseSuccessInfo] = useState<{
+    name: string
+    quantity: number
+    totalMedal: number
+  } | null>(null)
+  useBodyScrollLock(!!expandedDescriptionProductId || !!purchaseTarget || !!purchaseSuccessInfo)
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSkeleton(false), 320)
@@ -161,15 +166,17 @@ export function ShopProductList({
   const handleConfirmPurchase = () => {
     if (!purchaseTarget) return
     setIsFinalConfirmOpen(false)
+    const { name, priceMedal } = purchaseTarget
+    const quantity = purchaseQuantity
     startTransition(async () => {
       const result = await purchaseShopProduct(purchaseTarget.productId, purchaseQuantity, selectedVariantId)
       if (!result.success) {
         setMessage(result.error ?? '구매 실패')
         return
       }
-      setMessage(`${purchaseTarget.name} ${purchaseQuantity}개 교환이 완료되었습니다.`)
       setPurchaseTarget(null)
       setExpandedDescriptionProductId(null)
+      setPurchaseSuccessInfo({ name, quantity, totalMedal: priceMedal * quantity })
       router.refresh()
     })
   }
@@ -446,11 +453,11 @@ export function ShopProductList({
       )}
       {expandedDescriptionProductId && (
         <div
-          className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/45 p-4 pb-24 pt-20 sm:items-center sm:pb-4 sm:pt-4"
+          className="animate-modal-backdrop fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/45 p-4 pb-24 pt-20 backdrop-blur-sm sm:items-center sm:pb-4 sm:pt-4"
           onClick={() => setExpandedDescriptionProductId(null)}
         >
           <div
-            className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+            className="animate-modal-panel flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {(() => {
@@ -481,7 +488,7 @@ export function ShopProductList({
 
                   <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
                     {imageCount > 0 && (
-                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                      <div className="relative aspect-[4/3] max-h-[70vh] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                         <div
                           className="flex h-full w-full transition-transform duration-500 ease-out"
                           style={{ transform: `translateX(-${modalImageIndex * 100}%)` }}
@@ -494,7 +501,7 @@ export function ShopProductList({
                                 fill
                                 sizes="(max-width: 768px) 100vw, 820px"
                                 unoptimized
-                                className="object-cover"
+                                className="object-contain"
                               />
                             </div>
                           ))}
@@ -597,14 +604,14 @@ export function ShopProductList({
       )}
       {purchaseTarget && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+          className="animate-modal-backdrop fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
           onClick={() => {
             setIsFinalConfirmOpen(false)
             setPurchaseTarget(null)
           }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+            className="animate-modal-panel w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-black tracking-tight text-slate-900">교환 수량 선택</h3>
@@ -758,6 +765,51 @@ export function ShopProductList({
         onConfirm={handleConfirmPurchase}
         onCancel={() => setIsFinalConfirmOpen(false)}
       />
+      {purchaseSuccessInfo && (
+        <div
+          className="animate-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setPurchaseSuccessInfo(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="purchase-success-title"
+        >
+          <div
+            className="animate-modal-panel relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="animate-bounce-heart mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+              <svg
+                className="h-8 w-8 text-emerald-600"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M5 12l5 5L20 7" />
+              </svg>
+            </div>
+            <h2 id="purchase-success-title" className="mb-1 text-center text-lg font-bold text-gray-900">
+              교환 완료!
+            </h2>
+            <p className="mb-6 text-center text-sm text-gray-600">
+              <span className="font-semibold text-gray-900">
+                {purchaseSuccessInfo.name} {purchaseSuccessInfo.quantity}개
+              </span>
+              를 {purchaseSuccessInfo.totalMedal.toLocaleString()} Medal로 교환했습니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => setPurchaseSuccessInfo(null)}
+              className="btn-press w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

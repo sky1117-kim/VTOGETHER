@@ -54,7 +54,7 @@ export function DonationSuccessModal({
 
   const content = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4"
+      className="animate-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
       onMouseDown={(e) => e.stopPropagation()}
       role="dialog"
@@ -62,7 +62,7 @@ export function DonationSuccessModal({
       aria-labelledby="donation-success-title"
     >
       <div
-        className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
+        className="animate-modal-panel relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 상단: 통통 튀는 하트 아이콘 (기부처 색상) */}
@@ -107,7 +107,7 @@ export function DonationSuccessModal({
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-xl bg-slate-800 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+          className="btn-press w-full rounded-xl bg-slate-800 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 hover:shadow-md"
         >
           확인
         </button>

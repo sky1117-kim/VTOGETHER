@@ -14,6 +14,8 @@ import {
   ShoppingBag,
   Megaphone,
   Sparkles,
+  Gavel,
+  ListOrdered,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -22,6 +24,8 @@ const NAV_ITEMS = [
   { href: '/admin/events', label: '이벤트', icon: Gift, badgeKey: null },
   { href: '/admin/shop-products', label: '상점 상품', icon: Store, badgeKey: null },
   { href: '/admin/shop-orders', label: '상점 주문', icon: ShoppingBag, badgeKey: null },
+  { href: '/admin/auction', label: '경매 관리', icon: Gavel, badgeKey: null },
+  { href: '/admin/auction-bids', label: '경매 입찰 내역', icon: ListOrdered, badgeKey: null },
   { href: '/admin/verifications', label: '인증 심사', icon: ClipboardCheck, badgeKey: 'verification' as const },
   { href: '/admin/reward-fulfillment', label: '쿠폰/굿즈 발송', icon: Package, badgeKey: null },
   { href: '/admin/donation-targets', label: '기부처', icon: Heart, badgeKey: null },

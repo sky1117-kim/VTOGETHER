@@ -114,7 +114,7 @@ export function PayrollPledgeModal({ target, myPledgeAmount, disabled, children 
         isOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4"
+            className="animate-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 p-4 backdrop-blur-sm"
             onClick={handleBackdropClick}
             onMouseDown={(e) => e.stopPropagation()}
             role="dialog"
@@ -122,12 +122,12 @@ export function PayrollPledgeModal({ target, myPledgeAmount, disabled, children 
             aria-labelledby="pledge-modal-title"
           >
             <div
-              className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
+              className="animate-modal-panel relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal"
               onClick={(e) => e.stopPropagation()}
             >
               {isSuccess ? (
                 <div className="text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                  <div className="animate-bounce-heart mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
                     <span className="text-3xl">✅</span>
                   </div>
                   <h2 className="mb-1 text-lg font-bold text-gray-900">신청 완료</h2>
@@ -221,14 +221,14 @@ export function PayrollPledgeModal({ target, myPledgeAmount, disabled, children 
                       <button
                         type="button"
                         onClick={() => setIsOpen(false)}
-                        className="flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                        className="btn-press flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                       >
                         취소
                       </button>
                       <button
                         type="submit"
                         disabled={isSubmitting || amount < PLEDGE_STEP}
-                        className="flex-1 rounded-xl bg-slate-700 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50 btn-press"
+                        className="btn-press flex-1 rounded-xl bg-slate-700 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 hover:shadow-md disabled:opacity-50"
                       >
                         {isSubmitting ? '처리 중...' : '기부하기'}
                       </button>

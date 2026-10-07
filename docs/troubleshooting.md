@@ -218,6 +218,20 @@ Database → Security Advisor / Performance Advisor에서 RLS 관련 경고가 �
      `Authorization: Bearer <SEAH_ORGSYNC_CRON_SECRET>`
   3. DB 마이그레이션 `036-seah-org-sync-tables.sql` 실행 여부 확인 (`seah_org_units`, `seah_employees`)
 
+## ESG 상점 주문이 구글시트에 반영되지 않을 때 (/api/cron/shop-orders-esg-sheet)
+
+- **즉시 1회 동기화:** 프로젝트 루트에서 `npm run sync:esg-sheet` 실행
+- **매 N분 자동:** Cloud Scheduler로 `GET /api/cron/shop-orders-esg-sheet` + `Authorization: Bearer <SHOP_ORDERS_ESG_SHEET_CRON_SECRET>` 설정
+- **401 Unauthorized / 500 SHOP_ORDERS_ESG_SHEET_CRON_SECRET 미설정**
+  - `.env`/배포 환경에 `SHOP_ORDERS_ESG_SHEET_CRON_SECRET` 설정 후 재배포, 헤더 값 정확히 일치하는지 확인
+- **키 없이 인증(권장, Cloud Run):** 대상 시트를 `sheet-bot@esg-platform-common.iam.gserviceaccount.com`에 편집자로 공유하고, Cloud Run 서비스의 실행 서비스 계정을 해당 계정으로 지정하면 `GOOGLE_SHEETS_CLIENT_EMAIL`/`GOOGLE_SHEETS_PRIVATE_KEY` 없이 자동 인증(ADC)됨
+- **PERMISSION_DENIED / 403 (Google API)**
+  - 원인: 시트가 서비스 계정에 공유되지 않았거나 뷰어 권한만 있음
+  - 해결: 시트 공유 설정에서 서비스 계정을 편집자로 추가
+- **동일 주문이 중복으로 쌓일 때**
+  - 원인: 시트 A열(주문ID) 값을 임의로 수정/삭제함 — 동기화는 A열 기준으로 이미 있는 주문ID를 건너뜀
+  - 해결: A열의 주문ID 값을 보존
+
 ## 적립 알림 이메일이 오지 않을 때
 
 - **증상:** 포인트 적립(벨 알림)은 보이는데 이메일이 오지 않음

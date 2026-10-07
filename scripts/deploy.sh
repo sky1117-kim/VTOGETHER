@@ -126,6 +126,25 @@ if [ -n "$GOOGLE_CHAT_ADMIN_WEBHOOK_URL" ]; then
   add_secret_or_fallback_env "GOOGLE_CHAT_ADMIN_WEBHOOK_URL" "google-chat-admin-webhook-url" "$GOOGLE_CHAT_ADMIN_WEBHOOK_URL"
 fi
 
+# ESG 상점 주문 → 구글시트 동기화 (선택) — .env에 있으면 배포에 포함
+if [ -n "$GOOGLE_SHEETS_SPREADSHEET_ID" ]; then
+  echo "✓ GOOGLE_SHEETS_SPREADSHEET_ID 포함 (ESG 주문 시트 동기화)"
+  ENV_VARS="$ENV_VARS,GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID"
+  if [ -n "$GOOGLE_SHEETS_ESG_TAB_NAME" ]; then
+    ENV_VARS="$ENV_VARS,GOOGLE_SHEETS_ESG_TAB_NAME=$GOOGLE_SHEETS_ESG_TAB_NAME"
+  fi
+  # 키 기반 인증은 선택 사항 — Cloud Run 서비스 계정(CLOUD_RUN_SERVICE_ACCOUNT)으로 ADC 인증하는 것을 권장
+  if [ -n "$GOOGLE_SHEETS_CLIENT_EMAIL" ] && [ -n "$GOOGLE_SHEETS_PRIVATE_KEY" ]; then
+    echo "✓ GOOGLE_SHEETS_CLIENT_EMAIL/PRIVATE_KEY 포함 (키 기반 인증)"
+    ENV_VARS="$ENV_VARS,GOOGLE_SHEETS_CLIENT_EMAIL=$GOOGLE_SHEETS_CLIENT_EMAIL"
+    add_secret_or_fallback_env "GOOGLE_SHEETS_PRIVATE_KEY" "google-sheets-private-key" "$GOOGLE_SHEETS_PRIVATE_KEY"
+  fi
+  if [ -n "$SHOP_ORDERS_ESG_SHEET_CRON_SECRET" ]; then
+    echo "✓ SHOP_ORDERS_ESG_SHEET_CRON_SECRET 포함 (크론 엔드포인트)"
+    add_secret_or_fallback_env "SHOP_ORDERS_ESG_SHEET_CRON_SECRET" "shop-orders-esg-sheet-cron-secret" "$SHOP_ORDERS_ESG_SHEET_CRON_SECRET"
+  fi
+fi
+
 # 적립 알림 이메일 SMTP (선택) — .env에 있으면 배포에 포함 (.env.local 은 deploy 시 로드되지 않음)
 if [ -n "$SMTP_HOST" ] && [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASS" ]; then
   echo "✓ SMTP 적립 알림 메일 환경 변수 포함"
@@ -148,6 +167,14 @@ else
   echo "⚠️  supabase-service-role 시크릿이 없습니다. ./scripts/setup-secrets.sh 를 먼저 실행하세요."
 fi
 
+# CLOUD_RUN_SERVICE_ACCOUNT (선택) — 지정하면 Cloud Run 실행 신분을 이 서비스 계정으로 고정.
+# 예: sheet-bot@esg-platform-common.iam.gserviceaccount.com (구글시트 ADC 인증용)
+SERVICE_ACCOUNT_FLAG=()
+if [ -n "$CLOUD_RUN_SERVICE_ACCOUNT" ]; then
+  echo "✓ CLOUD_RUN_SERVICE_ACCOUNT 지정: $CLOUD_RUN_SERVICE_ACCOUNT"
+  SERVICE_ACCOUNT_FLAG=(--service-account "$CLOUD_RUN_SERVICE_ACCOUNT")
+fi
+
 if [ -n "$SECRET_MAPPINGS" ]; then
   gcloud run deploy vtogether \
     --source . \
@@ -155,14 +182,16 @@ if [ -n "$SECRET_MAPPINGS" ]; then
     --allow-unauthenticated \
     --set-build-env-vars "$BUILD_ENV_VARS" \
     --set-env-vars "$ENV_VARS" \
-    --set-secrets "$SECRET_MAPPINGS"
+    --set-secrets "$SECRET_MAPPINGS" \
+    "${SERVICE_ACCOUNT_FLAG[@]}"
 else
   gcloud run deploy vtogether \
     --source . \
     --region asia-northeast3 \
     --allow-unauthenticated \
     --set-build-env-vars "$BUILD_ENV_VARS" \
-    --set-env-vars "$ENV_VARS"
+    --set-env-vars "$ENV_VARS" \
+    "${SERVICE_ACCOUNT_FLAG[@]}"
 fi
 
 echo ""
