@@ -78,6 +78,14 @@ export function AuctionItemList({
 
   const isUrgent = eventStatus === 'ACTIVE' && new Date(eventEndAt).getTime() - new Date().getTime() <= URGENT_THRESHOLD_MS
 
+  const leadingCountByCategory = useMemo(() => {
+    const counts: Record<AuctionCategory, number> = { LAPTOP: 0, MONITOR: 0, ETC: 0 }
+    for (const item of items) {
+      if (item.is_current_highest_bidder_me) counts[item.category] += 1
+    }
+    return counts
+  }, [items])
+
   const visibleItems = useMemo(() => {
     if (categoryFilter === 'ALL') return items
     return items.filter((i) => i.category === categoryFilter)
@@ -163,6 +171,21 @@ export function AuctionItemList({
           </span>
         )}
       </section>
+
+      {eventStatus === 'ACTIVE' && (leadingCountByCategory.LAPTOP >= 2 || leadingCountByCategory.MONITOR >= 2) && (
+        <section className="animate-fade-up space-y-2">
+          {leadingCountByCategory.LAPTOP >= 2 && (
+            <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3 text-[13px] font-bold text-fuchsia-800">
+              ⚠️ 노트북 {leadingCountByCategory.LAPTOP}개 품목에서 최고가로 입찰 중입니다. 낙찰은 1인 1대가 원칙이라, 마감 시 가장 높은 금액 품목 1개만 낙찰되고 나머지는 차순위 입찰자에게 넘어갑니다.
+            </div>
+          )}
+          {leadingCountByCategory.MONITOR >= 2 && (
+            <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3 text-[13px] font-bold text-fuchsia-800">
+              ⚠️ 모니터 {leadingCountByCategory.MONITOR}개 품목에서 최고가로 입찰 중입니다. 낙찰은 1인 1대가 원칙이라, 마감 시 가장 높은 금액 품목 1개만 낙찰되고 나머지는 차순위 입찰자에게 넘어갑니다.
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="animate-fade-up grid items-start gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
         {visibleItems.map((item, idx) => {
@@ -410,19 +433,37 @@ export function AuctionItemList({
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                       <p className="mb-2 text-[12px] font-bold tracking-wide text-slate-500">상세 스펙</p>
                       <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                        {buildSpecEntries(item).map((spec) => (
-                          <div key={spec.label} className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1.5 sm:border-none sm:pb-0">
-                            <dt className="shrink-0 text-[12px] font-semibold text-slate-500">{spec.label}</dt>
+                        {buildSpecEntries(item)
+                          .filter((spec) => spec.label !== '기능 특이사항')
+                          .map((spec) => (
+                            <div key={spec.label} className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1.5 sm:border-none sm:pb-0">
+                              <dt className="shrink-0 text-[12px] font-semibold text-slate-500">{spec.label}</dt>
+                              <dd
+                                className={`truncate text-right text-[13px] font-bold ${
+                                  spec.value === SPEC_EMPTY ? 'text-slate-400' : 'text-slate-800'
+                                }`}
+                              >
+                                {spec.value}
+                              </dd>
+                            </div>
+                          ))}
+                      </dl>
+                      {(() => {
+                        const notes = buildSpecEntries(item).find((spec) => spec.label === '기능 특이사항')
+                        if (!notes) return null
+                        return (
+                          <div className="mt-2.5 border-t border-slate-100 pt-2.5">
+                            <dt className="mb-1 text-[12px] font-semibold text-slate-500">기능 특이사항</dt>
                             <dd
-                              className={`truncate text-right text-[13px] font-bold ${
-                                spec.value === SPEC_EMPTY ? 'text-slate-400' : 'text-slate-800'
+                              className={`whitespace-pre-wrap text-[13px] font-bold leading-relaxed ${
+                                notes.value === SPEC_EMPTY ? 'text-slate-400' : 'text-slate-800'
                               }`}
                             >
-                              {spec.value}
+                              {notes.value}
                             </dd>
                           </div>
-                        ))}
-                      </dl>
+                        )
+                      })()}
                       {item.category === 'LAPTOP' && (
                         <p className="mt-2 text-[12px] font-semibold text-amber-700">※ 어답터는 제공되지 않습니다.</p>
                       )}

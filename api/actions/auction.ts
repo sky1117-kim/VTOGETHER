@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { computeAuctionFinalWinners, type FinalWinner } from '@/lib/auction-final-results'
 
 export type AuctionCategory = 'LAPTOP' | 'MONITOR' | 'ETC'
 export type AuctionEventStatus = 'UPCOMING' | 'ACTIVE' | 'CLOSED'
@@ -123,6 +124,7 @@ export async function getCurrentAuctionEvent(): Promise<{
 
     const bidCountByItem = new Map<string, number>()
     const myBidTodayAmountByItem = new Map<string, number>()
+    let bidRowsForFinal: Array<{ item_id: string; user_id: string; bid_date: string; bid_amount: number }> = []
 
     if (itemIds.length > 0) {
       const { data: bidRows } = await admin
@@ -130,6 +132,7 @@ export async function getCurrentAuctionEvent(): Promise<{
         .select('item_id, user_id, bid_date, bid_amount')
         .in('item_id', itemIds)
       const rows2 = (bidRows ?? []) as Array<{ item_id: string; user_id: string; bid_date: string; bid_amount: number }>
+      bidRowsForFinal = rows2
       for (const row of rows2) {
         bidCountByItem.set(row.item_id, (bidCountByItem.get(row.item_id) ?? 0) + 1)
       }
@@ -148,7 +151,18 @@ export async function getCurrentAuctionEvent(): Promise<{
       }
     }
 
-    const winnerIds = status === 'CLOSED' ? [...new Set(items.map((i) => i.current_highest_bidder_id).filter((v): v is string => !!v))] : []
+    // 마감된 경매는 "1인 1대" 원칙(최고 금액 품목만 유지, 나머지는 차순위에게 재배정)을
+    // 적용한 최종 낙찰자를 계산해 사용자 화면에 그대로 보여준다 (단독 입찰 품목은 예외).
+    const finalWinnerByItem =
+      status === 'CLOSED'
+        ? computeAuctionFinalWinners(
+            itemIds,
+            (bidRowsForFinal ?? []).map((b) => ({ item_id: b.item_id, user_id: b.user_id, bid_amount: b.bid_amount })),
+            new Map(items.map((i) => [i.item_id, i.current_highest_bidder_id]))
+          )
+        : new Map<string, FinalWinner>()
+
+    const winnerIds = [...new Set([...finalWinnerByItem.values()].map((w) => w.user_id))]
     const winnerNameMap = new Map<string, string>()
     if (winnerIds.length > 0) {
       const { data: winnerUsers } = await admin.from('users').select('user_id, name, email').in('user_id', winnerIds)
@@ -157,31 +171,35 @@ export async function getCurrentAuctionEvent(): Promise<{
       }
     }
 
-    const result: AuctionItemForUser[] = items.map((i) => ({
-      item_id: i.item_id,
-      name: i.name,
-      model_name: i.model_name,
-      category: i.category,
-      image_url: i.image_url,
-      image_url_2: i.image_url_2,
-      description: i.description,
-      size: i.size,
-      manufacture_date: i.manufacture_date,
-      serial_number: i.serial_number,
-      has_adapter: i.has_adapter,
-      spec_detail: i.spec_detail,
-      functional_notes: i.functional_notes,
-      display_order: i.display_order,
-      starting_price: i.starting_price,
-      min_bid_increment: i.min_bid_increment,
-      current_highest_bid: i.current_highest_bid,
-      current_highest_bid_at: i.current_highest_bid_at,
-      bid_count: bidCountByItem.get(i.item_id) ?? 0,
-      is_current_highest_bidder_me: !!userId && i.current_highest_bidder_id === userId,
-      already_bid_today: myBidTodayAmountByItem.has(i.item_id),
-      my_bid_today_amount: myBidTodayAmountByItem.get(i.item_id) ?? null,
-      winner_name: status === 'CLOSED' ? winnerNameMap.get(i.current_highest_bidder_id ?? '') ?? null : null,
-    }))
+    const result: AuctionItemForUser[] = items.map((i) => {
+      const finalWinner = finalWinnerByItem.get(i.item_id)
+      return {
+        item_id: i.item_id,
+        name: i.name,
+        model_name: i.model_name,
+        category: i.category,
+        image_url: i.image_url,
+        image_url_2: i.image_url_2,
+        description: i.description,
+        size: i.size,
+        manufacture_date: i.manufacture_date,
+        serial_number: i.serial_number,
+        has_adapter: i.has_adapter,
+        spec_detail: i.spec_detail,
+        functional_notes: i.functional_notes,
+        display_order: i.display_order,
+        starting_price: i.starting_price,
+        min_bid_increment: i.min_bid_increment,
+        current_highest_bid: status === 'CLOSED' ? finalWinner?.amount ?? i.current_highest_bid : i.current_highest_bid,
+        current_highest_bid_at: i.current_highest_bid_at,
+        bid_count: bidCountByItem.get(i.item_id) ?? 0,
+        is_current_highest_bidder_me:
+          status === 'CLOSED' ? !!userId && finalWinner?.user_id === userId : !!userId && i.current_highest_bidder_id === userId,
+        already_bid_today: myBidTodayAmountByItem.has(i.item_id),
+        my_bid_today_amount: myBidTodayAmountByItem.get(i.item_id) ?? null,
+        winner_name: status === 'CLOSED' ? winnerNameMap.get(finalWinner?.user_id ?? '') ?? null : null,
+      }
+    })
 
     result.sort((a, b) => CATEGORY_DISPLAY_ORDER[a.category] - CATEGORY_DISPLAY_ORDER[b.category] || a.display_order - b.display_order)
 

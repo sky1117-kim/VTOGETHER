@@ -209,7 +209,7 @@ export function AuctionAdminClient({
           <div className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-gray-50/40 p-3 md:grid-cols-2">
             <input
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm md:col-span-2"
-              placeholder="이벤트명 (예: RE:Boot 노트북/모니터 경매)"
+              placeholder="이벤트명 (예: 노트북 경매)"
               value={eventForm.title}
               onChange={(e) => setEventForm((p) => ({ ...p, title: e.target.value }))}
             />

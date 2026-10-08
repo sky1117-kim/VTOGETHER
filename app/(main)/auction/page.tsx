@@ -20,7 +20,7 @@ export default async function AuctionPage() {
     return (
       <div className="mx-auto min-w-0 max-w-5xl px-3 pb-12 pt-6 sm:px-6 lg:px-8">
         <div className="glass rounded-2xl border border-gray-200 bg-white/90 p-8 text-center shadow-soft">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">RE:Boot 경매</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">노트북 경매</h1>
           <p className="mt-2 text-sm font-medium text-gray-600">로그인 후 경매에 참여할 수 있습니다.</p>
           <Link
             href="/login"
@@ -37,7 +37,7 @@ export default async function AuctionPage() {
     return (
       <div className="mx-auto min-w-0 max-w-5xl px-3 pb-12 pt-6 sm:px-6 lg:px-8">
         <div className="glass rounded-2xl border border-gray-200 bg-white/90 p-8 text-center shadow-soft">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">RE:Boot 경매</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">노트북 경매</h1>
           <p className="mt-2 text-sm font-medium text-gray-600">
             오픈 준비 중입니다. 곧 찾아뵙겠습니다!
           </p>
@@ -58,7 +58,7 @@ export default async function AuctionPage() {
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[12px] font-bold text-emerald-100">
               V.Together Auction
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-white">{event?.title ?? 'RE:Boot 경매'}</h1>
+            <h1 className="text-3xl font-black tracking-tight text-white">{event?.title ?? '노트북 경매'}</h1>
             <p className="mt-1.5 text-[14px] font-semibold text-slate-100">
               {event?.description ?? '함께한 물품의 새 주인을 찾고, 수익금은 전액 기부합니다.'}
             </p>
