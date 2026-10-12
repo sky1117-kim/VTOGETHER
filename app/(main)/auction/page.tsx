@@ -33,19 +33,6 @@ export default async function AuctionPage() {
     )
   }
 
-  if (!user.is_admin) {
-    return (
-      <div className="mx-auto min-w-0 max-w-5xl px-3 pb-12 pt-6 sm:px-6 lg:px-8">
-        <div className="glass rounded-2xl border border-gray-200 bg-white/90 p-8 text-center shadow-soft">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">노트북 경매</h1>
-          <p className="mt-2 text-sm font-medium text-gray-600">
-            오픈 준비 중입니다. 곧 찾아뵙겠습니다!
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   const { event, items, error } = await getCurrentAuctionEvent()
 
   return (
