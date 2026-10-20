@@ -16,7 +16,7 @@ function timeAgo(dateStr: string) {
   if (h < 24) return `${h}시간 전`
   const d = Math.floor(h / 24)
   if (d < 30) return `${d}일 전`
-  return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+  return new Date(dateStr).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric' })
 }
 
 function tagStyle(notice: NoticeRow) {

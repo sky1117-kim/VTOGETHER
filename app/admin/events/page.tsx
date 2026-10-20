@@ -148,7 +148,7 @@ export default async function AdminEventsPage() {
                     </span>
                   </td>
                   <td className="px-4 pr-2 py-3 text-sm text-gray-500 whitespace-nowrap">
-                    {new Date(e.created_at).toLocaleDateString('ko-KR')}
+                    {new Date(e.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
                   </td>
                   <td className="pl-2 pr-4 py-3 align-middle">
                     <EventRowActions eventId={e.event_id} eventTitle={e.title} status={e.status} />

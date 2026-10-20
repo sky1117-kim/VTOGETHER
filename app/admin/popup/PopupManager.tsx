@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Plus, Trash2, Edit2, Megaphone, Calendar } from 'lucide-react'
 import { createNotice, updateNotice, deleteNotice, toggleNoticePopup } from '@/api/actions/notices'
 import { uploadPopupImage } from '@/api/actions/admin'
+import { useFeedback } from '@/components/ui/feedback'
 
 type PopupItem = {
   id: string
@@ -45,7 +46,7 @@ function toEndIso(date: string) {
 
 function formatPeriod(item: PopupItem) {
   if (!item.popup_start_at && !item.popup_end_at) return '기간 제한 없음'
-  const fmt = (s: string) => new Date(s).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const fmt = (s: string) => new Date(s).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   if (item.popup_start_at && item.popup_end_at) return `${fmt(item.popup_start_at)} ~ ${fmt(item.popup_end_at)}`
   if (item.popup_start_at) return `${fmt(item.popup_start_at)}부터`
   return `${fmt(item.popup_end_at!)}까지`
@@ -61,6 +62,7 @@ function isActive(item: PopupItem) {
 
 export function PopupManager({ popups: initial }: { popups: PopupItem[] }) {
   const [popups, setPopups] = useState(initial)
+  const { confirm, toast } = useFeedback()
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -145,15 +147,27 @@ export function PopupManager({ popups: initial }: { popups: PopupItem[] }) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('팝업을 삭제하시겠습니까?')) return
+    if (!(await confirm({ title: '팝업 삭제', message: '팝업을 삭제하시겠습니까?', confirmLabel: '삭제', variant: 'danger' }))) return
     const res = await deleteNotice(id)
-    if (!res.error) setPopups((prev) => prev.filter((p) => p.id !== id))
+    if (res.error) {
+      toast(res.error, 'error')
+      return
+    }
+    setPopups((prev) => prev.filter((p) => p.id !== id))
+    toast('팝업을 삭제했습니다.')
   }
 
   async function handleToggleActive(p: PopupItem) {
     const next = !p.show_as_popup
-    await toggleNoticePopup(p.id, next)
+    // 즉시 반영 후 실패 시 되돌림
     setPopups((prev) => prev.map((item) => item.id === p.id ? { ...item, show_as_popup: next } : item))
+    const res = await toggleNoticePopup(p.id, next)
+    if (res.error) {
+      setPopups((prev) => prev.map((item) => item.id === p.id ? { ...item, show_as_popup: !next } : item))
+      toast(res.error, 'error')
+      return
+    }
+    toast(next ? '팝업을 노출합니다.' : '팝업을 숨겼습니다.')
   }
 
   return (

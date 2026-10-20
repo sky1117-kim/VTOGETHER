@@ -2,16 +2,21 @@
 
 import { useState } from 'react'
 import { deleteMyAccount } from '@/api/actions/auth'
+import { useFeedback } from '@/components/ui/feedback'
 
 export function MyAccountDeleteButton() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { confirm } = useFeedback()
 
   async function handleDelete() {
     // 탈퇴는 되돌릴 수 없으므로 사용자에게 한 번 더 확인받습니다.
-    const ok = confirm(
-      '정말 계정을 삭제할까요?\n\n삭제 후에는 이 계정으로 로그인해도 서비스 데이터에 접근할 수 없습니다.'
-    )
+    const ok = await confirm({
+      title: '계정 삭제',
+      message: '정말 계정을 삭제할까요?\n\n삭제 후에는 이 계정으로 로그인해도 서비스 데이터에 접근할 수 없습니다.',
+      confirmLabel: '삭제',
+      variant: 'danger',
+    })
     if (!ok) return
 
     setPending(true)

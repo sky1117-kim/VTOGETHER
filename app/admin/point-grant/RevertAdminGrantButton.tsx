@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { revertAdminGrantTransaction } from '@/api/actions/admin'
 import { Undo2 } from 'lucide-react'
+import { useFeedback } from '@/components/ui/feedback'
 
 type Props = {
   transactionId: string
@@ -16,19 +17,25 @@ export function RevertAdminGrantButton({ transactionId, label }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
+  const { confirm, toast } = useFeedback()
 
-  function run() {
-    const ok = window.confirm(
-      `「${label}」관리자 지급 건을 취소할까요?\n\n직원 잔액에서 차감하고, 이 거래는 목록에서 숨깁니다. (크레딧은 해당 로트가 아직 전부 남아 있을 때만 가능합니다.)`
-    )
+  async function run() {
+    const ok = await confirm({
+      title: '관리자 지급 취소',
+      message: `「${label}」관리자 지급 건을 취소할까요?\n\n직원 잔액에서 차감하고, 이 거래는 목록에서 숨깁니다.\n(크레딧은 해당 로트가 아직 전부 남아 있을 때만 가능합니다.)`,
+      confirmLabel: '지급 취소',
+      variant: 'danger',
+    })
     if (!ok) return
     setMsg(null)
     startTransition(async () => {
       const res = await revertAdminGrantTransaction(transactionId)
       if (res.error) {
         setMsg(res.error)
+        toast(res.error, 'error')
         return
       }
+      toast('지급을 취소했습니다.')
       router.refresh()
     })
   }

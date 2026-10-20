@@ -31,7 +31,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ko-KR', {
+  return new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'UTC',
     year: 'numeric',
     month: 'long',
     day: 'numeric',

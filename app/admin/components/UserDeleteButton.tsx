@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { deleteUserAccountByAdmin } from '@/api/actions/admin'
+import { useFeedback } from '@/components/ui/feedback'
 
 interface UserDeleteButtonProps {
   userId: string
@@ -12,12 +13,16 @@ interface UserDeleteButtonProps {
 export function UserDeleteButton({ userId, userEmail, userName }: UserDeleteButtonProps) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { confirm, toast } = useFeedback()
 
   async function handleDelete() {
     // 실수 삭제를 줄이기 위해 이메일 확인 문구를 띄웁니다.
-    const ok = confirm(
-      `정말 이 계정을 삭제할까요?\n\n대상: ${userName || userEmail}\n${userEmail}\n\n삭제 후에는 목록에서 숨겨지고 로그인도 차단됩니다.`
-    )
+    const ok = await confirm({
+      title: '계정 삭제',
+      message: `정말 이 계정을 삭제할까요?\n\n대상: ${userName || userEmail}\n${userEmail}\n\n삭제 후에는 목록에서 숨겨지고 로그인도 차단됩니다.`,
+      confirmLabel: '삭제',
+      variant: 'danger',
+    })
     if (!ok) return
 
     setPending(true)
@@ -26,8 +31,10 @@ export function UserDeleteButton({ userId, userEmail, userName }: UserDeleteButt
     setPending(false)
     if (result.error) {
       setError(result.error)
+      toast(result.error, 'error')
       return
     }
+    toast(`${userName || userEmail} 계정을 삭제했습니다.`)
   }
 
   return (

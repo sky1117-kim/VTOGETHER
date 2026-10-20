@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { updateUserAdmin } from '@/api/actions/admin'
+import { useFeedback } from '@/components/ui/feedback'
 
 interface AdminToggleProps {
   userId: string
@@ -14,11 +15,18 @@ export function AdminToggle({ userId, initial, isSelf }: AdminToggleProps) {
   const [checked, setChecked] = useState(initial)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { confirm, toast } = useFeedback()
 
   async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const next = e.target.checked
     if (isSelf && !next) {
-      if (!confirm('본인 관리자 권한을 해제하면 이 페이지에 다시 접근할 수 없습니다. 계속할까요?')) {
+      const ok = await confirm({
+        title: '본인 관리자 권한 해제',
+        message: '본인 관리자 권한을 해제하면 이 페이지에 다시 접근할 수 없습니다. 계속할까요?',
+        confirmLabel: '해제',
+        variant: 'danger',
+      })
+      if (!ok) {
         return
       }
     }
@@ -28,9 +36,11 @@ export function AdminToggle({ userId, initial, isSelf }: AdminToggleProps) {
     setPending(false)
     if (result.error) {
       setError(result.error)
+      toast(result.error, 'error')
       return
     }
     setChecked(next)
+    toast(next ? '관리자 권한을 부여했습니다.' : '관리자 권한을 해제했습니다.')
   }
 
   return (

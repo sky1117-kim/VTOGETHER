@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Plus, Trash2, Edit2, Eye, EyeOff, Megaphone } from 'lucide-react'
 import { createNotice, updateNotice, deleteNotice, toggleNoticePopup } from '@/api/actions/notices'
 import { uploadPopupImage } from '@/api/actions/admin'
+import { useFeedback } from '@/components/ui/feedback'
 
 type NoticeItem = {
   id: string
@@ -20,6 +21,7 @@ const EMPTY_FORM = { title: '', body: '', image_url: '', is_published: true, sho
 
 export function AdminNoticeManager({ notices: initial }: { notices: NoticeItem[] }) {
   const [notices, setNotices] = useState(initial)
+  const { confirm, toast } = useFeedback()
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -74,9 +76,14 @@ export function AdminNoticeManager({ notices: initial }: { notices: NoticeItem[]
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('삭제하시겠습니까?')) return
+    if (!(await confirm({ title: '소식 삭제', message: '이 소식을 삭제하시겠습니까?', confirmLabel: '삭제', variant: 'danger' }))) return
     const res = await deleteNotice(id)
-    if (!res.error) setNotices((prev) => prev.filter((n) => n.id !== id))
+    if (res.error) {
+      toast(res.error, 'error')
+      return
+    }
+    setNotices((prev) => prev.filter((n) => n.id !== id))
+    toast('소식을 삭제했습니다.')
   }
 
   async function handleTogglePublish(n: NoticeItem) {
@@ -154,7 +161,7 @@ export function AdminNoticeManager({ notices: initial }: { notices: NoticeItem[]
                   <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">팝업</span>
                 )}
               </div>
-              <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleDateString('ko-KR')}</p>
+              <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <button onClick={() => handleTogglePopup(n)} title={n.show_as_popup ? '팝업 해제' : '팝업으로 표시'} className={`rounded-lg p-1.5 transition ${n.show_as_popup ? 'text-purple-500 hover:text-purple-700' : 'text-gray-300 hover:text-purple-500'}`}>

@@ -1,9 +1,11 @@
 'use client'
 /* eslint-disable @next/next/no-img-element */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
+import { useFeedback } from '@/components/ui/feedback'
+import { useUrlState } from '@/hooks/use-url-state'
 import type {
   PendingSubmissionRow,
   BackfillRecipientCandidate,
@@ -45,7 +47,16 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, setPending] = useState<string | null>(null)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [message, setMessageState] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const { confirm, toast } = useFeedback()
+  // 상단 배너는 스크롤 아래에서 안 보이므로 결과를 토스트로도 함께 띄움
+  const setMessage = useCallback(
+    (m: { type: 'ok' | 'error'; text: string } | null) => {
+      setMessageState(m)
+      if (m) toast(m.text, m.type === 'ok' ? 'success' : 'error')
+    },
+    [toast]
+  )
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectTarget, setRejectTarget] = useState<{ ids: string[]; isBulk: boolean } | null>(null)
@@ -58,10 +69,11 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
   const [manualSearchKeyword, setManualSearchKeyword] = useState('')
   const [manualSearchResults, setManualSearchResults] = useState<BackfillRecipientCandidate[]>([])
   const [backfillHistory, setBackfillHistory] = useState<BackfillHistoryItem[]>([])
-  const [filterEventId, setFilterEventId] = useState<string>('')
-  const [filterRoundId, setFilterRoundId] = useState<string>('')
-  const [filterStatus, setFilterStatus] = useState<string>('PENDING') // 기본: 승인대기만 보기 (자주 쓰는 작업)
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  // 필터는 주소에 저장 → 새로고침·뒤로 가기 후에도 유지
+  const [filterEventId, setFilterEventId] = useUrlState<string>('event', '')
+  const [filterRoundId, setFilterRoundId] = useUrlState<string>('round', '')
+  const [filterStatus, setFilterStatus] = useUrlState<string>('status', 'PENDING') // 기본: 승인대기만 보기 (자주 쓰는 작업)
+  const [searchQuery, setSearchQuery] = useUrlState<string>('q', '')
 
   const eventOptions = useMemo(() => {
     const seen = new Map<string, string>()
@@ -239,7 +251,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
       setMessage({ type: 'error', text: '반영할 직원을 1명 이상 선택해주세요.' })
       return
     }
-    const ok = window.confirm(`선택한 ${selectedIds.length}명을 누락 수신자로 반영할까요?`)
+    const ok = await confirm({ title: '누락 수신자 반영', message: `선택한 ${selectedIds.length}명을 누락 수신자로 반영할까요?`, confirmLabel: '반영' })
     if (!ok) return
     setMessage(null)
     setPending(`backfill:confirm:${backfillSubmissionId}`)
@@ -386,7 +398,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
       ) : (
         /* 테이블형: 기본 */
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
+          <div className="max-h-[75vh] overflow-auto overscroll-contain">
             <table className="w-full min-w-[920px] text-left">
               <colgroup>
                 <col className="w-12" />
@@ -398,7 +410,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                 <col className="w-24" />
                 <col className="w-44" />
               </colgroup>
-              <thead className="border-b border-gray-200 bg-gray-50/80">
+              <thead className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-4 py-4">
                     <input
@@ -486,7 +498,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                       <VerificationPreviewCell row={row} />
                     </td>
                     <td className="whitespace-nowrap border-l border-gray-100 px-2 py-4 text-sm text-gray-500">
-                      {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                      {new Date(row.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric' })}
                     </td>
                     <td className={`whitespace-nowrap border-l border-gray-100 px-4 py-4 ${isResolved ? 'bg-gray-50/70' : 'bg-white group-hover:bg-gray-50/50'}`}>
                       {isResolved ? (
@@ -710,7 +722,7 @@ export function VerificationsTable({ rows }: VerificationsTableProps) {
                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .map((h) => (
                       <div key={h.transaction_id} className="rounded bg-white px-2 py-1.5 text-xs text-gray-700">
-                        {new Date(h.created_at).toLocaleString('ko-KR', {
+                        {new Date(h.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul',
                           month: '2-digit',
                           day: '2-digit',
                           hour: '2-digit',
@@ -838,7 +850,7 @@ function SubmissionCard({
               </p>
             )}
             <p className="mt-0.5 text-xs text-gray-500 whitespace-normal break-words">
-              {row.round_number != null ? `${row.round_number}구간` : '상시'} · {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {row.round_number != null ? `${row.round_number}구간` : '상시'} · {new Date(row.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
               {resolved && row.rejection_reason && ` · 반려: ${row.rejection_reason}`}
             </p>
           </div>
@@ -1166,7 +1178,7 @@ function VerificationDetailModal({
                 </p>
                 <p>
                   <span className="font-medium text-gray-500">제출일시</span>{' '}
-                  {new Date(row.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(row.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>

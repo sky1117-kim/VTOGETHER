@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Noto_Sans_KR } from "next/font/google";
+import { Suspense } from "react";
 import { SupabaseBrowserBridge } from "@/components/providers/supabase-browser-bridge";
+import { FeedbackProvider } from "@/components/ui/feedback";
+import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import "./globals.css";
 
 // 환경변수 값을 안전하게 정리해 GA 측정 ID를 반환합니다.
@@ -44,7 +47,12 @@ export default function RootLayout({
   return (
     <html lang="ko" className="overflow-x-clip">
       <body className={`${notoSansKr.variable} font-sans antialiased overflow-x-clip`}>
-        <SupabaseBrowserBridge>{children}</SupabaseBrowserBridge>
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
+        <SupabaseBrowserBridge>
+          <FeedbackProvider>{children}</FeedbackProvider>
+        </SupabaseBrowserBridge>
         {gaMeasurementId ? <GoogleAnalytics gaId={gaMeasurementId} /> : null}
       </body>
     </html>

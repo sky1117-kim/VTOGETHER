@@ -94,7 +94,7 @@ export function EventParticipationSection({ submissions }: EventParticipationSec
                       {s.round_number != null && <span>{s.round_number}구간</span>}
                       <span className="text-slate-400 sm:before:mr-2 sm:before:inline-block sm:before:h-1 sm:before:w-1 sm:before:rounded-full sm:before:bg-slate-300 sm:before:align-middle sm:before:content-['']">
                         제출{' '}
-                        {new Date(s.created_at).toLocaleDateString('ko-KR', {
+                        {new Date(s.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul',
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',

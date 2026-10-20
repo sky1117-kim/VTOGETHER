@@ -8,6 +8,9 @@ import {
   refillDefaultTracksForSeason,
   type HealthSeasonAdminRow,
 } from '@/api/actions/admin/health-challenges'
+import { useFeedback } from '@/components/ui/feedback'
+
+const STATUS_LABEL = { DRAFT: '초안', ACTIVE: '진행 중', ARCHIVED: '보관' } as const
 
 function fmtSeoul(iso: string): string {
   try {
@@ -23,23 +26,30 @@ function fmtSeoul(iso: string): string {
 export function HealthSeasonsTable({ seasons }: { seasons: HealthSeasonAdminRow[] }) {
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const { confirm, toast } = useFeedback()
 
   async function onStatus(seasonId: string, status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED') {
-    if (!confirm(`상태를 ${status}(으)로 바꿀까요?`)) return
+    if (!(await confirm({ title: '시즌 상태 변경', message: `상태를 '${STATUS_LABEL[status]}'(으)로 바꿀까요?` }))) return
     setBusyId(seasonId)
     const r = await updateHealthSeasonStatus(seasonId, status)
     setBusyId(null)
-    if (!r.success) alert(r.error)
-    else router.refresh()
+    if (!r.success) toast(r.error ?? '상태 변경에 실패했습니다.', 'error')
+    else {
+      toast(`'${STATUS_LABEL[status]}' 상태로 변경했습니다.`)
+      router.refresh()
+    }
   }
 
   async function onRefill(seasonId: string) {
-    if (!confirm('기본 4종목·레벨 목표를 다시 채웁니다. 기존 값은 upsert로 맞춥니다. 계속할까요?')) return
+    if (!(await confirm({ title: '기본 종목 다시 채우기', message: '기본 4종목·레벨 목표를 다시 채웁니다.\n기존 값은 upsert로 맞춥니다. 계속할까요?' }))) return
     setBusyId(seasonId)
     const r = await refillDefaultTracksForSeason(seasonId)
     setBusyId(null)
-    if (!r.success) alert(r.error)
-    else router.refresh()
+    if (!r.success) toast(r.error ?? '다시 채우기에 실패했습니다.', 'error')
+    else {
+      toast('기본 종목·레벨 목표를 채웠습니다.')
+      router.refresh()
+    }
   }
 
   return (

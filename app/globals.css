@@ -337,3 +337,60 @@ body.modal-active {
   height: 0;
   pointer-events: none;
 }
+
+/* ───────── 공통 인터랙션 (Tailwind v4는 button 기본 커서가 default) ───────── */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  select:not(:disabled),
+  summary,
+  label[for],
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='file']:not(:disabled),
+  input[type='date']:not(:disabled),
+  input[type='datetime-local']:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  textarea:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+  /* 모든 버튼에 동일한 눌림 피드백 (btn-press 미적용 버튼 포함) */
+  button {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 0.15s;
+    transition-timing-function: ease;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+}
+
+/* 토스트 알림 */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-toast-in {
+  animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 페이지 이동 진행 막대 */
+@keyframes navProgress {
+  0% { transform: scaleX(0); }
+  20% { transform: scaleX(0.35); }
+  60% { transform: scaleX(0.7); }
+  100% { transform: scaleX(0.9); }
+}
+.nav-progress {
+  transform-origin: left;
+  animation: navProgress 8s cubic-bezier(0.1, 0.6, 0.2, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress { animation: none; transform: scaleX(0.6); }
+  button:not(:disabled):active { transform: none; }
+}

@@ -46,7 +46,7 @@ function formatRelativeTime(isoDate: string): string {
   if (diffSec < 60 * 60 * 24) return `${Math.floor(diffSec / (60 * 60))}시간 전`
   if (diffSec < 60 * 60 * 24 * 7) return `${Math.floor(diffSec / (60 * 60 * 24))}일 전`
 
-  return new Date(isoDate).toLocaleDateString('ko-KR', {
+  return new Date(isoDate).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul',
     month: 'short',
     day: 'numeric',
   })

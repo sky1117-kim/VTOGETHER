@@ -1,9 +1,11 @@
 'use client'
 
+import { useOptimistic, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { NonPointRewardRow } from '@/api/actions/admin'
 import { setRewardFulfillment } from '@/api/actions/admin'
+import { useFeedback } from '@/components/ui/feedback'
 
 const REWARD_TYPE_LABEL: Record<string, string> = {
   COFFEE_COUPON: '커피 쿠폰',
@@ -12,7 +14,7 @@ const REWARD_TYPE_LABEL: Record<string, string> = {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ko-KR', {
+  return new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -35,6 +37,13 @@ export function RewardFulfillmentTable({
   currentEventId,
 }: RewardFulfillmentTableProps) {
   const router = useRouter()
+  const { toast } = useFeedback()
+  const [, startTransition] = useTransition()
+  const [optimisticRows, setOptimisticFulfilled] = useOptimistic(
+    rows,
+    (state, { id, fulfilled }: { id: string; fulfilled: boolean }) =>
+      state.map((r) => (r.submission_id === id ? { ...r, fulfilled_at: fulfilled ? new Date().toISOString() : null } : r))
+  )
 
   const buildFilterUrl = (filter: FilterType) => {
     const params = new URLSearchParams()
@@ -44,10 +53,15 @@ export function RewardFulfillmentTable({
     return `/admin/reward-fulfillment${qs ? `?${qs}` : ''}`
   }
 
-  async function handleToggle(submissionId: string, currentlyFulfilled: boolean) {
-    const { success, error } = await setRewardFulfillment(submissionId, !currentlyFulfilled)
-    if (success) router.refresh()
-    else if (error) alert(error)
+  function handleToggle(submissionId: string, currentlyFulfilled: boolean) {
+    startTransition(async () => {
+      setOptimisticFulfilled({ id: submissionId, fulfilled: !currentlyFulfilled })
+      const { success, error } = await setRewardFulfillment(submissionId, !currentlyFulfilled)
+      if (success) {
+        toast(currentlyFulfilled ? '대기로 되돌렸습니다.' : '발송 완료로 표시했습니다.')
+        router.refresh()
+      } else toast(error ?? '변경에 실패했습니다.', 'error')
+    })
   }
 
   return (
@@ -76,9 +90,9 @@ export function RewardFulfillmentTable({
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="max-h-[75vh] overflow-auto overscroll-contain">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="sticky top-0 z-10 bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                   발송 완료
@@ -104,7 +118,7 @@ export function RewardFulfillmentTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {rows.map((r) => {
+              {optimisticRows.map((r) => {
                 const fulfilled = !!r.fulfilled_at
                 return (
                   <tr key={r.submission_id} className="hover:bg-gray-50/50">

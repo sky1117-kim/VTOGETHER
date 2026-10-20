@@ -144,7 +144,7 @@ export function PointHistorySection({ transactions }: PointHistorySectionProps) 
             <p className="truncate font-semibold text-slate-800">{displayDesc}</p>
           )}
           <p className="text-xs text-slate-500">
-            {new Date(t.created_at).toLocaleDateString('ko-KR', {
+            {new Date(t.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul',
               year: 'numeric',
               month: 'long',
               day: 'numeric',

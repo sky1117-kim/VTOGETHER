@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useOptimistic, useState, useTransition } from 'react'
 import type { ShopOrderAdminRow } from '@/api/actions/admin/shop-orders'
 import { cancelShopOrder, setShopOrderFulfillment } from '@/api/actions/admin/shop-orders'
 import { useRouter } from 'next/navigation'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { AlertModal } from '@/components/ui/AlertModal'
+import { useFeedback } from '@/components/ui/feedback'
 
 function productTypeLabel(t: string): string {
   const k = t.toUpperCase()
@@ -24,12 +25,22 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
   const [isPending, startTransition] = useTransition()
   const [cancelTarget, setCancelTarget] = useState<ShopOrderAdminRow | null>(null)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
+  const { toast } = useFeedback()
+  // 체크 즉시 화면에 반영하고, 서버 응답·새로고침이 끝나면 실제 값으로 맞춰짐
+  const [optimisticRows, setOptimisticFulfilled] = useOptimistic(
+    rows,
+    (state, { orderId, checked }: { orderId: string; checked: boolean }) =>
+      state.map((r) => (r.order_id === orderId ? { ...r, fulfilled_at: checked ? new Date().toISOString() : null } : r))
+  )
 
   const handleToggle = (orderId: string, checked: boolean) => {
     startTransition(async () => {
+      setOptimisticFulfilled({ orderId, checked })
       const result = await setShopOrderFulfillment(orderId, checked)
-      if (result.success) router.refresh()
-      else if (result.error) alert(result.error)
+      if (result.success) {
+        toast(checked ? '지급 완료로 표시했습니다.' : '지급 필요로 되돌렸습니다.')
+        router.refresh()
+      } else toast(result.error ?? '변경에 실패했습니다.', 'error')
     })
   }
 
@@ -39,15 +50,17 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
     setCancelTarget(null)
     startTransition(async () => {
       const result = await cancelShopOrder(orderId)
-      if (result.success) router.refresh()
-      else setAlertMessage(result.error ?? '주문 취소에 실패했습니다.')
+      if (result.success) {
+        toast('주문을 취소했습니다.')
+        router.refresh()
+      } else setAlertMessage(result.error ?? '주문 취소에 실패했습니다.')
     })
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="max-h-[75vh] overflow-auto overscroll-contain rounded-2xl border border-gray-200 bg-white shadow-sm">
       <table className="min-w-[860px] w-full text-left text-sm">
-        <thead className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
+        <thead className="sticky top-0 z-10 border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
           <tr>
             <th className="whitespace-nowrap px-3 py-3">지급 체크</th>
             <th className="whitespace-nowrap px-3 py-3">일시</th>
@@ -61,14 +74,14 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {rows.length === 0 && (
+          {optimisticRows.length === 0 && (
             <tr>
               <td colSpan={9} className="px-4 py-10 text-center text-gray-500">
                 주문 내역이 없습니다.
               </td>
             </tr>
           )}
-          {rows.map((row) => {
+          {optimisticRows.map((row) => {
             const needsFulfillment = row.product_type === 'GOODS' || row.product_type === 'ESG'
             const fulfilled = !!row.fulfilled_at
             const cancelled = row.status === 'CANCELLED'
@@ -96,7 +109,7 @@ export function ShopOrdersTable({ rows }: ShopOrdersTableProps) {
                   )}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-gray-700">
-                  {new Date(row.created_at).toLocaleString('ko-KR')}
+                  {new Date(row.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                 </td>
                 <td className="px-3 py-2 text-gray-900">
                   <div className="font-medium">{row.user_name?.trim() || '이름 없음'}</div>

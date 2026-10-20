@@ -10,6 +10,7 @@ import {
   type LinkedHealthSeasonEditorTrackRow,
 } from '@/api/actions/admin/health-challenges'
 import { uploadHealthCriteriaAttachment } from '@/api/actions/events'
+import { useFeedback } from '@/components/ui/feedback'
 
 const inputClass =
   'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500'
@@ -79,6 +80,7 @@ export function EventHealthChallengeEditor({
   initial: LinkedHealthSeasonEditorData | null
 }) {
   const router = useRouter()
+  const { confirm, toast } = useFeedback()
   const now = useMemo(() => new Date(), [])
   const defaultRange = useMemo(() => monthRange(now.getFullYear(), now.getMonth() + 1), [now])
 
@@ -196,14 +198,22 @@ export function EventHealthChallengeEditor({
 
   async function onRefillDefaults() {
     if (!initial) return
-    if (!confirm('기획 기본값으로 4종목·레벨을 채웁니다. 이미 있는 값은 덮어씁니다. 계속할까요?')) return
+    const ok = await confirm({
+      title: '기본값으로 채우기',
+      message: '기획 기본값으로 4종목·레벨을 채웁니다.\n이미 있는 값은 덮어씁니다. 계속할까요?',
+      confirmLabel: '채우기',
+      variant: 'danger',
+    })
+    if (!ok) return
     setPending(true)
     const r = await refillDefaultTracksForSeason(initial.season_id)
     setPending(false)
     if (!r.success) {
       setMessage({ type: 'err', text: r.error ?? '실패' })
+      toast(r.error ?? '기본값 채우기에 실패했습니다.', 'error')
       return
     }
+    toast('기본값으로 채웠습니다.')
     router.refresh()
   }
 

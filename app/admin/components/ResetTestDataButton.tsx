@@ -2,19 +2,28 @@
 
 import { useState } from 'react'
 import { resetAndSeedTestData } from '@/api/actions/admin'
+import { useFeedback } from '@/components/ui/feedback'
 
 export function ResetTestDataButton() {
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [pending, setPending] = useState(false)
+  const { confirm, toast } = useFeedback()
 
   async function handleClick() {
-    if (!confirm('기존 포인트/기부 데이터를 모두 초기화하고 테스트 데이터로 채우시겠습니까?')) return
+    const ok = await confirm({
+      title: '테스트 데이터 초기화',
+      message: '기존 포인트/기부 데이터를 모두 초기화하고 테스트 데이터로 채우시겠습니까?',
+      confirmLabel: '초기화',
+      variant: 'danger',
+    })
+    if (!ok) return
     setMessage(null)
     setPending(true)
     const result = await resetAndSeedTestData()
     setPending(false)
     if (result.error) {
       setMessage({ type: 'error', text: result.error })
+      toast(result.error, 'error')
       return
     }
     setMessage({ type: 'ok', text: '테스트 데이터로 초기화되었습니다. 메인/기부/랭킹 화면을 새로고침해보세요.' })

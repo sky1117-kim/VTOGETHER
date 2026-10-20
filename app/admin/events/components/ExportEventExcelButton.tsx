@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { getEventSubmissionsForExport } from '@/api/actions/admin/events'
 import * as XLSX from 'xlsx'
+import { useFeedback } from '@/components/ui/feedback'
 
 interface ExportEventExcelButtonProps {
   eventId: string
@@ -17,6 +18,7 @@ export function ExportEventExcelButton({
   variant = 'row',
 }: ExportEventExcelButtonProps) {
   const [loading, setLoading] = useState(false)
+  const { toast } = useFeedback()
   // 기본 컬럼은 앞에 고정하고, 질문별 컬럼(칭찬 조직/핵심가치/사례 등)은 뒤에 동적으로 붙입니다.
   const baseColumns = [
     '이벤트명',
@@ -42,7 +44,7 @@ export function ExportEventExcelButton({
     try {
       const { data, eventTitle: title, error } = await getEventSubmissionsForExport(eventId)
       if (error) {
-        alert(error)
+        toast(error, 'error')
         return
       }
       const fileName = `${title ?? eventTitle}_제출목록_${new Date().toISOString().slice(0, 10)}.xlsx`

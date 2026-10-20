@@ -15,6 +15,8 @@ import {
   type ShopProductVariantRow,
 } from '@/api/actions/admin/shop-products'
 import { useRouter } from 'next/navigation'
+import { useFeedback } from '@/components/ui/feedback'
+import { useUrlState } from '@/hooks/use-url-state'
 import { formatIntegerWithCommas, sanitizeIntegerInput } from '@/lib/number-format'
 
 type ProductRow = {
@@ -222,11 +224,17 @@ function ProductImageUploadBox({
 export function ShopProductsAdminClient({ products }: { products: ProductRow[] }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessageState] = useState<string | null>(null)
+  const { confirm, toast } = useFeedback()
+  // 상단 배너는 스크롤 아래에서 안 보이므로 결과를 토스트로도 함께 띄움
+  const setMessage = (text: string | null, variant: 'success' | 'error' = 'success') => {
+    setMessageState(text)
+    if (text) toast(text, variant)
+  }
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [keyword, setKeyword] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ESG'>('ALL')
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
+  const [keyword, setKeyword] = useUrlState<string>('q', '')
+  const [typeFilter, setTypeFilter] = useUrlState<'ALL' | 'GOODS' | 'CREDIT_PACK' | 'ESG'>('type', 'ALL')
+  const [statusFilter, setStatusFilter] = useUrlState<'ALL' | 'ACTIVE' | 'INACTIVE'>('status', 'ALL')
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -269,7 +277,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
         fd.append('file', optimized)
         const result = await uploadShopProductImage(fd)
         if (!result.url) {
-          setMessage(result.error ?? '이미지 업로드 실패')
+          setMessage(result.error ?? '이미지 업로드 실패', 'error')
           return
         }
         uploadedUrls.push(result.url)
@@ -290,12 +298,18 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
     })
   }
 
-  function handleDelete(p: ProductRow) {
-    if (!window.confirm(`'${p.name}' 상품을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return
+  async function handleDelete(p: ProductRow) {
+    const ok = await confirm({
+      title: '상품 삭제',
+      message: `'${p.name}' 상품을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+      confirmLabel: '삭제',
+      variant: 'danger',
+    })
+    if (!ok) return
     setMessage(null)
     startTransition(async () => {
       const result = await deleteShopProduct(p.product_id)
-      if (!result.success) return setMessage(result.error ?? '삭제 실패')
+      if (!result.success) return setMessage(result.error ?? '삭제 실패', 'error')
       if (editingId === p.product_id) setEditingId(null)
       setMessage('상품을 삭제했습니다.')
       router.refresh()
@@ -373,7 +387,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                 has_variants: form.has_variants,
                 image_url: form.image_url.trim() || null,
               })
-              if (!result.success) return setMessage(result.error ?? '등록 실패')
+              if (!result.success) return setMessage(result.error ?? '등록 실패', 'error')
               if (form.has_variants && result.product_id) {
                 for (const d of createVariantDrafts) {
                   if (!d.color.trim() && !d.size.trim()) continue
@@ -463,7 +477,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                     onClick={() => {
                       startTransition(async () => {
                         const result = await toggleShopProductActive(p.product_id, !p.is_active)
-                        if (!result.success) return setMessage(result.error ?? '상태 변경 실패')
+                        if (!result.success) return setMessage(result.error ?? '상태 변경 실패', 'error')
                         setMessage(p.is_active ? '상품을 숨겼습니다.' : '상품을 다시 노출했습니다.')
                         router.refresh()
                       })
@@ -600,7 +614,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                       onClick={() => {
                         startTransition(async () => {
                           const result = await toggleShopProductActive(p.product_id, !p.is_active)
-                          if (!result.success) return setMessage(result.error ?? '상태 변경 실패')
+                          if (!result.success) return setMessage(result.error ?? '상태 변경 실패', 'error')
                           setMessage(p.is_active ? '상품을 숨겼습니다.' : '상품을 다시 노출했습니다.')
                           router.refresh()
                         })
@@ -780,7 +794,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                             stock: v.stock,
                             is_active: v.is_active,
                           })
-                          if (!result.success) return setMessage(result.error ?? '옵션 저장 실패')
+                          if (!result.success) return setMessage(result.error ?? '옵션 저장 실패', 'error')
                           setMessage('옵션을 저장했습니다.')
                           router.refresh()
                         })
@@ -795,7 +809,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                       onClick={() => {
                         startTransition(async () => {
                           const result = await deleteShopProductVariant(v.variant_id)
-                          if (!result.success) return setMessage(result.error ?? '옵션 삭제 실패')
+                          if (!result.success) return setMessage(result.error ?? '옵션 삭제 실패', 'error')
                           setEditVariants(editVariants.filter((item) => item.variant_id !== v.variant_id))
                           setMessage('옵션을 삭제했습니다.')
                           router.refresh()
@@ -840,7 +854,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                             size: newEditVariant.size,
                             stock: Number(sanitizeIntegerInput(newEditVariant.stock) || '0'),
                           })
-                          if (!result.success) return setMessage(result.error ?? '옵션 추가 실패')
+                          if (!result.success) return setMessage(result.error ?? '옵션 추가 실패', 'error')
                           setNewEditVariant(null)
                           loadEditVariants(editingId)
                           setMessage('옵션을 추가했습니다.')
@@ -907,7 +921,7 @@ export function ShopProductsAdminClient({ products }: { products: ProductRow[] }
                     image_url: editForm.image_url.trim() || null,
                     is_active: editForm.is_active,
                   })
-                  if (!result.success) return setMessage(result.error ?? '수정 실패')
+                  if (!result.success) return setMessage(result.error ?? '수정 실패', 'error')
                   setMessage('상품 정보를 수정했습니다.')
                   setEditingId(null)
                   router.refresh()

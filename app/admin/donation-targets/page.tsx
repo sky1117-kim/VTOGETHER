@@ -97,7 +97,7 @@ export default async function AdminDonationTargetsPage() {
                             {r.amount.toLocaleString()}원
                           </td>
                           <td className="px-4 py-2 text-gray-400">
-                            {new Date(r.updated_at).toLocaleDateString('ko-KR')}
+                            {new Date(r.updated_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
                           </td>
                         </tr>
                       ))}

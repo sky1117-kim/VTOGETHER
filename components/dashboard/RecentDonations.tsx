@@ -54,7 +54,7 @@ export function RecentDonations({ donations }: RecentDonationsProps) {
                   : '알 수 없음'}
               </p>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                {new Date(donation.created_at).toLocaleDateString('ko-KR', {
+                {new Date(donation.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul',
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',

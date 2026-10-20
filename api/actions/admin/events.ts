@@ -809,7 +809,7 @@ export async function getEventSubmissionsForExport(eventId: string): Promise<{
         참여자명: user?.name ?? user?.email ?? s.user_id,
         이메일: user?.email ?? s.user_id,
         상태: STATUS_LABEL[s.status] ?? s.status,
-        제출일시: new Date(s.created_at).toLocaleString('ko-KR'),
+        제출일시: new Date(s.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
         보상유형: s.reward_type ? (REWARD_LABEL[s.reward_type] ?? s.reward_type) : '—',
         반려사유: s.rejection_reason ?? '',
         인증내용: cleanedTextParts.length ? cleanedTextParts.join(' | ') : dash,

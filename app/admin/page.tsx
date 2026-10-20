@@ -93,7 +93,7 @@ export default async function AdminPage() {
           <p className="mt-1 text-sm text-gray-500">전사 지표와 자주 쓰는 메뉴를 한눈에 확인하세요.</p>
         </div>
         <p className="shrink-0 text-sm tabular-nums text-gray-400">
-          {now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+          {now.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
         </p>
       </div>
 

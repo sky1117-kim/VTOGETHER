@@ -83,7 +83,7 @@ export function ReceivedComplimentsSection({ compliments }: ReceivedComplimentsS
                 )}
               </div>
               <p className="mt-1 text-xs font-medium text-slate-500">
-                {new Date(c.created_at).toLocaleString('ko-KR', {
+                {new Date(c.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul',
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',

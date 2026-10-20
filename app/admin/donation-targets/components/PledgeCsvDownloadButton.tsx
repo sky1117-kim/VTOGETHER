@@ -19,7 +19,7 @@ export function PledgeCsvDownloadButton({ pledges }: PledgeCsvDownloadButtonProp
       p.user_name ?? '',
       p.user_email ?? '',
       String(p.amount),
-      new Date(p.updated_at).toLocaleDateString('ko-KR'),
+      new Date(p.updated_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }),
     ])
     const csv = [header, ...rows].map((row) => row.map(toCsvCell).join(',')).join('\r\n')
     // 엑셀에서 한글이 깨지지 않도록 UTF-8 BOM을 붙인다.

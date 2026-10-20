@@ -226,7 +226,7 @@ export function AuctionBidsTable({
                 [
                   ['제출일시', '품목', '이름', '이메일', '부서', '입찰가'],
                   ...bids.map((b) => [
-                    new Date(b.created_at).toLocaleString('ko-KR'),
+                    new Date(b.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
                     b.item_name,
                     b.user_name ?? '',
                     b.user_email ?? '',
@@ -260,7 +260,7 @@ export function AuctionBidsTable({
               <tbody className="divide-y divide-gray-100">
                 {bids.map((b) => (
                   <tr key={b.bid_id}>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-500">{new Date(b.created_at).toLocaleString('ko-KR')}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-500">{new Date(b.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</td>
                     <td className="px-4 py-3">{b.item_name}</td>
                     <td className="px-4 py-3">{b.user_name || b.user_email || b.user_id}</td>
                     <td className="px-4 py-3">{b.dept_name ?? '-'}</td>

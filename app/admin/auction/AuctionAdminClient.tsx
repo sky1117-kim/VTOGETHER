@@ -285,7 +285,7 @@ export function AuctionAdminClient({
               </button>
             </div>
             <p className="mt-1 text-xs text-green-800">
-              {new Date(selectedEvent.start_at).toLocaleString('ko-KR')} ~ {new Date(selectedEvent.end_at).toLocaleString('ko-KR')}
+              {new Date(selectedEvent.start_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} ~ {new Date(selectedEvent.end_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
             </p>
 
             {editingEvent && (

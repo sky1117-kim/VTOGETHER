@@ -6,6 +6,7 @@ import { AuctionCountdown } from './AuctionCountdown'
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
     month: 'long',
     day: 'numeric',
     hour: '2-digit',

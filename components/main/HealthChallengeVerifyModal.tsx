@@ -393,7 +393,7 @@ export function HealthChallengeVerifyModal({
                 {submittedInfo && (
                   <>
                     <p className="text-[10px] text-gray-500">
-                      제출일: {new Date(submittedInfo.created_at).toLocaleDateString('ko-KR')}
+                      제출일: {new Date(submittedInfo.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
                     </p>
                     {submittedInfo.status === 'REJECTED' && submittedInfo.rejection_reason?.trim() && (
                       <p className="text-[10px] text-red-700">

@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useUrlState } from '@/hooks/use-url-state'
 import type { UserRow } from '@/api/actions/admin'
 import { AdminToggle } from './AdminToggle'
 import { UserDeleteButton } from './UserDeleteButton'
@@ -26,13 +27,13 @@ function formatLastActive(iso: string | null): string {
   if (diffMins < 60) return `${diffMins}분 전`
   if (diffHours < 24) return `${diffHours}시간 전`
   if (diffDays < 7) return `${diffDays}일 전`
-  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 /** 관리자 계정 테이블: 이름/이메일 검색, 부서 필터 */
 export function AdminUserTable({ users, currentUserId, showLastActiveAt }: AdminUserTableProps) {
-  const [search, setSearch] = useState('')
-  const [deptFilter, setDeptFilter] = useState<string>('')
+  const [search, setSearch] = useUrlState<string>('q', '')
+  const [deptFilter, setDeptFilter] = useUrlState<string>('dept', '')
 
   // 부서 목록 (중복 제거, 정렬)
   const deptOptions = useMemo(() => {
@@ -91,9 +92,9 @@ export function AdminUserTable({ users, currentUserId, showLastActiveAt }: Admin
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="max-h-[75vh] overflow-auto overscroll-contain">
           <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
+            <thead className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-6 py-3 font-medium">이름 / 이메일</th>
                 {showLastActiveAt && (

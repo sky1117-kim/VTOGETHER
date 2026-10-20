@@ -249,9 +249,9 @@ export default async function AdminPointGrantPage({
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="max-h-[75vh] overflow-auto overscroll-contain rounded-xl border border-gray-200">
           <table className="min-w-[1080px] w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
+            <thead className="sticky top-0 z-10 bg-gray-50 text-gray-600">
               <tr>
                 <th className="w-[100px] px-3 py-2 text-left font-semibold">일시</th>
                 <th className="w-[180px] px-3 py-2 text-left font-semibold">직원</th>
@@ -274,7 +274,7 @@ export default async function AdminPointGrantPage({
               {rows.map((row) => (
                 <tr key={row.transaction_id} className="hover:bg-green-50/30">
                   <td className="whitespace-nowrap px-2 py-2 text-gray-700">
-                    {new Date(row.created_at).toLocaleDateString('ko-KR')}
+                    {new Date(row.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
                   </td>
                   <td className="px-3 py-2 text-gray-900">
                     <div className="max-w-[160px] truncate font-medium">{row.user_name || '이름 없음'}</div>

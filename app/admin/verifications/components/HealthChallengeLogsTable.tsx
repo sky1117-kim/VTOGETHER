@@ -13,6 +13,7 @@ import {
   type HealthActivityLogAdminRow,
 } from '@/api/actions/admin/health-challenges'
 import { achievedLevelFromTotal } from '@/lib/health-challenge-scoring'
+import { useFeedback } from '@/components/ui/feedback'
 
 const inputClass =
   'w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 shadow-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20'
@@ -65,7 +66,7 @@ function buildGroupedRows(rows: HealthActivityLogAdminRow[]): GroupedLogRow[] {
 function formatActivityDate(iso: string) {
   const d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''))
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('ko-KR', {
+  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -138,6 +139,7 @@ function PhotoLightbox({ url, onClose }: { url: string; onClose: () => void }) {
 
 export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdminRow[] }) {
   const router = useRouter()
+  const { confirm, toast } = useFeedback()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({})
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
@@ -172,10 +174,11 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
         : await approveHealthActivityLog(group.log_ids[0]!)
     if (!r.success) {
       setBusyId(null)
-      alert(r.error ?? '승인 실패')
+      toast(r.error ?? '승인 실패', 'error')
       return
     }
     setBusyId(null)
+    toast('승인했습니다.')
     router.refresh()
   }
 
@@ -186,35 +189,38 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
       const r = await rejectHealthActivityLog(logId, reason)
       if (!r.success) {
         setBusyId(null)
-        alert(r.error ?? '반려 실패')
+        toast(r.error ?? '반려 실패', 'error')
         return
       }
     }
     setBusyId(null)
+    toast('반려했습니다.')
     router.refresh()
   }
 
   async function onApproveAllForUser(userId: string) {
+    if (!(await confirm({ title: '일괄 승인', message: '이 사용자의 대기 중인 활동을 모두 승인할까요?', confirmLabel: '모두 승인' }))) return
     setBusyUserId(userId)
     const r = await approveAllPendingHealthActivityLogsForUser(userId)
     setBusyUserId(null)
     if (!r.success) {
-      alert(r.error ?? '일괄 승인 실패')
+      toast(r.error ?? '일괄 승인 실패', 'error')
       return
     }
-    alert(`해당 사용자 대기건 ${r.approved}건을 승인했습니다.`)
+    toast(`해당 사용자 대기건 ${r.approved}건을 승인했습니다.`)
     router.refresh()
   }
 
   async function onRejectAllForUser(userId: string, reason?: string) {
+    if (!(await confirm({ title: '일괄 반려', message: '이 사용자의 대기 중인 활동을 모두 반려할까요?', confirmLabel: '모두 반려', variant: 'danger' }))) return
     setBusyUserId(userId)
     const r = await rejectAllPendingHealthActivityLogsForUser(userId, reason)
     setBusyUserId(null)
     if (!r.success) {
-      alert(r.error ?? '일괄 반려 실패')
+      toast(r.error ?? '일괄 반려 실패', 'error')
       return
     }
-    alert(`해당 사용자 대기건 ${r.rejected}건을 반려했습니다.`)
+    toast(`해당 사용자 대기건 ${r.rejected}건을 반려했습니다.`)
     router.refresh()
   }
 
@@ -292,7 +298,7 @@ export function HealthChallengeLogsTable({ rows }: { rows: HealthActivityLogAdmi
           const row = group.base
           const isExpanded = !compactMode || expandedIds.has(group.group_id)
           const submittedAt = row.created_at
-            ? new Date(row.created_at).toLocaleString('ko-KR', {
+            ? new Date(row.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul',
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
