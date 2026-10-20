@@ -79,12 +79,20 @@ add_secret_or_fallback_env() {
   if [ -z "$value" ]; then
     return 0
   fi
-  if gcloud secrets describe "$secret_name" &>/dev/null 2>&1; then
+  local describe_out describe_rc=0
+  describe_out=$(gcloud secrets describe "$secret_name" --format="value(name)" 2>&1) || describe_rc=$?
+  if [ "$describe_rc" -eq 0 ]; then
     if [ -n "$SECRET_MAPPINGS" ]; then
       SECRET_MAPPINGS="$SECRET_MAPPINGS,${env_key}=${secret_name}:latest"
     else
       SECRET_MAPPINGS="${env_key}=${secret_name}:latest"
     fi
+  elif ! echo "$describe_out" | grep -q "NOT_FOUND"; then
+    # 인증 만료·네트워크 오류 등으로 조회만 실패한 경우: 평문 폴백하면 기존 시크릿 참조와 충돌하므로 중단
+    echo "❌ ${secret_name} 시크릿 조회에 실패했습니다 (시크릿이 없는 것이 아니라 조회 오류)."
+    echo "   $describe_out"
+    echo "   gcloud auth login 으로 다시 로그인한 뒤 재시도하세요."
+    exit 1
   else
     echo "⚠️  ${secret_name} 시크릿이 없어 ${env_key}를 평문 환경변수로 전달합니다. ./scripts/setup-secrets.sh 실행을 권장합니다."
     ENV_VARS="$ENV_VARS,${env_key}=${value}"
